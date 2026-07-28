@@ -21,7 +21,7 @@ bun run db:sync              # apply local scratch schema + seed + regenerate ty
 bun run dev                  # dev server with watch mode
 ```
 
-Then check `http://localhost:3000/health` and `http://localhost:3000/docs`.
+Then check `http://localhost:8000/health` and `http://localhost:8000/docs`.
 
 ## Environment
 
@@ -36,12 +36,12 @@ openssl rand -base64 32      # generate a value for BETTER_AUTH_SECRET
 | Variable | What it's for |
 |---|---|
 | `DATABASE_URL` | Postgres connection string. The default points at the compose `db` service. |
-| `PORT` | HTTP port (default 3000). |
+| `PORT` | HTTP port (default 8000). |
 | `LOG_LEVEL` | Pino level: `fatal`\|`error`\|`warn`\|`info`\|`debug`\|`trace`\|`silent` (default `info`). |
 | `AWS_REGION` | Local development only — Fargate injects it in production. |
 | `S3_ASSETS_BUCKET` | Bucket holding map assets (PMTiles, rasters, manifests) that BES lists and signs URLs for. |
 | `BETTER_AUTH_SECRET` | Session signing secret. Generate with the openssl command above. |
-| `BETTER_AUTH_URL` | Publicly reachable origin of this API. `http://localhost:3000` locally; the ALB/CloudFront hostname in production. A wrong value breaks auth in confusing ways. |
+| `BETTER_AUTH_URL` | Publicly reachable origin of this API. `http://localhost:8000` locally; the ALB/CloudFront hostname in production. A wrong value breaks auth in confusing ways. |
 
 Never put AWS credentials in env — the ECS task role provides them, and the SDK picks them up automatically.
 
@@ -112,7 +112,7 @@ bun run typecheck     # tsc --noEmit
 
 ```bash
 docker build --platform linux/arm64 -t atlas-bes .   # arm64 = Fargate Graviton target
-docker run --rm -p 3000:3000 --env-file .env \
+docker run --rm -p 8000:8000 --env-file .env \
   -e DATABASE_URL=postgres://postgres:dev@host.docker.internal:5432/atlas \
   atlas-bes
 ```
@@ -128,8 +128,8 @@ You should see "stopping new connections", "closing database pool", and
 
 ## Troubleshooting
 
-- **Port already in use** — something else owns 3000 (or 5432). Find it with
-  `lsof -i :3000`, kill it or change `PORT` in `.env`.
+- **Port already in use** — something else owns 8000 (or 5432). Find it with
+  `lsof -i :8000`, kill it or change `PORT` in `.env`.
 - **Database connection refused** — is the container up? `docker compose ps`,
   then `docker compose up -d`. If it's up but unhealthy, check
   `docker compose logs db`. `/ready` returning 503 with an error message tells

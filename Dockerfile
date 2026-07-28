@@ -16,5 +16,5 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json tsconfig.json ./
 COPY src ./src
 USER bun
-EXPOSE 3000
+EXPOSE 8000
 CMD ["bun", "src/server.ts"]

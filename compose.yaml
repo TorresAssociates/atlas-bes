@@ -20,9 +20,9 @@ services:
     environment:
       NODE_ENV: production # binds 0.0.0.0 so the published port works
       DATABASE_URL: postgres://postgres:dev@db:5432/atlas
-      PORT: "3000"
+      PORT: "8000"
     ports:
-      - "3000:3000"
+      - "8000:8000"
     depends_on:
       - db
 
