@@ -1,0 +1,8 @@
+node_modules
+.git
+.env
+.env.*
+*.log
+db/
+README.md
+CLAUDE.md

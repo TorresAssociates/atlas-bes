@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: atlas
+    ports:
+      - "5432:5432"
+    volumes:
+      - atlas-db-data:/var/lib/postgresql/data
+
+  # Containerized API. Profile-gated: `docker compose up -d` starts only the
+  # database; `docker compose --profile app up` runs this too.
+  # Requires a populated .env (compose reads env_file from the host — .env is
+  # only dockerignored for image builds).
+  app:
+    profiles: ["app"]
+    build: .
+    env_file: .env
+    environment:
+      NODE_ENV: production # binds 0.0.0.0 so the published port works
+      DATABASE_URL: postgres://postgres:dev@db:5432/atlas
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+
+volumes:
+  atlas-db-data:
