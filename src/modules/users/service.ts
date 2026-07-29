@@ -1,8 +1,8 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
 import type { SessionSubject } from "../auth/service";
-import * as queries from "./queries";
 import type { UserRow } from "./queries";
+import * as queries from "./queries";
 
 export interface UserListAccess {
 	canReadExternalUsers: boolean;
@@ -100,7 +100,7 @@ export async function getUserByEmail(
 export async function updateOwnPhoneNumber(
 	db: Kysely<DB>,
 	session: SessionSubject,
-	phoneNumber: string | null,
+	phoneNumber: string,
 ): Promise<UserResponse> {
 	const updated = await queries.updateUserPhoneNumber(
 		db,
@@ -118,7 +118,7 @@ export async function updateOwnPhoneNumber(
 export async function updateUserPhoneNumber(
 	db: Kysely<DB>,
 	id: string,
-	phoneNumber: string | null,
+	phoneNumber: string,
 	session: SessionSubject,
 	access: UserWriteAccess,
 ): Promise<UserResponse> {
@@ -155,3 +155,4 @@ export async function updateUserClientAndRole(
 	if (!updated) throw new UserNotFoundError(id);
 	return toUserResponse(updated);
 }
+

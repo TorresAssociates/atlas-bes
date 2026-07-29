@@ -1,6 +1,11 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { hasPermission, requirePermission, requireSession } from "@/plugins/authorization";
+import {
+	hasPermission,
+	requirePermission,
+	requireSession,
+} from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
+import { getSession } from "../auth/service";
 import {
 	UserIdParamsSchema,
 	UserListSchema,
@@ -10,12 +15,11 @@ import {
 import {
 	getUser,
 	listUsers,
-	updateUserPhoneNumber,
-    updateOwnPhoneNumber,
 	UserEmailNotFoundError,
 	UserNotFoundError,
+	updateOwnPhoneNumber,
+	updateUserPhoneNumber,
 } from "./service";
-import { getSession } from "../auth/service";
 
 const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
@@ -40,7 +44,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		return reply.send(err);
 	});
 
-    //PATCH /v1/users/me/phone-number
+	//PATCH /v1/users/me/phone-number
 	app.patch(
 		"/me/phone-number",
 		{
@@ -182,3 +186,4 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 };
 
 export default userRoutes;
+

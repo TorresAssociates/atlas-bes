@@ -128,8 +128,8 @@ test("DELETE /v1/clients/:id returns 404 for a nonexistent id", async () => {
 
 test("DELETE /v1/clients/:id returns 409 when the client still has users", async () => {
   await db.pool.query(
-    `INSERT INTO "user" (id, name, email, email_verified, client_id, role_id, updated_at)
-     VALUES ('test-user-1', 'Test User', 'test-user@example.com', false, 1, 1, now())`,
+    `INSERT INTO "user" (id, name, email, email_verified, phone_number, client_id, role_id, updated_at)
+     VALUES ('test-user-1', 'Test User', 'test-user@example.com', false, '+15555550123', 1, 1, now())`,
   );
   const res = await app.inject({ method: "DELETE", url: "/v1/clients/1" });
   expect(res.statusCode).toBe(409);

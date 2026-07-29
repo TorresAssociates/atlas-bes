@@ -70,7 +70,7 @@ export function findUserByEmail(
 export function updateUserPhoneNumber(
 	db: Kysely<DB>,
 	id: string,
-	phoneNumber: string | null,
+	phoneNumber: string,
 ): Promise<UserRow | undefined> {
 	return db
 		.updateTable("user")
@@ -84,21 +84,21 @@ export function updateUserPhoneNumber(
 }
 
 export function updateUserPhoneNumberForClient(
-    db: Kysely<DB>,
-    id: string,
-    clientId: number,
-    phoneNumber: string | null,
+	db: Kysely<DB>,
+	id: string,
+	clientId: number,
+	phoneNumber: string,
 ): Promise<UserRow | undefined> {
-    return db
-        .updateTable("user")
-        .set({
-            phone_number: phoneNumber,
-            updated_at: new Date(),
-        })
-        .where("id", "=", id)
-        .where("client_id", "=", clientId)
-        .returning(userColumns)
-        .executeTakeFirst();
+	return db
+		.updateTable("user")
+		.set({
+			phone_number: phoneNumber,
+			updated_at: new Date(),
+		})
+		.where("id", "=", id)
+		.where("client_id", "=", clientId)
+		.returning(userColumns)
+		.executeTakeFirst();
 }
 
 export function updateUserClientAndRole(
@@ -118,3 +118,4 @@ export function updateUserClientAndRole(
 		.returning(userColumns)
 		.executeTakeFirst();
 }
+

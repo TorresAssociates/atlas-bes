@@ -52,7 +52,7 @@ CREATE TABLE "user" (
   email text NOT NULL UNIQUE,
   email_verified boolean NOT NULL,
   image text,
-  phone_number text,
+  phone_number text NOT NULL,
   client_id int NOT NULL REFERENCES client (id),
   role_id int NOT NULL REFERENCES role (id),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -236,7 +236,7 @@ CREATE INDEX idx_invite_role_id ON invite (role_id);
 
 COMMENT ON COLUMN invite.id IS 'Unique identifier for invites';
 COMMENT ON COLUMN invite.token IS 'uuid for the invite token url';
-COMMENT ON COLUMN invite.email IS 'Email address the invite was sent to. The resulting account is created with this address';
+COMMENT ON COLUMN invite.email IS 'Email address used as the invite notification sender or template recipient reference; acceptance supplies the account email';
 COMMENT ON COLUMN invite.expires_at IS 'When the invite token expires';
 COMMENT ON COLUMN invite.sender_user_id IS 'The user who sent the invite';
 COMMENT ON COLUMN invite.client_id IS 'The client the invitee will belong to';
@@ -248,13 +248,13 @@ CREATE TABLE accepted_invites (
   invite_id int NOT NULL REFERENCES invite (id),
   accepted_date timestamptz NOT NULL DEFAULT now(),
   user_id text NOT NULL REFERENCES "user" (id),
-  UNIQUE (invite_id)
+  UNIQUE (invite_id, user_id)
 );
 
 CREATE INDEX idx_accepted_invites_user_id ON accepted_invites (user_id);
 
 COMMENT ON COLUMN accepted_invites.id IS 'Unique identifier for the acceptance record';
-COMMENT ON COLUMN accepted_invites.invite_id IS 'The invite that was accepted';
+COMMENT ON COLUMN accepted_invites.invite_id IS 'The invite that was accepted. Reusable invite tokens may have many acceptance rows';
 COMMENT ON COLUMN accepted_invites.accepted_date IS 'When the invite was accepted';
 COMMENT ON COLUMN accepted_invites.user_id IS 'The user created by accepting the invite';
 

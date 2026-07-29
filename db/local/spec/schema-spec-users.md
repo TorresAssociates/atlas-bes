@@ -45,7 +45,7 @@ A trailing `?` in the tables below means the column is nullable.
 | `email` | text NOT NULL UNIQUE | User's email address for communication and login |
 | `email_verified` | boolean NOT NULL | Whether the user's email is verified |
 | `image?` | text | User's image url |
-| `phone_number?` | text | User's phone number |
+| `phone_number` | text NOT NULL | User's phone number |
 | `client_id` | INT NOT NULL REFERENCES client(id) | The client this user belongs to |
 | `role_id` | INT NOT NULL REFERENCES role(id) | The user's single role |
 | `created_at` | timestamptz NOT NULL DEFAULT now() | When the user account was created |
@@ -247,11 +247,7 @@ with TypeBox in the meantime.
 
 ## Invitations
 
-Flow: a client manager creates an invite, supplying the invitee's email address
-and the role the new user will receive → the invitee receives an email
-containing `https://<app>/invite?token=<token>` → clicking it opens the signup
-page. The invite is bound to that email address and carries the role, so signup
-creates the account with that address and assigns the role directly.
+Flow: a client manager creates a reusable invite, supplying invite email metadata and the role new users will receive. One or more invitees may receive an email containing `https://<app>/invite?token=<token>`. Clicking it opens the signup page. The invite carries the client and role; acceptance supplies the account email and creates the account with that role directly.
 
 ### `invite`
 
@@ -259,7 +255,7 @@ creates the account with that address and assigns the role directly.
 |---|---|---|
 | `id` | INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY | Unique identifier for invites |
 | `token` | uuid NOT NULL UNIQUE | uuid for the invite token url |
-| `email` | text NOT NULL | Email address the invite was sent to. The resulting account is created with this address |
+| `email` | text NOT NULL | Email address metadata for the invite notification. Acceptance supplies the account email |
 | `expires_at` | timestamptz NOT NULL | When the invite token expires |
 | `sender_user_id` | text NOT NULL REFERENCES "user"(id) | The user who sent the invite |
 | `client_id` | INT NOT NULL REFERENCES client(id) | The client the invitee will belong to |
@@ -279,7 +275,7 @@ Kept as a separate table for now.
 | `accepted_date` | timestamptz NOT NULL DEFAULT now() | When the invite was accepted |
 | `user_id` | text NOT NULL REFERENCES "user"(id) | The user created by accepting the invite |
 
-Constraints: `UNIQUE (invite_id)` — one acceptance per invite.
+Constraints: `UNIQUE (invite_id, user_id)` - a reusable invite may be accepted by many users, but each created user is recorded once per invite.
 Indexes: `user_id`.
 
 ---

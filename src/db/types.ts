@@ -33,7 +33,7 @@ export interface AcceptedInvites {
    */
   id: Generated<number>;
   /**
-   * The invite that was accepted
+   * The invite that was accepted. Reusable invite tokens may have many acceptance rows
    */
   invite_id: number;
   /**
@@ -159,7 +159,7 @@ export interface Invite {
    */
   client_id: number;
   /**
-   * Email address the invite was sent to. The resulting account is created with this address
+   * Email address used as the invite notification sender or template recipient reference; acceptance supplies the account email
    */
   email: string;
   /**
@@ -350,7 +350,7 @@ export interface User {
   /**
    * User's phone number
    */
-  phone_number: string | null;
+  phone_number: string;
   /**
    * The user's single role
    */
