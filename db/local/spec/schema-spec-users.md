@@ -155,28 +155,28 @@ Seed data:
 | id | name | description | assign_role |
 |---|---|---|---|
 | 1 | R_CLIENT_DEVICES | Can read all flood-warning related devices for their client | TRUE |
-| 2 | RW_CLIENT_DEVICES | Can read & write all flood-warning related devices for their client | TRUE |
+| 2 | W_CLIENT_DEVICES | Can write all flood-warning related devices for their client | TRUE |
 | 3 | R_EXTERNAL_DEVICES | Can read all flood-warning related devices for all clients | TRUE |
-| 4 | RW_EXTERNAL_DEVICES | Can read & write all flood-warning related devices across all clients | TRUE |
-| 5 | RW_CLIENT_CONTROL_PANEL | Can read & write manual overrides on the control panel for their client | TRUE |
-| 6 | RW_EXTERNAL_CONTROL_PANEL | Can read & write manual overrides on the control panel for all clients | TRUE |
+| 4 | W_EXTERNAL_DEVICES | Can write all flood-warning related devices across all clients | TRUE |
+| 5 | W_CLIENT_CONTROL_PANEL | Can write manual overrides on the control panel for their client | TRUE |
+| 6 | W_EXTERNAL_CONTROL_PANEL | Can write manual overrides on the control panel for all clients | TRUE |
 | 7 | R_CLIENT_USERS | Can read all users in their client | TRUE |
-| 8 | RW_CLIENT_USERS | Can read & write all users in their client | TRUE |
+| 8 | W_CLIENT_USERS | Can write all users in their client | TRUE |
 | 9 | R_EXTERNAL_USERS | Can read all users across all clients | TRUE |
-| 10 | RW_EXTERNAL_USERS | Can read & write all users across all clients | TRUE |
+| 10 | W_EXTERNAL_USERS | Can write all users across all clients | TRUE |
 | 11 | R_CLIENTS | Can read all clients | TRUE |
-| 12 | RW_CLIENTS | Can read & write all clients | TRUE |
+| 12 | W_CLIENTS | Can write all clients | TRUE |
 | 13 | EX_CLIENT_ALERT | Can send alerts to all manual alert subscribers within his client | TRUE |
 | 14 | EX_EXTERNAL_ALERT | Can send alert to all manual alert subscribers across all clients | TRUE |
 | 15 | EX_EMAIL_SUB | Can subscribe for email based alerts | TRUE |
 | 16 | EX_TEXT_SUB | Can subscribe for text/SMS-based alerts | TRUE |
 | 17 | R_CLIENT_REPORTS | Can read all reports for their client | TRUE |
-| 18 | RW_CLIENT_REPORTS | Can read & write all reports for their client | TRUE |
+| 18 | W_CLIENT_REPORTS | Can write all reports for their client | TRUE |
 | 19 | R_EXTERNAL_REPORTS | Can read all reports for all clients | TRUE |
-| 20 | RW_EXTERNAL_REPORTS | Can read & write all reports for all clients | TRUE |
-| 21 | RW_CLIENT_LIFT_STATIONS | Can read & write all lift station devices for their client | TRUE |
-| 22 | RW_EXTERNAL_LIFT_STATIONS | Can read & write all lift station devices for all clients | TRUE |
-| 23 | RW_CLIENT_VOTES | Can assign votes to all people in their client | TRUE |
+| 20 | W_EXTERNAL_REPORTS | Can write all reports for all clients | TRUE |
+| 21 | W_CLIENT_LIFT_STATIONS | Can write all lift station devices for their client | TRUE |
+| 22 | W_EXTERNAL_LIFT_STATIONS | Can write all lift station devices for all clients | TRUE |
+| 23 | W_CLIENT_VOTES | Can assign votes to all people in their client | TRUE |
 | 24 | EX_CLIENT_VOTES | Can execute and vote on votes for their client | FALSE |
 
 ### `role_permission`
@@ -192,12 +192,15 @@ Indexes: `role_id`, `permission_id`.
 
 Seed data (hand-written assignments, by role id → permission ids):
 
+Read (`R_`) and write (`W_`) are independent permissions — `W_` does not imply
+read — so roles hold the `R_`/`W_` pair wherever both exist.
+
 | role | permission ids |
 |---|---|
-| 1 — ADMIN (Torres & Associates) | 4, 6, 10, 12, 14, 15, 16, 20, 22 |
-| 2 — TECHNICIAN (Torres & Associates) | 4, 6, 9, 11, 15, 16, 20, 22 |
-| 3 — CLIENT_MANAGER (City of Bryan) | 2, 5, 8, 13, 15, 16, 18, 23 |
-| 4 — TECHNICIAN (City of Bryan) | 2, 5, 13, 15, 16, 18 |
+| 1 — ADMIN (Torres & Associates) | 3, 4, 6, 9, 10, 11, 12, 14, 15, 16, 19, 20, 22 |
+| 2 — TECHNICIAN (Torres & Associates) | 3, 4, 6, 9, 11, 15, 16, 19, 20, 22 |
+| 3 — CLIENT_MANAGER (City of Bryan) | 1, 2, 5, 7, 8, 13, 15, 16, 17, 18, 23 |
+| 4 — TECHNICIAN (City of Bryan) | 1, 2, 5, 13, 15, 16, 17, 18 |
 
 Permission 24 (`EX_CLIENT_VOTES`, `assign_role = FALSE`) is deliberately not
 attached to any role.
@@ -239,10 +242,11 @@ with TypeBox in the meantime.
 
 ## Invitations
 
-Flow: a client manager creates an invite, picking the role the new user will
-receive → the invitee receives an email containing
-`https://<app>/invite?token=<token>` → clicking it opens the signup page. The
-invite carries the role, so signup assigns it directly.
+Flow: a client manager creates an invite, supplying the invitee's email address
+and the role the new user will receive → the invitee receives an email
+containing `https://<app>/invite?token=<token>` → clicking it opens the signup
+page. The invite is bound to that email address and carries the role, so signup
+creates the account with that address and assigns the role directly.
 
 ### `invite`
 
@@ -250,12 +254,14 @@ invite carries the role, so signup assigns it directly.
 |---|---|---|
 | `id` | INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY | Unique identifier for invites |
 | `token` | uuid NOT NULL UNIQUE | uuid for the invite token url |
+| `email` | text NOT NULL | Email address the invite was sent to. The resulting account is created with this address |
 | `expires_at?` | timestamptz | When the invite token expires |
 | `sender_user_id` | text NOT NULL REFERENCES "user"(id) | The user who sent the invite |
 | `client_id` | INT NOT NULL REFERENCES client(id) | The client the invitee will belong to |
 | `role_id` | INT NOT NULL REFERENCES role(id) | The role the invited user will receive on signup |
 
-Indexes: `sender_user_id`, `client_id`, `role_id`. `token` is already unique.
+Indexes: `email`, `sender_user_id`, `client_id`, `role_id`. `token` is already
+unique.
 
 ### `accepted_invites`
 
@@ -391,7 +397,7 @@ The source sheet lists voting as outstanding work:
 - Need a table tracking the voting event itself (expiration time, start time, etc.)
 - Need a table tracking whether a given user is a voter
 
-Permissions `RW_CLIENT_VOTES` (23) and `EX_CLIENT_VOTES` (24) exist for this.
+Permissions `W_CLIENT_VOTES` (23) and `EX_CLIENT_VOTES` (24) exist for this.
 
 🚫 **No voting tables are defined. Do not invent them.**
 
@@ -432,5 +438,5 @@ Small, and none block building the schema:
 2. **`device` is a placeholder** and must be reconciled with the real device
    table in the main ATLASRain schema before this reaches a real environment.
 3. **`permission.description` duplicates** the semantics encoded in the name
-   prefix (`R_`/`RW_`/`EX_`, `CLIENT`/`EXTERNAL`). Fine as documentation, but
+   prefix (`R_`/`W_`/`EX_`, `CLIENT`/`EXTERNAL`). Fine as documentation, but
    authorization logic should key off `name`, never `description`.
