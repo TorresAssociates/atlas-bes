@@ -260,7 +260,7 @@ creates the account with that address and assigns the role directly.
 | `id` | INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY | Unique identifier for invites |
 | `token` | uuid NOT NULL UNIQUE | uuid for the invite token url |
 | `email` | text NOT NULL | Email address the invite was sent to. The resulting account is created with this address |
-| `expires_at?` | timestamptz | When the invite token expires |
+| `expires_at` | timestamptz NOT NULL | When the invite token expires |
 | `sender_user_id` | text NOT NULL REFERENCES "user"(id) | The user who sent the invite |
 | `client_id` | INT NOT NULL REFERENCES client(id) | The client the invitee will belong to |
 | `role_id` | INT NOT NULL REFERENCES role(id) | The role the invited user will receive on signup |

@@ -159,9 +159,13 @@ export interface Invite {
    */
   client_id: number;
   /**
+   * Email address the invite was sent to. The resulting account is created with this address
+   */
+  email: string;
+  /**
    * When the invite token expires
    */
-  expires_at: Timestamp | null;
+  expires_at: Timestamp;
   /**
    * Unique identifier for invites
    */

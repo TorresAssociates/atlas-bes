@@ -221,19 +221,22 @@ COMMENT ON TABLE granted_permission IS 'Permissions granted to an individual use
 CREATE TABLE invite (
   id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   token uuid NOT NULL UNIQUE,
-  expires_at timestamptz,
+  email text NOT NULL,
+  expires_at timestamptz NOT NULL,
   sender_user_id text NOT NULL REFERENCES "user" (id),
   client_id int NOT NULL REFERENCES client (id),
   role_id int NOT NULL REFERENCES role (id)
 );
 
 -- token is already unique (index comes with the constraint).
+CREATE INDEX idx_invite_email ON invite (email);
 CREATE INDEX idx_invite_sender_user_id ON invite (sender_user_id);
 CREATE INDEX idx_invite_client_id ON invite (client_id);
 CREATE INDEX idx_invite_role_id ON invite (role_id);
 
 COMMENT ON COLUMN invite.id IS 'Unique identifier for invites';
 COMMENT ON COLUMN invite.token IS 'uuid for the invite token url';
+COMMENT ON COLUMN invite.email IS 'Email address the invite was sent to. The resulting account is created with this address';
 COMMENT ON COLUMN invite.expires_at IS 'When the invite token expires';
 COMMENT ON COLUMN invite.sender_user_id IS 'The user who sent the invite';
 COMMENT ON COLUMN invite.client_id IS 'The client the invitee will belong to';
