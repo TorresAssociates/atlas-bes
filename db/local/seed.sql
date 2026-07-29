@@ -32,26 +32,31 @@ INSERT INTO permission (id, name, description, assign_role) VALUES
   (2, 'W_CLIENT_DEVICES', 'Can write all flood-warning related devices for their client', TRUE),
   (3, 'R_EXTERNAL_DEVICES', 'Can read all flood-warning related devices for all clients', TRUE),
   (4, 'W_EXTERNAL_DEVICES', 'Can write all flood-warning related devices across all clients', TRUE),
-  (5, 'W_CLIENT_CONTROL_PANEL', 'Can write manual overrides on the control panel for their client', TRUE),
-  (6, 'W_EXTERNAL_CONTROL_PANEL', 'Can write manual overrides on the control panel for all clients', TRUE),
-  (7, 'R_CLIENT_USERS', 'Can read all users in their client', TRUE),
-  (8, 'W_CLIENT_USERS', 'Can write all users in their client', TRUE),
-  (9, 'R_EXTERNAL_USERS', 'Can read all users across all clients', TRUE),
-  (10, 'W_EXTERNAL_USERS', 'Can write all users across all clients', TRUE),
-  (11, 'R_CLIENTS', 'Can read all clients', TRUE),
-  (12, 'W_CLIENTS', 'Can write all clients', TRUE),
-  (13, 'EX_CLIENT_ALERT', 'Can send alerts to all manual alert subscribers within his client', TRUE),
-  (14, 'EX_EXTERNAL_ALERT', 'Can send alert to all manual alert subscribers across all clients', TRUE),
-  (15, 'EX_EMAIL_SUB', 'Can subscribe for email based alerts', TRUE),
-  (16, 'EX_TEXT_SUB', 'Can subscribe for text/SMS-based alerts', TRUE),
-  (17, 'R_CLIENT_REPORTS', 'Can read all reports for their client', TRUE),
-  (18, 'W_CLIENT_REPORTS', 'Can write all reports for their client', TRUE),
-  (19, 'R_EXTERNAL_REPORTS', 'Can read all reports for all clients', TRUE),
-  (20, 'W_EXTERNAL_REPORTS', 'Can write all reports for all clients', TRUE),
-  (21, 'W_CLIENT_LIFT_STATIONS', 'Can write all lift station devices for their client', TRUE),
-  (22, 'W_EXTERNAL_LIFT_STATIONS', 'Can write all lift station devices for all clients', TRUE),
-  (23, 'W_CLIENT_VOTES', 'Can assign votes to all people in their client', TRUE),
-  (24, 'EX_CLIENT_VOTES', 'Can execute and vote on votes for their client', FALSE);
+  (5, 'R_CLIENT_CONTROL_PANEL', 'Can read all manual overrides on the control panel for their client', TRUE),
+  (6, 'W_CLIENT_CONTROL_PANEL', 'Can write manual overrides on the control panel for their client', TRUE),
+  (7, 'R_EXTERNAL_CONTROL_PANEL', 'Can read all manual overrides on the control panel for all clients', TRUE),
+  (8, 'W_EXTERNAL_CONTROL_PANEL', 'Can write manual overrides on the control panel for all clients', TRUE),
+  (9, 'R_CLIENT_USERS', 'Can read all users in their client', TRUE),
+  (10, 'W_CLIENT_USERS', 'Can write all users in their client', TRUE),
+  (11, 'R_EXTERNAL_USERS', 'Can read all users across all clients', TRUE),
+  (12, 'W_EXTERNAL_USERS', 'Can write all users across all clients', TRUE),
+  (13, 'R_CLIENTS', 'Can read all clients', TRUE),
+  (14, 'W_CLIENTS', 'Can write all clients', TRUE),
+  (15, 'EX_CLIENT_ALERT', 'Can send alerts to all manual alert subscribers within his client', TRUE),
+  (16, 'EX_EXTERNAL_ALERT', 'Can send alert to all manual alert subscribers across all clients', TRUE),
+  (17, 'EX_EMAIL_SUB', 'Can subscribe for email based alerts', TRUE),
+  (18, 'EX_TEXT_SUB', 'Can subscribe for text/SMS-based alerts', TRUE),
+  (19, 'R_CLIENT_REPORTS', 'Can read all reports for their client', TRUE),
+  (20, 'W_CLIENT_REPORTS', 'Can write all reports for their client', TRUE),
+  (21, 'R_EXTERNAL_REPORTS', 'Can read all reports for all clients', TRUE),
+  (22, 'W_EXTERNAL_REPORTS', 'Can write all reports for all clients', TRUE),
+  (23, 'R_CLIENT_LIFT_STATIONS', 'Can read all lift station devices for their client', TRUE),
+  (24, 'W_CLIENT_LIFT_STATIONS', 'Can write all lift station devices for their client', TRUE),
+  (25, 'R_EXTERNAL_LIFT_STATIONS', 'Can read all lift station devices for all clients', TRUE),
+  (26, 'W_EXTERNAL_LIFT_STATIONS', 'Can write all lift station devices for all clients', TRUE),
+  (27, 'R_CLIENT_VOTES', 'Can read all votes to all people in their client', TRUE),
+  (28, 'W_CLIENT_VOTES', 'Can assign votes to all people in their client', TRUE),
+  (29, 'EX_CLIENT_VOTES', 'Can execute and vote on votes for their client', FALSE);
 
 -- Explicit-id inserts don't advance the identity sequence; move it past the
 -- highest seeded id so future inserts don't collide.
@@ -62,27 +67,27 @@ SELECT setval(pg_get_serial_sequence('permission', 'id'), (SELECT max(id) FROM p
 ------------------------------------------------------------------------------
 
 -- W_ does not imply read, so a role that can write a resource also holds the
--- R_ counterpart (where one exists).
+-- R_ counterpart (where one exists). Permission 29 (EX_CLIENT_VOTES) is
+-- deliberately not attached to any role because assign_role = FALSE.
 
 -- ADMIN (Torres & Associates, role 1)
 INSERT INTO role_permission (role_id, permission_id) VALUES
-  (1, 3), (1, 4), (1, 6), (1, 9), (1, 10), (1, 11), (1, 12), (1, 14), (1, 15),
-  (1, 16), (1, 19), (1, 20), (1, 22);
+  (1, 3), (1, 4), (1, 7), (1, 8), (1, 11), (1, 12), (1, 13), (1, 14), (1, 16),
+  (1, 17), (1, 18), (1, 21), (1, 22), (1, 25), (1, 26);
 
 -- TECHNICIAN (Torres & Associates, role 2)
 INSERT INTO role_permission (role_id, permission_id) VALUES
-  (2, 3), (2, 4), (2, 6), (2, 9), (2, 11), (2, 15), (2, 16), (2, 19), (2, 20),
-  (2, 22);
+  (2, 3), (2, 4), (2, 7), (2, 8), (2, 11), (2, 17), (2, 18), (2, 21), (2, 22),
+  (2, 25), (2, 26);
 
 -- CLIENT_MANAGER (City of Bryan, role 3)
 INSERT INTO role_permission (role_id, permission_id) VALUES
-  (3, 1), (3, 2), (3, 5), (3, 7), (3, 8), (3, 13), (3, 15), (3, 16), (3, 17),
-  (3, 18), (3, 23);
+  (3, 1), (3, 2), (3, 5), (3, 6), (3, 9), (3, 10), (3, 15), (3, 17), (3, 18),
+  (3, 19), (3, 20), (3, 23), (3, 24), (3, 27), (3, 28);
 
 -- TECHNICIAN (City of Bryan, role 4)
 INSERT INTO role_permission (role_id, permission_id) VALUES
-  (4, 1), (4, 2), (4, 5), (4, 13), (4, 15), (4, 16), (4, 17), (4, 18);
-
+  (4, 1), (4, 2), (4, 5), (4, 6), (4, 15), (4, 17), (4, 18), (4, 19), (4, 20);
 ------------------------------------------------------------------------------
 -- audit_log_action (explicit ids; identity is GENERATED BY DEFAULT)
 -- "Intialization" (id 14) is a typo in the source, preserved verbatim.
