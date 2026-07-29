@@ -11,6 +11,7 @@ import underPressure from "@fastify/under-pressure";
 import { Type } from "@sinclair/typebox";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
+import { fileURLToPath } from "node:url";
 import type pg from "pg";
 import { configPlugin } from "@/config";
 import { createDb, createPool } from "@/db";
@@ -113,7 +114,7 @@ export async function buildApp(
     // module's service.ts / queries.ts / schemas.ts are plain imports, not
     // Fastify plugins. The module directory name becomes the route prefix under /v1 (clients → /v1/clients).
     await app.register(autoload, {
-        dir: new URL("./modules", import.meta.url).pathname,
+        dir: fileURLToPath(new URL("./modules", import.meta.url)),
         matchFilter: (path) => path.endsWith("routes.ts"),
         options: { prefix: "/v1" },
     });

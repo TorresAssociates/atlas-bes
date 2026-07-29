@@ -1,48 +1,106 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { getSession } from "@/modules/auth/service";
+import { listUserPermissionNames } from "@/modules/auth/queries";
 
 // Permission names from db/local/spec/schema-spec-users.md's permission seed table. Typed as a
 // union so a typo'd name is a compile error instead of a permanently-passing
 // no-op check.
 export type PermissionName =
-  | "R_CLIENT_DEVICES"
-  | "RW_CLIENT_DEVICES"
-  | "R_EXTERNAL_DEVICES"
-  | "RW_EXTERNAL_DEVICES"
-  | "RW_CLIENT_CONTROL_PANEL"
-  | "RW_EXTERNAL_CONTROL_PANEL"
-  | "R_CLIENT_USERS"
-  | "RW_CLIENT_USERS"
-  | "R_EXTERNAL_USERS"
-  | "RW_EXTERNAL_USERS"
-  | "R_CLIENTS"
-  | "RW_CLIENTS"
-  | "EX_CLIENT_ALERT"
-  | "EX_EXTERNAL_ALERT"
-  | "EX_EMAIL_SUB"
-  | "EX_TEXT_SUB"
-  | "R_CLIENT_REPORTS"
-  | "RW_CLIENT_REPORTS"
-  | "R_EXTERNAL_REPORTS"
-  | "RW_EXTERNAL_REPORTS"
-  | "RW_CLIENT_LIFT_STATIONS"
-  | "RW_EXTERNAL_LIFT_STATIONS"
-  | "RW_CLIENT_VOTES"
-  | "EX_CLIENT_VOTES";
+	| "R_CLIENT_DEVICES"
+	| "W_CLIENT_DEVICES"
+	| "R_EXTERNAL_DEVICES"
+	| "W_EXTERNAL_DEVICES"
+	| "R_CLIENT_CONTROL_PANEL"
+	| "W_CLIENT_CONTROL_PANEL"
+	| "R_EXTERNAL_CONTROL_PANEL"
+	| "W_EXTERNAL_CONTROL_PANEL"
+	| "R_CLIENT_USERS"
+	| "W_CLIENT_USERS"
+	| "R_EXTERNAL_USERS"
+	| "W_EXTERNAL_USERS"
+	| "R_CLIENTS"
+	| "W_CLIENTS"
+	| "EX_CLIENT_ALERT"
+	| "EX_EXTERNAL_ALERT"
+	| "EX_EMAIL_SUB"
+	| "EX_TEXT_SUB"
+	| "R_CLIENT_REPORTS"
+	| "W_CLIENT_REPORTS"
+	| "R_EXTERNAL_REPORTS"
+	| "W_EXTERNAL_REPORTS"
+	| "R_CLIENT_LIFT_STATIONS"
+	| "W_CLIENT_LIFT_STATIONS"
+	| "R_EXTERNAL_LIFT_STATIONS"
+	| "W_EXTERNAL_LIFT_STATIONS"
+	| "R_CLIENT_VOTES"
+	| "W_CLIENT_VOTES"
+	| "EX_CLIENT_VOTES";
 
 /**
  * preHandler factory: `requirePermission("R_CLIENTS")` on every route that
  * needs authorization. Routes wire this now so the auth phase only has to
  * fill in this one function, not edit every route.
  *
- * TODO(auth phase): implement for real —
+ * (auth phase): implement for real —
  *   1. resolve the session via better-auth (`getSession()` seam),
  *   2. load the user's role permissions (role_permission) plus individual
  *      grants (granted_permission),
  *   3. reply 401 with no session, 403 when none of `names` are held.
- * Until then this is a deliberate no-op: every request passes.
  */
 export function requirePermission(...names: PermissionName[]) {
-  return async (_request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
-    void names;
-  };
+	return async (
+		request: FastifyRequest,
+		reply: FastifyReply,
+	): Promise<void> => {
+		const session = await getSession(request);
+
+		if (!session) {
+			throw reply.unauthorized("authentication required");
+		}
+
+		if (!request.server.db) {
+			throw reply.serviceUnavailable("database is not configured");
+		}
+
+		const permissions = await listUserPermissionNames(
+			request.server.db,
+			session.user_id,
+			session.role_id,
+		);
+
+		const allowed = names.some((name) => permissions.includes(name));
+
+		if (!allowed) {
+			throw reply.forbidden("permission denied");
+		}
+	};
+}
+
+export async function hasPermission(
+	request: FastifyRequest,
+	name: PermissionName,
+): Promise<boolean> {
+	const session = await getSession(request);
+	if (!session || !request.server.db) return false;
+
+	const permissions = await listUserPermissionNames(
+		request.server.db,
+		session.user_id,
+		session.role_id,
+	);
+
+	return permissions.includes(name);
+}
+
+export function requireSession() {
+	return async (
+		request: FastifyRequest,
+		reply: FastifyReply,
+	): Promise<void> => {
+		const session = await getSession(request);
+
+		if (!session) {
+			throw reply.unauthorized("authentication required");
+		}
+	};
 }
