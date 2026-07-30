@@ -110,10 +110,12 @@ INSERT INTO audit_log_action (id, action_id, action_text) VALUES
   (14, 'INIT_DEVICE', 'Intialization of a New Device'),
   (15, 'REGISTER_DEVICE', 'Registering a New Device'),
   (16, 'UPDATE_DEVICE_CONFIG', 'Updating/Editing Device''s Config'),
-  (17, 'DELETE_USER', 'Deleting a User'),
-  (18, 'UPDATE_USER', 'Updating/Editing a User''s Config'),
-  (19, 'CREATE_ROLE', 'Create a new role'),
-  (20, 'UPDATE_ROLE_PERMISSIONS', 'Updating the permissions tied to a role'),
-  (21, 'DELETE_ROLE', 'Deleting a role');
+  (17, 'INVITE_USER', 'Inviting a new user'),
+  (18, 'DELETE_INVITE_USER', 'Deleting an invite for a new User'),
+  (19, 'DELETE_USER', 'Deleting a User'),
+  (20, 'UPDATE_USER', 'Updating/Editing a User''s Config'),
+  (21, 'CREATE_ROLE', 'Create a new role'),
+  (22, 'UPDATE_ROLE_PERMISSIONS', 'Updating the permissions tied to a role'),
+  (23, 'DELETE_ROLE', 'Deleting a role');
 
 SELECT setval(pg_get_serial_sequence('audit_log_action', 'id'), (SELECT max(id) FROM audit_log_action));
