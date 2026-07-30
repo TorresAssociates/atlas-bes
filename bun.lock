@@ -5,6 +5,8 @@
     "": {
       "name": "atlas-bes",
       "dependencies": {
+        "@better-auth/core": "1.6.25",
+        "@better-auth/kysely-adapter": "1.6.25",
         "@fastify/autoload": "^6.5.0",
         "@fastify/cookie": "^11.1.2",
         "@fastify/cors": "^11.3.0",
