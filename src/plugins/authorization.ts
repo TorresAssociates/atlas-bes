@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { getSession } from "@/modules/auth/service";
-import { listUserPermissionNames } from "@/modules/auth/queries";
+import { listUserPermissionNames } from "@/plugins/authorization.queries";
 
 // Permission names from db/local/spec/schema-spec-users.md's permission seed table. Typed as a
 // union so a typo'd name is a compile error instead of a permanently-passing
