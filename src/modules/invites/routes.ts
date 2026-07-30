@@ -8,13 +8,17 @@ import {
 	AcceptInviteBodySchema,
 	CreateInviteBodySchema,
 	InvitePreviewSchema,
+	InviteIdParamsSchema,
 	InviteSchema,
 	InviteTokenQuerySchema,
 } from "./schemas";
 import {
 	acceptInvite,
 	createInvite,
+	deleteInvite,
 	InviteAccessDeniedError,
+	InviteAlreadyAcceptedError,
+	InviteEmailAlreadyExistsError,
 	InviteExpiredError,
 	InviteNotFoundError,
 	InviteRoleClientMismatchError,
@@ -41,6 +45,14 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
 		if (err instanceof InviteExpiredError) {
 			return reply.gone(err.message);
+		}
+
+		if (err instanceof InviteAlreadyAcceptedError) {
+			return reply.conflict(err.message);
+		}
+
+		if (err instanceof InviteEmailAlreadyExistsError) {
+			return reply.conflict(err.message);
 		}
 
 		if (err instanceof InviteAccessDeniedError) {
@@ -95,6 +107,41 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			);
 
 			return reply.code(201).send(invite);
+		},
+	);
+
+	// DELETE /v1/invites/:id
+	app.delete(
+		"/:id",
+		{
+			preHandler: requirePermission("W_CLIENT_USERS", "W_EXTERNAL_USERS"),
+			schema: {
+				tags: ["invites"],
+				params: InviteIdParamsSchema,
+				response: {
+					200: InviteSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+					409: HttpErrorSchema,
+				},
+			},
+		},
+		async (request) => {
+			const session = await getSession(request);
+			if (!session) {
+				throw app.httpErrors.unauthorized("authentication required");
+			}
+
+			const canWriteExternalUsers = await hasPermission(
+				request,
+				"W_EXTERNAL_USERS",
+			);
+
+			return deleteInvite(getDb(), request.params.id, session, {
+				canWriteExternalUsers,
+				canWriteClientUsers: true,
+			});
 		},
 	);
 
@@ -157,7 +204,11 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const user = await acceptInvite(getDb(), request.body);
+			const user = await acceptInvite(
+				getDb(),
+				app.config.ENCRYPTION_KEY,
+				request.body,
+			);
 			return reply.code(201).send(user);
 		},
 	);

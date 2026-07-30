@@ -8,6 +8,7 @@
 
 DROP SCHEMA IF EXISTS public CASCADE;
 CREATE SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 ------------------------------------------------------------------------------
 -- Tenancy: client, role
@@ -52,9 +53,12 @@ CREATE TABLE "user" (
   email text NOT NULL UNIQUE,
   email_verified boolean NOT NULL,
   image text,
-  phone_number text NOT NULL,
+  phone_number text,
+  salt text NOT NULL DEFAULT gen_salt('bf', 6),
+  phone_number_verified boolean NOT NULL DEFAULT false,
   client_id int NOT NULL REFERENCES client (id),
   role_id int NOT NULL REFERENCES role (id),
+  deleted_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL
 );
@@ -67,9 +71,12 @@ COMMENT ON COLUMN "user".name IS 'User''s chosen display name';
 COMMENT ON COLUMN "user".email IS 'User''s email address for communication and login';
 COMMENT ON COLUMN "user".email_verified IS 'Whether the user''s email is verified';
 COMMENT ON COLUMN "user".image IS 'User''s image url';
-COMMENT ON COLUMN "user".phone_number IS 'User''s phone number';
+COMMENT ON COLUMN "user".phone_number IS 'Armored pgcrypto ciphertext for the user''s phone number';
+COMMENT ON COLUMN "user".salt IS 'Salt used with the encryption key for encrypted user fields';
+COMMENT ON COLUMN "user".phone_number_verified IS 'Whether the user''s phone number is verified';
 COMMENT ON COLUMN "user".client_id IS 'The client this user belongs to';
 COMMENT ON COLUMN "user".role_id IS 'The user''s single role';
+COMMENT ON COLUMN "user".deleted_at IS 'UTC timestamp this user record was deleted. NULL means active/current';
 COMMENT ON COLUMN "user".created_at IS 'When the user account was created';
 COMMENT ON COLUMN "user".updated_at IS 'Last update to the user''s information';
 
@@ -213,31 +220,29 @@ COMMENT ON TABLE granted_permission IS 'Permissions granted to an individual use
 -- Invitations
 --
 -- Flow: a client manager creates an invite, picking the role the new user
--- will receive → the invitee receives an email containing
--- https://<app>/invite?token=<token> → clicking it opens the signup page.
--- The invite carries the role, so signup assigns it directly.
+-- will receive. The invitee receives a link containing
+-- https://<app>/invite?token=<token>; clicking it opens the signup page.
+-- The invite carries the role, so signup assigns it directly. A NULL
+-- expires_at means the invite is a permalink.
 ------------------------------------------------------------------------------
 
 CREATE TABLE invite (
   id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  token uuid NOT NULL UNIQUE,
-  email text NOT NULL,
-  expires_at timestamptz NOT NULL,
+  token varchar(32) NOT NULL UNIQUE,
+  expires_at timestamptz,
   sender_user_id text NOT NULL REFERENCES "user" (id),
   client_id int NOT NULL REFERENCES client (id),
   role_id int NOT NULL REFERENCES role (id)
 );
 
 -- token is already unique (index comes with the constraint).
-CREATE INDEX idx_invite_email ON invite (email);
 CREATE INDEX idx_invite_sender_user_id ON invite (sender_user_id);
 CREATE INDEX idx_invite_client_id ON invite (client_id);
 CREATE INDEX idx_invite_role_id ON invite (role_id);
 
 COMMENT ON COLUMN invite.id IS 'Unique identifier for invites';
-COMMENT ON COLUMN invite.token IS 'uuid for the invite token url';
-COMMENT ON COLUMN invite.email IS 'Email address used as the invite notification sender or template recipient reference; acceptance supplies the account email';
-COMMENT ON COLUMN invite.expires_at IS 'When the invite token expires';
+COMMENT ON COLUMN invite.token IS 'varchar(32) for the invite token url';
+COMMENT ON COLUMN invite.expires_at IS 'When the invite token expires. NULL means the invite is a permalink';
 COMMENT ON COLUMN invite.sender_user_id IS 'The user who sent the invite';
 COMMENT ON COLUMN invite.client_id IS 'The client the invitee will belong to';
 COMMENT ON COLUMN invite.role_id IS 'The role the invited user will receive on signup';

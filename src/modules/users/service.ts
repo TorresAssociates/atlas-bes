@@ -19,7 +19,8 @@ export interface UserWriteAccess {
 	canWriteClientUsers: boolean;
 }
 
-export type UserResponse = Omit<UserRow, "created_at" | "updated_at"> & {
+export type UserResponse = Omit<UserRow, "deleted_at" | "created_at" | "updated_at"> & {
+	deleted_at: string | null;
 	created_at: string;
 	updated_at: string;
 };
@@ -45,9 +46,15 @@ export class UserAccessDeniedError extends Error {
 	}
 }
 
+function toTimestamp(value: Date | string | null): string | null {
+	if (!value) return null;
+	return value instanceof Date ? value.toISOString() : value;
+}
+
 function toUserResponse(user: UserRow): UserResponse {
 	return {
 		...user,
+		deleted_at: toTimestamp(user.deleted_at),
 		created_at: user.created_at.toISOString(),
 		updated_at: user.updated_at.toISOString(),
 	};
@@ -55,17 +62,18 @@ function toUserResponse(user: UserRow): UserResponse {
 
 export async function listUsers(
 	db: Kysely<DB>,
+	encryptionKey: string,
 	session: SessionSubject,
 	access: UserListAccess,
 ): Promise<UserResponse[]> {
 	if (access.canReadExternalUsers) {
-		return (await queries.listUsers(db)).map(toUserResponse);
+		return (await queries.listUsers(db, encryptionKey)).map(toUserResponse);
 	}
 
 	if (access.canReadClientUsers) {
-		return (await queries.listUsersByClient(db, session.client_id)).map(
-			toUserResponse,
-		);
+		return (
+			await queries.listUsersByClient(db, session.client_id, encryptionKey)
+		).map(toUserResponse);
 	}
 
 	throw new UserAccessDeniedError();
@@ -73,14 +81,20 @@ export async function listUsers(
 
 export async function getUser(
 	db: Kysely<DB>,
+	encryptionKey: string,
 	id: string,
 	session: SessionSubject,
 	access: UserReadAccess,
 ): Promise<UserResponse> {
 	const user = access.canReadExternalUsers
-		? await queries.findUserById(db, id)
+		? await queries.findUserById(db, id, encryptionKey)
 		: access.canReadClientUsers
-			? await queries.findUserByIdForClient(db, id, session.client_id)
+			? await queries.findUserByIdForClient(
+					db,
+					id,
+					session.client_id,
+					encryptionKey,
+				)
 			: null;
 
 	if (!user) throw new UserNotFoundError(id);
@@ -90,15 +104,17 @@ export async function getUser(
 
 export async function getUserByEmail(
 	db: Kysely<DB>,
+	encryptionKey: string,
 	email: string,
 ): Promise<UserResponse> {
-	const user = await queries.findUserByEmail(db, email);
+	const user = await queries.findUserByEmail(db, email, encryptionKey);
 	if (!user) throw new UserEmailNotFoundError(email);
 	return toUserResponse(user);
 }
 
 export async function updateOwnPhoneNumber(
 	db: Kysely<DB>,
+	encryptionKey: string,
 	session: SessionSubject,
 	phoneNumber: string,
 ): Promise<UserResponse> {
@@ -106,6 +122,7 @@ export async function updateOwnPhoneNumber(
 		db,
 		session.user_id,
 		phoneNumber,
+		encryptionKey,
 	);
 
 	if (!updated) {
@@ -117,19 +134,21 @@ export async function updateOwnPhoneNumber(
 
 export async function updateUserPhoneNumber(
 	db: Kysely<DB>,
+	encryptionKey: string,
 	id: string,
 	phoneNumber: string,
 	session: SessionSubject,
 	access: UserWriteAccess,
 ): Promise<UserResponse> {
 	const updated = access.canWriteExternalUsers
-		? await queries.updateUserPhoneNumber(db, id, phoneNumber)
+		? await queries.updateUserPhoneNumber(db, id, phoneNumber, encryptionKey)
 		: access.canWriteClientUsers
 			? await queries.updateUserPhoneNumberForClient(
 					db,
 					id,
 					session.client_id,
 					phoneNumber,
+					encryptionKey,
 				)
 			: null;
 
@@ -142,6 +161,7 @@ export async function updateUserPhoneNumber(
 
 export async function updateUserClientAndRole(
 	db: Kysely<DB>,
+	encryptionKey: string,
 	id: string,
 	clientId: number,
 	roleId: number,
@@ -151,8 +171,28 @@ export async function updateUserClientAndRole(
 		id,
 		clientId,
 		roleId,
+		encryptionKey,
 	);
 	if (!updated) throw new UserNotFoundError(id);
 	return toUserResponse(updated);
 }
 
+export async function deleteUser(
+	db: Kysely<DB>,
+	encryptionKey: string,
+	id: string,
+	session: SessionSubject,
+	access: UserWriteAccess,
+): Promise<UserResponse> {
+	const updated = access.canWriteExternalUsers
+		? await queries.deleteUser(db, id, encryptionKey)
+		: access.canWriteClientUsers
+			? await queries.deleteUserForClient(db, id, session.client_id, encryptionKey)
+			: null;
+
+	if (!updated) {
+		throw new UserNotFoundError(id);
+	}
+
+	return toUserResponse(updated);
+}

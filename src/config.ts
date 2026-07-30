@@ -28,6 +28,7 @@ const configSchema = Type.Object({
     AWS_REGION: Type.String({ default: "us-east-1" }),
     S3_ASSETS_BUCKET: Type.String({ minLength: 1 }),
     BETTER_AUTH_SECRET: Type.String({ minLength: 1 }),
+	ENCRYPTION_KEY: Type.String({ minLength: 1 }),
     BETTER_AUTH_URL: Type.String({ minLength: 1 }),
     // Origin of the separately-hosted frontend (AWS Amplify). Used for the CORS
     // allowlist and better-auth's trustedOrigins — cross-origin cookies depend

@@ -13,6 +13,7 @@ import {
 	UserSchema,
 } from "./schemas";
 import {
+	deleteUser,
 	getUser,
 	listUsers,
 	UserEmailNotFoundError,
@@ -68,6 +69,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
 			return updateOwnPhoneNumber(
 				getDb(),
+				app.config.ENCRYPTION_KEY,
 				session,
 				request.body.phone_number,
 			);
@@ -100,7 +102,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			);
 
 			return {
-				data: await listUsers(getDb(), session, {
+				data: await listUsers(getDb(), app.config.ENCRYPTION_KEY, session, {
 					canReadExternalUsers,
 					canReadClientUsers: true,
 				}),
@@ -135,9 +137,43 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				"R_EXTERNAL_USERS",
 			);
 
-			return getUser(getDb(), request.params.id, session, {
+			return getUser(getDb(), app.config.ENCRYPTION_KEY, request.params.id, session, {
 				canReadExternalUsers,
 				canReadClientUsers: true,
+			});
+		},
+	);
+
+	// PATCH /v1/users/delete/:id
+	app.patch(
+		"/delete/:id",
+		{
+			preHandler: requirePermission("W_CLIENT_USERS", "W_EXTERNAL_USERS"),
+			schema: {
+				tags: ["users"],
+				params: UserIdParamsSchema,
+				response: {
+					200: UserSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+				},
+			},
+		},
+		async (request) => {
+			const session = await getSession(request);
+			if (!session) {
+				throw app.httpErrors.unauthorized("authentication required");
+			}
+
+			const canWriteExternalUsers = await hasPermission(
+				request,
+				"W_EXTERNAL_USERS",
+			);
+
+			return deleteUser(getDb(), app.config.ENCRYPTION_KEY, request.params.id, session, {
+				canWriteExternalUsers,
+				canWriteClientUsers: true,
 			});
 		},
 	);
@@ -173,6 +209,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
 			return updateUserPhoneNumber(
 				getDb(),
+				app.config.ENCRYPTION_KEY,
 				request.params.id,
 				request.body.phone_number,
 				session,
@@ -186,4 +223,3 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 };
 
 export default userRoutes;
-

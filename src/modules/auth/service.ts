@@ -19,7 +19,6 @@ export interface CreateInvitedEmailPasswordUserInput {
 	email: string;
 	name: string;
 	password: string;
-	phone_number: string;
 	client_id: number;
 	role_id: number;
 }
@@ -63,7 +62,6 @@ export async function createInvitedEmailPasswordUser(
 			email: input.email,
 			name: input.name,
 			password: input.password,
-			phone_number: input.phone_number,
 			client_id: input.client_id,
 			role_id: input.role_id,
 		},

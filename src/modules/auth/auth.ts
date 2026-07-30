@@ -57,7 +57,6 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 				updatedAt: "updated_at",
 			},
 			additionalFields: {
-				phone_number: { type: "string", required: true },
 				client_id: { type: "number", required: true },
 				role_id: { type: "number", required: true },
 			},

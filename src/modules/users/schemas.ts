@@ -9,8 +9,10 @@ export const UserSchema = Type.Object({
 	email_verified: Type.Boolean(),
 	image: Nullable(Type.String()),
 	name: Type.String(),
-	phone_number: Type.String(),
+	phone_number: Nullable(Type.String()),
+	phone_number_verified: Type.Boolean(),
 	role_id: Type.Integer(),
+	deleted_at: Nullable(Type.String({ format: "date-time" })),
 	updated_at: Type.String({ format: "date-time" }),
 });
 

@@ -159,13 +159,9 @@ export interface Invite {
    */
   client_id: number;
   /**
-   * Email address used as the invite notification sender or template recipient reference; acceptance supplies the account email
+   * When the invite token expires. NULL means the invite is a permalink
    */
-  email: string;
-  /**
-   * When the invite token expires
-   */
-  expires_at: Timestamp;
+  expires_at: Timestamp | null;
   /**
    * Unique identifier for invites
    */
@@ -179,7 +175,7 @@ export interface Invite {
    */
   sender_user_id: string;
   /**
-   * uuid for the invite token url
+   * varchar(32) for the invite token url
    */
   token: string;
 }
@@ -328,6 +324,10 @@ export interface User {
    */
   created_at: Generated<Timestamp>;
   /**
+   * UTC timestamp this user record was deleted. NULL means active/current
+   */
+  deleted_at: Timestamp | null;
+  /**
    * User's email address for communication and login
    */
   email: string;
@@ -348,13 +348,21 @@ export interface User {
    */
   name: string;
   /**
-   * User's phone number
+   * Armored pgcrypto ciphertext for the user's phone number
    */
-  phone_number: string;
+  phone_number: string | null;
+  /**
+   * Whether the user's phone number is verified
+   */
+  phone_number_verified: Generated<boolean>;
   /**
    * The user's single role
    */
   role_id: number;
+  /**
+   * Salt used with the encryption key for encrypted user fields
+   */
+  salt: Generated<string>;
   /**
    * Last update to the user's information
    */

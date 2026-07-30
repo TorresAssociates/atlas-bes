@@ -8,7 +8,6 @@ export type InsertInviteRow = Insertable<DB["invite"]>;
 const inviteColumns = [
 	"id",
 	"token",
-	"email",
 	"expires_at",
 	"sender_user_id",
 	"client_id",
@@ -34,6 +33,54 @@ export function findInviteByToken(
 		.selectFrom("invite")
 		.select(inviteColumns)
 		.where("token", "=", token)
+		.executeTakeFirst();
+}
+
+export function findInviteById(
+	db: Kysely<DB>,
+	id: number,
+): Promise<InviteRow | undefined> {
+	return db
+		.selectFrom("invite")
+		.select(inviteColumns)
+		.where("id", "=", id)
+		.executeTakeFirst();
+}
+
+export function findInviteByIdForClient(
+	db: Kysely<DB>,
+	id: number,
+	clientId: number,
+): Promise<InviteRow | undefined> {
+	return db
+		.selectFrom("invite")
+		.select(inviteColumns)
+		.where("id", "=", id)
+		.where("client_id", "=", clientId)
+		.executeTakeFirst();
+}
+
+export function deleteInviteById(
+	db: Kysely<DB>,
+	id: number,
+): Promise<InviteRow | undefined> {
+	return db
+		.deleteFrom("invite")
+		.where("id", "=", id)
+		.returning(inviteColumns)
+		.executeTakeFirst();
+}
+
+export function deleteInviteByIdForClient(
+	db: Kysely<DB>,
+	id: number,
+	clientId: number,
+): Promise<InviteRow | undefined> {
+	return db
+		.deleteFrom("invite")
+		.where("id", "=", id)
+		.where("client_id", "=", clientId)
+		.returning(inviteColumns)
 		.executeTakeFirst();
 }
 
@@ -76,4 +123,3 @@ export function findRoleById(db: Kysely<DB>, roleId: number) {
 		.where("id", "=", roleId)
 		.executeTakeFirst();
 }
-

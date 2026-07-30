@@ -45,13 +45,16 @@ A trailing `?` in the tables below means the column is nullable.
 | `email` | text NOT NULL UNIQUE | User's email address for communication and login |
 | `email_verified` | boolean NOT NULL | Whether the user's email is verified |
 | `image?` | text | User's image url |
-| `phone_number` | text NOT NULL | User's phone number |
+| `phone_number?` | text | Armored pgcrypto ciphertext for the user's phone number |
+| `salt` | text NOT NULL DEFAULT gen_salt('bf', 6) | Salt used with the encryption key for encrypted user fields |
+| `phone_number_verified` | boolean NOT NULL DEFAULT false | Whether the user's phone number is verified |
 | `client_id` | INT NOT NULL REFERENCES client(id) | The client this user belongs to |
 | `role_id` | INT NOT NULL REFERENCES role(id) | The user's single role |
+| `deleted_at?` | timestamptz | UTC timestamp this user record was deleted. NULL means active/current |
 | `created_at` | timestamptz NOT NULL DEFAULT now() | When the user account was created |
 | `updated_at` | timestamptz NOT NULL | Last update to the user's information |
 
-`phone_number`, `client_id`, and `role_id` are the deliberate extensions to
+`phone_number`, `salt`, `phone_number_verified`, `client_id`, `role_id`, and `deleted_at` are the deliberate extensions to
 better-auth's default `user` model.
 
 Indexes: `client_id`, `role_id`.
@@ -247,21 +250,20 @@ with TypeBox in the meantime.
 
 ## Invitations
 
-Flow: a client manager creates a reusable invite, supplying invite email metadata and the role new users will receive. One or more invitees may receive an email containing `https://<app>/invite?token=<token>`. Clicking it opens the signup page. The invite carries the client and role; acceptance supplies the account email and creates the account with that role directly.
+Flow: a client manager creates a reusable invite, supplying the role new users will receive. One or more invitees may receive a link containing `https://<app>/invite?token=<token>`. Clicking it opens the signup page. The invite carries the client and role; acceptance supplies the account email and creates the account with that role directly. A NULL `expires_at` means the invite is a permalink.
 
 ### `invite`
 
 | Column | Type / constraints | Description |
 |---|---|---|
 | `id` | INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY | Unique identifier for invites |
-| `token` | uuid NOT NULL UNIQUE | uuid for the invite token url |
-| `email` | text NOT NULL | Email address metadata for the invite notification. Acceptance supplies the account email |
-| `expires_at` | timestamptz NOT NULL | When the invite token expires |
+| `token` | varchar(32) NOT NULL UNIQUE | varchar(32) for the invite token url |
+| `expires_at?` | timestamptz | When the invite token expires. NULL means the invite is a permalink |
 | `sender_user_id` | text NOT NULL REFERENCES "user"(id) | The user who sent the invite |
 | `client_id` | INT NOT NULL REFERENCES client(id) | The client the invitee will belong to |
 | `role_id` | INT NOT NULL REFERENCES role(id) | The role the invited user will receive on signup |
 
-Indexes: `email`, `sender_user_id`, `client_id`, `role_id`. `token` is already
+Indexes: `sender_user_id`, `client_id`, `role_id`. `token` is already
 unique.
 
 ### `accepted_invites`

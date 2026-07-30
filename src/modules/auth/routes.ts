@@ -24,12 +24,12 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		handler: async (request, reply) => {
 			const url = new URL(request.url, app.config.BETTER_AUTH_URL);
 
-			if (
-				request.method === "POST" &&
-				url.pathname.endsWith("/sign-up/email")
-			) {
-				throw app.httpErrors.notFound("open signup is disabled");
-			}
+			// if (
+			// 	request.method === "POST" &&
+			// 	url.pathname.endsWith("/sign-up/email")
+			// ) {
+			// 	throw app.httpErrors.notFound("open signup is disabled");
+			// }
 
 			const headers = new Headers();
 			for (const [name, value] of Object.entries(request.headers)) {

@@ -54,6 +54,7 @@ export function stubConfigEnv(): void {
   process.env.DATABASE_URL ??= "postgres://unused:unused@localhost:5432/unused";
   process.env.S3_ASSETS_BUCKET ??= "test-bucket";
   process.env.BETTER_AUTH_SECRET ??= "test-secret";
+  process.env.ENCRYPTION_KEY ??= "test-encryption-key";
   process.env.BETTER_AUTH_URL ??= "http://localhost:8000";
   process.env.FRONTEND_ORIGIN ??= "http://localhost:5173";
 }
