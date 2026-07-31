@@ -4,6 +4,7 @@ import pg from "pg";
 import { Wait } from "testcontainers";
 
 const REPO_ROOT = join(import.meta.dir, "../..");
+const DEFAULT_WINDOWS_TEST_DATABASE_URL = "postgres://postgres:dev@localhost:5432/atlas_test";
 
 export interface TestDatabase {
 	pool: pg.Pool;
@@ -11,30 +12,79 @@ export interface TestDatabase {
 	stop(): Promise<void>;
 }
 
-/**
- * Starts a throwaway Postgres container at the local scratchpad schema
- * (db/local/schema.sql + seed.sql) and returns a pool wired to it. Pass the
- * pool to buildApp({ pool }) — buildApp does not close injected pools, so
- * always call stop() in afterAll.
- *
- * Shared by every module's integration tests; container startup is the slow
- * part, so start one per test file, not per test.
- */
-export async function startTestDatabase(): Promise<TestDatabase> {
+function databaseNameFrom(connectionUri: string): string {
+	const url = new URL(connectionUri);
+	const databaseName = url.pathname.replace(/^\//, "");
+	if (!/^[a-zA-Z0-9_]+$/.test(databaseName)) {
+		throw new Error(`test database name ${JSON.stringify(databaseName)} is not safe to create`);
+	}
+	return databaseName;
+}
+
+function maintenanceDatabaseUrl(connectionUri: string): string {
+	const url = new URL(connectionUri);
+	url.pathname = "/postgres";
+	return url.toString();
+}
+
+async function ensureDatabaseExists(connectionUri: string): Promise<void> {
+	const databaseName = databaseNameFrom(connectionUri);
+	const adminPool = new pg.Pool({ connectionString: maintenanceDatabaseUrl(connectionUri), max: 1 });
+
+	try {
+		const existing = await adminPool.query("SELECT 1 FROM pg_database WHERE datname = $1", [databaseName]);
+		if (existing.rowCount === 0) {
+			await adminPool.query(`CREATE DATABASE ${databaseName}`);
+		}
+	} finally {
+		await adminPool.end();
+	}
+}
+
+async function applySchemaAndSeed(pool: pg.Pool): Promise<void> {
+	// pg runs multi-statement strings via the simple query protocol, so each
+	// file can be applied in one call.
+	await pool.query(await Bun.file(join(REPO_ROOT, "db/local/schema.sql")).text());
+	await pool.query(await Bun.file(join(REPO_ROOT, "db/local/seed.sql")).text());
+}
+
+function getLocalTestDatabaseUrl(): string | undefined {
+	if (process.env.TEST_DATABASE_URL) return process.env.TEST_DATABASE_URL;
+
+	// Bun + Testcontainers can fail Docker Desktop named-pipe discovery on Windows.
+	// Use the local compose Postgres instead, isolated in atlas_test.
+	if (process.platform === "win32") return DEFAULT_WINDOWS_TEST_DATABASE_URL;
+
+	return undefined;
+}
+
+async function startLocalTestDatabase(connectionUri: string): Promise<TestDatabase> {
+	await ensureDatabaseExists(connectionUri);
+
+	const pool = new pg.Pool({ connectionString: connectionUri, max: 10 });
+	await applySchemaAndSeed(pool);
+
+	return {
+		pool,
+		connectionUri,
+		stop: async () => {
+			await pool.end();
+		},
+	};
+}
+
+async function startContainerTestDatabase(): Promise<TestDatabase> {
 	// Wait on the log message, NOT PostgreSqlContainer's default health-check
 	// wait strategy: under Bun the health check completes but its docker event
 	// stream never closes, so start() hangs forever. The message appears twice
-	// (initdb restart, then the real boot) — wait for the second.
+	// (initdb restart, then the real boot) - wait for the second.
 	const container = await new PostgreSqlContainer("postgres:16")
 		.withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
 		.start();
 	const connectionUri = container.getConnectionUri();
 	const pool = new pg.Pool({ connectionString: connectionUri, max: 10 });
 
-	// pg runs multi-statement strings via the simple query protocol, so each
-	// file can be applied in one call.
-	await pool.query(await Bun.file(join(REPO_ROOT, "db/local/schema.sql")).text());
-	await pool.query(await Bun.file(join(REPO_ROOT, "db/local/seed.sql")).text());
+	await applySchemaAndSeed(pool);
 
 	return {
 		pool,
@@ -44,6 +94,19 @@ export async function startTestDatabase(): Promise<TestDatabase> {
 			await container.stop();
 		},
 	};
+}
+
+/**
+ * Starts a database with db/local/schema.sql + seed.sql applied and returns a
+ * pool wired to it. On Windows this uses local compose Postgres at atlas_test
+ * because Bun/Testcontainers can fail Docker Desktop pipe discovery. On other
+ * platforms it starts a throwaway Postgres container.
+ */
+export async function startTestDatabase(): Promise<TestDatabase> {
+	const localConnectionUri = getLocalTestDatabaseUrl();
+	if (localConnectionUri) return startLocalTestDatabase(localConnectionUri);
+
+	return startContainerTestDatabase();
 }
 
 /**
