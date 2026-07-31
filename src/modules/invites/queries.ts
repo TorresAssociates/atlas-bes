@@ -17,19 +17,11 @@ const inviteColumns = [
 	"role_id",
 ] as const;
 
-
 export function listInvites(db: Kysely<DB>): Promise<InviteRow[]> {
-	return db
-		.selectFrom("invite")
-		.select(inviteColumns)
-		.orderBy("id", "desc")
-		.execute();
+	return db.selectFrom("invite").select(inviteColumns).orderBy("id", "desc").execute();
 }
 
-export function listInvitesForClient(
-	db: Kysely<DB>,
-	clientId: number,
-): Promise<InviteRow[]> {
+export function listInvitesForClient(db: Kysely<DB>, clientId: number): Promise<InviteRow[]> {
 	return db
 		.selectFrom("invite")
 		.select(inviteColumns)
@@ -38,10 +30,7 @@ export function listInvitesForClient(
 		.execute();
 }
 
-export function insertInvite(
-	db: Kysely<DB>,
-	invite: InsertInviteRow,
-): Promise<InviteRow> {
+export function insertInvite(db: Kysely<DB>, invite: InsertInviteRow): Promise<InviteRow> {
 	return db
 		.insertInto("invite")
 		.values(invite)
@@ -49,10 +38,7 @@ export function insertInvite(
 		.executeTakeFirstOrThrow();
 }
 
-export function findInviteByToken(
-	db: Kysely<DB>,
-	token: string,
-): Promise<InviteRow | undefined> {
+export function findInviteByToken(db: Kysely<DB>, token: string): Promise<InviteRow | undefined> {
 	return db
 		.selectFrom("invite")
 		.select(inviteColumns)
@@ -60,15 +46,8 @@ export function findInviteByToken(
 		.executeTakeFirst();
 }
 
-export function findInviteById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<InviteRow | undefined> {
-	return db
-		.selectFrom("invite")
-		.select(inviteColumns)
-		.where("id", "=", id)
-		.executeTakeFirst();
+export function findInviteById(db: Kysely<DB>, id: number): Promise<InviteRow | undefined> {
+	return db.selectFrom("invite").select(inviteColumns).where("id", "=", id).executeTakeFirst();
 }
 
 export function findInviteByIdForClient(
@@ -84,15 +63,8 @@ export function findInviteByIdForClient(
 		.executeTakeFirst();
 }
 
-export function deleteInviteById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<InviteRow | undefined> {
-	return db
-		.deleteFrom("invite")
-		.where("id", "=", id)
-		.returning(inviteColumns)
-		.executeTakeFirst();
+export function deleteInviteById(db: Kysely<DB>, id: number): Promise<InviteRow | undefined> {
+	return db.deleteFrom("invite").where("id", "=", id).returning(inviteColumns).executeTakeFirst();
 }
 
 export function deleteInviteByIdForClient(
@@ -131,9 +103,7 @@ export function insertAcceptedInvite(
 		.executeTakeFirstOrThrow();
 }
 
-export function listAcceptedInvites(
-	db: Kysely<DB>,
-): Promise<AcceptedInviteWithSenderRow[]> {
+export function listAcceptedInvites(db: Kysely<DB>): Promise<AcceptedInviteWithSenderRow[]> {
 	return db
 		.selectFrom("accepted_invites")
 		.innerJoin("invite", "invite.id", "accepted_invites.invite_id")

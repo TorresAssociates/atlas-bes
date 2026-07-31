@@ -30,16 +30,13 @@ export function initAuth(instance: Auth): void {
 	auth = instance;
 }
 
-export async function getSession(
-	request: RequestLike,
-): Promise<SessionSubject | null> {
+export async function getSession(request: RequestLike): Promise<SessionSubject | null> {
 	if (!auth) return null;
 
 	const headers = new Headers();
 	for (const [name, value] of Object.entries(request.headers)) {
 		if (typeof value === "string") headers.append(name, value);
-		else if (Array.isArray(value))
-			for (const v of value) headers.append(name, v);
+		else if (Array.isArray(value)) for (const v of value) headers.append(name, v);
 	}
 
 	const session = await auth.api.getSession({ headers });
@@ -69,4 +66,3 @@ export async function createInvitedEmailPasswordUser(
 
 	return result.user.id;
 }
-

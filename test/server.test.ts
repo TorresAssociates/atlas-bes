@@ -9,28 +9,28 @@ import { stubConfigEnv } from "./helpers/database";
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  stubConfigEnv();
-  app = await buildApp({ database: false, logger: false });
+	stubConfigEnv();
+	app = await buildApp({ database: false, logger: false });
 });
 
 afterAll(async () => {
-  await app.close();
+	await app.close();
 });
 
 test("/health returns 200 without any dependencies", async () => {
-  const res = await app.inject({ method: "GET", url: "/health" });
-  expect(res.statusCode).toBe(200);
-  expect(res.json<{ status: string }>()).toEqual({ status: "ok" });
+	const res = await app.inject({ method: "GET", url: "/health" });
+	expect(res.statusCode).toBe(200);
+	expect(res.json<{ status: string }>()).toEqual({ status: "ok" });
 });
 
 test("/ready returns 503 when no database pool is configured", async () => {
-  const res = await app.inject({ method: "GET", url: "/ready" });
-  expect(res.statusCode).toBe(503);
-  expect(res.json().database.error).toBe("no database pool configured");
+	const res = await app.inject({ method: "GET", url: "/ready" });
+	expect(res.statusCode).toBe(503);
+	expect(res.json().database.error).toBe("no database pool configured");
 });
 
 test("/docs serves swagger-ui", async () => {
-  const res = await app.inject({ method: "GET", url: "/docs" });
-  // swagger-ui redirects /docs to its static index
-  expect([200, 302]).toContain(res.statusCode);
+	const res = await app.inject({ method: "GET", url: "/docs" });
+	// swagger-ui redirects /docs to its static index
+	expect([200, 302]).toContain(res.statusCode);
 });

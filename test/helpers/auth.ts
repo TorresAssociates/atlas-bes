@@ -31,7 +31,9 @@ export async function signUpTestUser(
 	});
 
 	if (res.statusCode >= 400) {
-		throw new Error(`failed to sign up test user ${input.email}: ${res.statusCode} ${res.body}`);
+		throw new Error(
+			`failed to sign up test user ${input.email}: ${res.statusCode} ${res.body}`,
+		);
 	}
 
 	const body = res.json<{ user: { id: string } }>();

@@ -1,4 +1,4 @@
-import { Type, type TSchema } from "@sinclair/typebox";
+import { type TSchema, Type } from "@sinclair/typebox";
 
 // The @fastify/sensible error shape ({ statusCode, error, message }).
 // Every route references this from its response map for 4xx/5xx statuses —

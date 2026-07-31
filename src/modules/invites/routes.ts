@@ -5,11 +5,11 @@ import { getSession } from "../auth/service";
 import { UserSchema } from "../users/schemas";
 import {
 	AcceptedInviteListSchema,
-	InviteListSchema,
 	AcceptInviteBodySchema,
 	CreateInviteBodySchema,
-	InvitePreviewSchema,
 	InviteIdParamsSchema,
+	InviteListSchema,
+	InvitePreviewSchema,
 	InviteSchema,
 	InviteTokenQuerySchema,
 } from "./schemas";
@@ -17,8 +17,8 @@ import {
 	acceptInvite,
 	createInvite,
 	deleteInvite,
-	InviteClientAccessDeniedError,
 	InviteAlreadyAcceptedError,
+	InviteClientAccessDeniedError,
 	InviteEmailAlreadyExistsError,
 	InviteExpiredError,
 	InviteNotFoundError,
@@ -33,9 +33,7 @@ import {
 const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
 		if (!app.db) {
-			throw app.httpErrors.serviceUnavailable(
-				"database is not configured",
-			);
+			throw app.httpErrors.serviceUnavailable("database is not configured");
 		}
 
 		return app.db;
@@ -62,7 +60,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			return reply.forbidden(err.message);
 		}
 
-        if (err instanceof InviteRoleAccessDeniedError) {
+		if (err instanceof InviteRoleAccessDeniedError) {
 			return reply.forbidden(err.message);
 		}
 
@@ -96,10 +94,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
-			const canWriteExternalUsers = await hasPermission(
-				request,
-				"W_EXTERNAL_USERS",
-			);
+			const canWriteExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
 
 			return {
 				data: await listInvites(getDb(), session, {
@@ -109,7 +104,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			};
 		},
 	);
-    
+
 	// POST /v1/invites
 	app.post(
 		"/",
@@ -132,10 +127,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
-			const canWriteExternalUsers = await hasPermission(
-				request,
-				"W_EXTERNAL_USERS",
-			);
+			const canWriteExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
 
 			const invite = await createInvite(
 				getDb(),
@@ -174,10 +166,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
-			const canWriteExternalUsers = await hasPermission(
-				request,
-				"W_EXTERNAL_USERS",
-			);
+			const canWriteExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
 
 			return deleteInvite(getDb(), request.params.id, session, {
 				canWriteExternalUsers,
@@ -206,10 +195,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
-			const canWriteExternalUsers = await hasPermission(
-				request,
-				"W_EXTERNAL_USERS",
-			);
+			const canWriteExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
 
 			return {
 				data: await listAcceptedInvites(getDb(), session, {
@@ -255,11 +241,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const user = await acceptInvite(
-				getDb(),
-				app.config.ENCRYPTION_KEY,
-				request.body,
-			);
+			const user = await acceptInvite(getDb(), app.config.ENCRYPTION_KEY, request.body);
 			return reply.code(201).send(user);
 		},
 	);

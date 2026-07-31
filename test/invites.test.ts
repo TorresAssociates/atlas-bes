@@ -130,7 +130,12 @@ test("POST /v1/invites lets an external admin create an invite for any client", 
 
 	expect(res.statusCode).toBe(201);
 	expect(res.json<InviteBody>()).toEqual(
-		expect.objectContaining({ sender_user_id: admin.id, client_id: 2, role_id: 4, expires_at: null }),
+		expect.objectContaining({
+			sender_user_id: admin.id,
+			client_id: 2,
+			role_id: 4,
+			expires_at: null,
+		}),
 	);
 });
 
@@ -194,7 +199,9 @@ test("POST /v1/invites/accept creates a user from an invite", async () => {
 	});
 
 	expect(res.statusCode).toBe(201);
-	expect(res.json<{ email: string; client_id: number; role_id: number; phone_number: string }>()).toEqual(
+	expect(
+		res.json<{ email: string; client_id: number; role_id: number; phone_number: string }>(),
+	).toEqual(
 		expect.objectContaining({
 			email: "accepted-invite-user@example.com",
 			client_id: 2,

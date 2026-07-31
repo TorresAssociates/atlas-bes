@@ -21,20 +21,15 @@ import {
 // Registered by @fastify/autoload: dir name "clients" + the global /v1 prefix puts these routes at /v1/clients.
 const clientRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
-		if (!app.db)
-			throw app.httpErrors.serviceUnavailable(
-				"database is not configured",
-			);
+		if (!app.db) throw app.httpErrors.serviceUnavailable("database is not configured");
 		return app.db;
 	};
 
 	// Domain error → HTTP translation, scoped to this plugin. Anything not a
 	// domain error falls through to the default handling.
 	app.setErrorHandler((err, _request, reply) => {
-		if (err instanceof ClientNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof ClientNameTakenError)
-			return reply.conflict(err.message);
+		if (err instanceof ClientNotFoundError) return reply.notFound(err.message);
+		if (err instanceof ClientNameTakenError) return reply.conflict(err.message);
 		if (err instanceof ClientInUseError) return reply.conflict(err.message);
 		return reply.send(err);
 	});
@@ -92,8 +87,7 @@ const clientRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				},
 			},
 		},
-		async (request) =>
-			updateClient(getDb(), request.params.id, request.body.name),
+		async (request) => updateClient(getDb(), request.params.id, request.body.name),
 	);
 
 	// DELETE /v1/clients/:id

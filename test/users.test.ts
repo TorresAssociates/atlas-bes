@@ -261,4 +261,3 @@ test("PATCH /v1/users/delete/:id returns 409 when the user is already deleted", 
 
 	expect(res.statusCode).toBe(409);
 });
-

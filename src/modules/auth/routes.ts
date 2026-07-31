@@ -24,7 +24,7 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		handler: async (request, reply) => {
 			const url = new URL(request.url, app.config.BETTER_AUTH_URL);
 
-      // Uncomment to block signing up with a POST request
+			// Uncomment to block signing up with a POST request
 			// if (
 			// 	request.method === "POST" &&
 			// 	url.pathname.endsWith("/sign-up/email")
@@ -35,17 +35,14 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			const headers = new Headers();
 			for (const [name, value] of Object.entries(request.headers)) {
 				if (typeof value === "string") headers.append(name, value);
-				else if (Array.isArray(value))
-					for (const v of value) headers.append(name, v);
+				else if (Array.isArray(value)) for (const v of value) headers.append(name, v);
 			}
 
 			const response = await auth.handler(
 				new Request(url.toString(), {
 					method: request.method,
 					headers,
-					body: request.body
-						? JSON.stringify(request.body)
-						: undefined,
+					body: request.body ? JSON.stringify(request.body) : undefined,
 				}),
 			);
 
@@ -64,4 +61,3 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
 };
 
 export default authRoutes;
-

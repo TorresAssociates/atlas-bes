@@ -78,9 +78,9 @@ export async function listUsers(
 	}
 
 	if (access.canReadClientUsers) {
-		return (
-			await queries.listUsersByClient(db, session.client_id, encryptionKey)
-		).map(toUserResponse);
+		return (await queries.listUsersByClient(db, session.client_id, encryptionKey)).map(
+			toUserResponse,
+		);
 	}
 
 	throw new UserAccessDeniedError();
@@ -96,12 +96,7 @@ export async function getUser(
 	const user = access.canReadExternalUsers
 		? await queries.findUserById(db, id, encryptionKey)
 		: access.canReadClientUsers
-			? await queries.findUserByIdForClient(
-					db,
-					id,
-					session.client_id,
-					encryptionKey,
-				)
+			? await queries.findUserByIdForClient(db, id, session.client_id, encryptionKey)
 			: null;
 
 	if (!user) throw new UserNotFoundError(id);
@@ -173,13 +168,7 @@ export async function updateUserClientAndRole(
 	clientId: number,
 	roleId: number,
 ): Promise<UserResponse> {
-	const updated = await queries.updateUserClientAndRole(
-		db,
-		id,
-		clientId,
-		roleId,
-		encryptionKey,
-	);
+	const updated = await queries.updateUserClientAndRole(db, id, clientId, roleId, encryptionKey);
 	if (!updated) throw new UserNotFoundError(id);
 	return toUserResponse(updated);
 }
@@ -191,10 +180,10 @@ export async function deleteUser(
 	session: SessionSubject,
 	access: UserWriteAccess,
 ): Promise<UserResponse> {
-    const deletedAt = await queries.userDeletedAtExists(db, id);
-    if (deletedAt) {
-        throw new UserAlreadyDeletedError(id);
-    }
+	const deletedAt = await queries.userDeletedAtExists(db, id);
+	if (deletedAt) {
+		throw new UserAlreadyDeletedError(id);
+	}
 
 	const updated = access.canWriteExternalUsers
 		? await queries.deleteUser(db, id, encryptionKey)

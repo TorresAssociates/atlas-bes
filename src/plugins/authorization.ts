@@ -48,10 +48,7 @@ export type PermissionName =
  *   3. reply 401 with no session, 403 when none of `names` are held.
  */
 export function requirePermission(...names: PermissionName[]) {
-	return async (
-		request: FastifyRequest,
-		reply: FastifyReply,
-	): Promise<void> => {
+	return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
 		const session = await getSession(request);
 
 		if (!session) {
@@ -93,10 +90,7 @@ export async function hasPermission(
 }
 
 export function requireSession() {
-	return async (
-		request: FastifyRequest,
-		reply: FastifyReply,
-	): Promise<void> => {
+	return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
 		const session = await getSession(request);
 
 		if (!session) {

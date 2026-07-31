@@ -27,4 +27,3 @@ export const UserPhoneNumberBodySchema = Type.Object({
 export const UserListSchema = Type.Object({
 	data: Type.Array(UserSchema),
 });
-

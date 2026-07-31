@@ -11,10 +11,10 @@ import { createDb, createPool } from "../src/db";
 import { createAuth } from "../src/modules/auth/auth";
 
 export const auth = createAuth(
-  {
-    BETTER_AUTH_SECRET: "cli-schema-generation-only-not-a-real-secret",
-    BETTER_AUTH_URL: "http://localhost:8000",
-    FRONTEND_ORIGIN: "http://localhost:5173",
-  },
-  createDb(createPool("postgres://postgres:dev@localhost:5432/better_auth_ddl")),
+	{
+		BETTER_AUTH_SECRET: "cli-schema-generation-only-not-a-real-secret",
+		BETTER_AUTH_URL: "http://localhost:8000",
+		FRONTEND_ORIGIN: "http://localhost:5173",
+	},
+	createDb(createPool("postgres://postgres:dev@localhost:5432/better_auth_ddl")),
 );

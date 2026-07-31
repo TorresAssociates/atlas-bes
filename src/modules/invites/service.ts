@@ -1,10 +1,7 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
 import { roleHasProperPermissionSupersetOfRole } from "@/plugins/authorization.hierarchy";
-import {
-	createInvitedEmailPasswordUser,
-	type SessionSubject,
-} from "../auth/service";
+import { createInvitedEmailPasswordUser, type SessionSubject } from "../auth/service";
 import type { UserRow } from "../users/queries";
 import * as userQueries from "../users/queries";
 import type { UserResponse } from "../users/service";
@@ -38,10 +35,7 @@ export interface InvitePreviewResponse {
 	expires_at: string | null;
 }
 
-export type AcceptedInviteResponse = Omit<
-	AcceptedInviteWithSenderRow,
-	"accepted_date"
-> & {
+export type AcceptedInviteResponse = Omit<AcceptedInviteWithSenderRow, "accepted_date"> & {
 	accepted_date: string;
 };
 
@@ -126,10 +120,7 @@ function toUserResponse(user: UserRow): UserResponse {
 	};
 }
 
-async function getValidInvite(
-	db: Kysely<DB>,
-	token: string,
-): Promise<InviteRow> {
+async function getValidInvite(db: Kysely<DB>, token: string): Promise<InviteRow> {
 	const invite = await queries.findInviteByToken(db, token);
 	if (!invite) throw new InviteNotFoundError();
 
@@ -141,31 +132,29 @@ async function getValidInvite(
 }
 
 function convertToChar(val: number) {
-    let out = val % 62;
-    if(out < 10) {
-        out += 48;
-    } else
-    if(out < 36) {
-        out += 65 - 10;
-    } else {
-        out += 97 - 36;
-    }
-    return String.fromCharCode(out);
+	let out = val % 62;
+	if (out < 10) {
+		out += 48;
+	} else if (out < 36) {
+		out += 65 - 10;
+	} else {
+		out += 97 - 36;
+	}
+	return String.fromCharCode(out);
 }
 
 function getRandomString(strLen: number) {
-    // 48-57, 65-90, 97-122
-    // 10 + 26 + 26 = 62
-    // 0 - 9, 10 - 35, 37 - 61
-    let arr = new Uint32Array(strLen);
-    crypto.getRandomValues(arr);
-    let out = "";
-    for(let i = 0; i < arr.length; i++) {
-        out += convertToChar(arr[i]!);
-    }
-    return out;
+	// 48-57, 65-90, 97-122
+	// 10 + 26 + 26 = 62
+	// 0 - 9, 10 - 35, 37 - 61
+	const arr = new Uint32Array(strLen);
+	crypto.getRandomValues(arr);
+	let out = "";
+	for (let i = 0; i < arr.length; i++) {
+		out += convertToChar(arr[i]!);
+	}
+	return out;
 }
-
 
 export async function listInvites(
 	db: Kysely<DB>,
@@ -177,9 +166,7 @@ export async function listInvites(
 	}
 
 	if (access.canWriteClientUsers) {
-		return (await queries.listInvitesForClient(db, session.client_id)).map(
-			toInviteResponse,
-		);
+		return (await queries.listInvitesForClient(db, session.client_id)).map(toInviteResponse);
 	}
 
 	throw new InviteClientAccessDeniedError();
@@ -205,17 +192,17 @@ export async function createInvite(
 		throw new InviteClientAccessDeniedError();
 	}
 
-    if (!access.canWriteExternalUsers) {
-        const actorOutranksTarget = await roleHasProperPermissionSupersetOfRole(
-            db,
-            session.role_id,
-            input.role_id,
-        );
-    
-        if (!actorOutranksTarget) {
-            throw new InviteRoleAccessDeniedError();
-        }
-    }
+	if (!access.canWriteExternalUsers) {
+		const actorOutranksTarget = await roleHasProperPermissionSupersetOfRole(
+			db,
+			session.role_id,
+			input.role_id,
+		);
+
+		if (!actorOutranksTarget) {
+			throw new InviteRoleAccessDeniedError();
+		}
+	}
 
 	const invite = await queries.insertInvite(db, {
 		token: getRandomString(9),
@@ -227,7 +214,6 @@ export async function createInvite(
 
 	return toInviteResponse(invite);
 }
-
 
 export async function deleteInvite(
 	db: Kysely<DB>,
@@ -294,8 +280,7 @@ export async function acceptInvite(
 
 	await queries.insertAcceptedInvite(db, invite.id, userId);
 
-	if (!user)
-		throw new Error(`created user ${JSON.stringify(userId)} was not found`);
+	if (!user) throw new Error(`created user ${JSON.stringify(userId)} was not found`);
 
 	return toUserResponse(user);
 }
@@ -306,9 +291,7 @@ export async function listAcceptedInvites(
 	access: InviteWriteAccess,
 ): Promise<AcceptedInviteResponse[]> {
 	if (access.canWriteExternalUsers) {
-		return (await queries.listAcceptedInvites(db)).map(
-			toAcceptedInviteResponse,
-		);
+		return (await queries.listAcceptedInvites(db)).map(toAcceptedInviteResponse);
 	}
 
 	if (access.canWriteClientUsers) {

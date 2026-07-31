@@ -33,9 +33,7 @@ export function expandPermissionHierarchy(
 		expanded.add(permission);
 
 		if (permission.includes("_EXTERNAL_")) {
-			expanded.add(
-				permission.replace("_EXTERNAL_", "_CLIENT_") as PermissionName,
-			);
+			expanded.add(permission.replace("_EXTERNAL_", "_CLIENT_") as PermissionName);
 		}
 	}
 

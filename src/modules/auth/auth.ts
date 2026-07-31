@@ -113,4 +113,3 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 }
 
 export type Auth = ReturnType<typeof createAuth>;
-

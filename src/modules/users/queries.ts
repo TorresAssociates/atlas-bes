@@ -1,4 +1,4 @@
-import { sql, type Kysely, type Selectable } from "kysely";
+import { type Kysely, type Selectable, sql } from "kysely";
 import type { DB } from "@/db/types";
 
 const userColumns = [
@@ -15,10 +15,7 @@ const userColumns = [
 	"updated_at",
 ] as const;
 
-export type UserRow = Pick<
-	Selectable<DB["user"]>,
-	(typeof userColumns)[number] | "phone_number"
->;
+export type UserRow = Pick<Selectable<DB["user"]>, (typeof userColumns)[number] | "phone_number">;
 
 function phoneNumberSelection(encryptionKey: string) {
 	return sql<string | null>`case
@@ -35,15 +32,8 @@ function userSelections(encryptionKey: string) {
 	return [...userColumns, phoneNumberSelection(encryptionKey)] as const;
 }
 
-export function listUsers(
-	db: Kysely<DB>,
-	encryptionKey: string,
-): Promise<UserRow[]> {
-	return db
-		.selectFrom("user")
-		.select(userSelections(encryptionKey))
-		.orderBy("name")
-		.execute();
+export function listUsers(db: Kysely<DB>, encryptionKey: string): Promise<UserRow[]> {
+	return db.selectFrom("user").select(userSelections(encryptionKey)).orderBy("name").execute();
 }
 
 export function listUsersByClient(
@@ -85,10 +75,7 @@ export function findUserByIdForClient(
 		.executeTakeFirst();
 }
 
-export async function userEmailExists(
-	db: Kysely<DB>,
-	email: string,
-): Promise<boolean> {
+export async function userEmailExists(db: Kysely<DB>, email: string): Promise<boolean> {
 	const user = await db
 		.selectFrom("user")
 		.select("id")

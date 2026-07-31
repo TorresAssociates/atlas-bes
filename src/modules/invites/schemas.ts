@@ -1,5 +1,5 @@
-import { Nullable } from "@/schemas";
 import { Type } from "@sinclair/typebox";
+import { Nullable } from "@/schemas";
 
 export const InviteSchema = Type.Object({
 	id: Type.Integer(),
