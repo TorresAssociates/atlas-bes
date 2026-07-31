@@ -5,6 +5,7 @@ import { getSession } from "../auth/service";
 import { UserSchema } from "../users/schemas";
 import {
 	AcceptedInviteListSchema,
+	InviteListSchema,
 	AcceptInviteBodySchema,
 	CreateInviteBodySchema,
 	InvitePreviewSchema,
@@ -16,14 +17,16 @@ import {
 	acceptInvite,
 	createInvite,
 	deleteInvite,
-	InviteAccessDeniedError,
+	InviteClientAccessDeniedError,
 	InviteAlreadyAcceptedError,
 	InviteEmailAlreadyExistsError,
 	InviteExpiredError,
 	InviteNotFoundError,
+	InviteRoleAccessDeniedError,
 	InviteRoleClientMismatchError,
 	InviteRoleNotFoundError,
 	listAcceptedInvites,
+	listInvites,
 	validateInvite,
 } from "./service";
 
@@ -55,7 +58,11 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			return reply.conflict(err.message);
 		}
 
-		if (err instanceof InviteAccessDeniedError) {
+		if (err instanceof InviteClientAccessDeniedError) {
+			return reply.forbidden(err.message);
+		}
+
+        if (err instanceof InviteRoleAccessDeniedError) {
 			return reply.forbidden(err.message);
 		}
 
@@ -69,6 +76,40 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		return reply.send(err);
 	});
 
+	// GET /v1/invites
+	app.get(
+		"/",
+		{
+			preHandler: requirePermission("W_CLIENT_USERS", "W_EXTERNAL_USERS"),
+			schema: {
+				tags: ["invites"],
+				response: {
+					200: InviteListSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+				},
+			},
+		},
+		async (request) => {
+			const session = await getSession(request);
+			if (!session) {
+				throw app.httpErrors.unauthorized("authentication required");
+			}
+
+			const canWriteExternalUsers = await hasPermission(
+				request,
+				"W_EXTERNAL_USERS",
+			);
+
+			return {
+				data: await listInvites(getDb(), session, {
+					canWriteExternalUsers,
+					canWriteClientUsers: true,
+				}),
+			};
+		},
+	);
+    
 	// POST /v1/invites
 	app.post(
 		"/",
@@ -149,7 +190,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/accepted",
 		{
-			preHandler: requirePermission("R_EXTERNAL_USERS"),
+			preHandler: requirePermission("W_CLIENT_USERS", "W_EXTERNAL_USERS"),
 			schema: {
 				tags: ["invites"],
 				response: {
@@ -165,7 +206,17 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
-			return { data: await listAcceptedInvites(getDb(), session) };
+			const canWriteExternalUsers = await hasPermission(
+				request,
+				"W_EXTERNAL_USERS",
+			);
+
+			return {
+				data: await listAcceptedInvites(getDb(), session, {
+					canWriteExternalUsers,
+					canWriteClientUsers: true,
+				}),
+			};
 		},
 	);
 
@@ -215,4 +266,3 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 };
 
 export default inviteRoutes;
-

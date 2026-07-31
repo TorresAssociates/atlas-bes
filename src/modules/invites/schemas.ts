@@ -10,6 +10,10 @@ export const InviteSchema = Type.Object({
 	role_id: Type.Integer(),
 });
 
+export const InviteListSchema = Type.Object({
+	data: Type.Array(InviteSchema),
+});
+
 export const InvitePreviewSchema = Type.Object({
 	expires_at: Nullable(Type.String({ format: "date-time" })),
 });
@@ -40,6 +44,7 @@ export const AcceptedInviteSchema = Type.Object({
 	invite_id: Type.Integer(),
 	accepted_date: Type.String({ format: "date-time" }),
 	user_id: Type.String(),
+	sender_user_id: Type.String(),
 });
 
 export const AcceptedInviteListSchema = Type.Object({

@@ -3,6 +3,9 @@ import type { DB } from "@/db/types";
 
 export type InviteRow = Selectable<DB["invite"]>;
 export type AcceptedInviteRow = Selectable<DB["accepted_invites"]>;
+export type AcceptedInviteWithSenderRow = AcceptedInviteRow & {
+	sender_user_id: string;
+};
 export type InsertInviteRow = Insertable<DB["invite"]>;
 
 const inviteColumns = [
@@ -13,6 +16,27 @@ const inviteColumns = [
 	"client_id",
 	"role_id",
 ] as const;
+
+
+export function listInvites(db: Kysely<DB>): Promise<InviteRow[]> {
+	return db
+		.selectFrom("invite")
+		.select(inviteColumns)
+		.orderBy("id", "desc")
+		.execute();
+}
+
+export function listInvitesForClient(
+	db: Kysely<DB>,
+	clientId: number,
+): Promise<InviteRow[]> {
+	return db
+		.selectFrom("invite")
+		.select(inviteColumns)
+		.where("client_id", "=", clientId)
+		.orderBy("id", "desc")
+		.execute();
+}
 
 export function insertInvite(
 	db: Kysely<DB>,
@@ -109,13 +133,40 @@ export function insertAcceptedInvite(
 
 export function listAcceptedInvites(
 	db: Kysely<DB>,
-): Promise<AcceptedInviteRow[]> {
+): Promise<AcceptedInviteWithSenderRow[]> {
 	return db
 		.selectFrom("accepted_invites")
-		.selectAll()
-		.orderBy("accepted_date", "desc")
+		.innerJoin("invite", "invite.id", "accepted_invites.invite_id")
+		.select([
+			"accepted_invites.id",
+			"accepted_invites.invite_id",
+			"accepted_invites.accepted_date",
+			"accepted_invites.user_id",
+			"invite.sender_user_id",
+		])
+		.orderBy("accepted_invites.accepted_date", "desc")
 		.execute();
 }
+
+export function listAcceptedInvitesForClient(
+	db: Kysely<DB>,
+	clientId: number,
+): Promise<AcceptedInviteWithSenderRow[]> {
+	return db
+		.selectFrom("accepted_invites")
+		.innerJoin("invite", "invite.id", "accepted_invites.invite_id")
+		.select([
+			"accepted_invites.id",
+			"accepted_invites.invite_id",
+			"accepted_invites.accepted_date",
+			"accepted_invites.user_id",
+			"invite.sender_user_id",
+		])
+		.where("invite.client_id", "=", clientId)
+		.orderBy("accepted_invites.accepted_date", "desc")
+		.execute();
+}
+
 export function findRoleById(db: Kysely<DB>, roleId: number) {
 	return db
 		.selectFrom("role")

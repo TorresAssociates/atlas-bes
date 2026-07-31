@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
+import { roleHasProperPermissionSupersetOfRole } from "@/plugins/authorization.hierarchy";
 import {
 	createInvitedEmailPasswordUser,
 	type SessionSubject,
@@ -7,7 +8,7 @@ import {
 import type { UserRow } from "../users/queries";
 import * as userQueries from "../users/queries";
 import type { UserResponse } from "../users/service";
-import type { AcceptedInviteRow, InviteRow } from "./queries";
+import type { AcceptedInviteWithSenderRow, InviteRow } from "./queries";
 import * as queries from "./queries";
 
 export interface CreateInviteInput {
@@ -38,7 +39,7 @@ export interface InvitePreviewResponse {
 }
 
 export type AcceptedInviteResponse = Omit<
-	AcceptedInviteRow,
+	AcceptedInviteWithSenderRow,
 	"accepted_date"
 > & {
 	accepted_date: string;
@@ -72,10 +73,17 @@ export class InviteAlreadyAcceptedError extends Error {
 	}
 }
 
-export class InviteAccessDeniedError extends Error {
+export class InviteClientAccessDeniedError extends Error {
 	constructor() {
 		super("not allowed to create invite for that client");
-		this.name = "InviteAccessDeniedError";
+		this.name = "InviteClientAccessDeniedError";
+	}
+}
+
+export class InviteRoleAccessDeniedError extends Error {
+	constructor() {
+		super("not allowed to create invite for that role");
+		this.name = "InviteRoleAccessDeniedError";
 	}
 }
 
@@ -93,25 +101,6 @@ export class InviteRoleClientMismatchError extends Error {
 	}
 }
 
-function isAdmin(session: SessionSubject): boolean {
-	return session.role_id === 1 && session.client_id === 1;
-}
-
-function canCreateInviteForTarget(
-	session: SessionSubject,
-	input: CreateInviteInput,
-): boolean {
-	if (session.role_id === 1 && session.client_id === 1) {
-		return true;
-	}
-
-	if (session.role_id === 3 && session.client_id === 2) {
-		return input.client_id === 2 && input.role_id === 4;
-	}
-
-	return false;
-}
-
 function toInviteResponse(invite: InviteRow): InviteResponse {
 	return {
 		...invite,
@@ -120,7 +109,7 @@ function toInviteResponse(invite: InviteRow): InviteResponse {
 }
 
 function toAcceptedInviteResponse(
-	acceptedInvite: AcceptedInviteRow,
+	acceptedInvite: AcceptedInviteWithSenderRow,
 ): AcceptedInviteResponse {
 	return {
 		...acceptedInvite,
@@ -177,6 +166,25 @@ function getRandomString(strLen: number) {
     return out;
 }
 
+
+export async function listInvites(
+	db: Kysely<DB>,
+	session: SessionSubject,
+	access: InviteWriteAccess,
+): Promise<InviteResponse[]> {
+	if (access.canWriteExternalUsers) {
+		return (await queries.listInvites(db)).map(toInviteResponse);
+	}
+
+	if (access.canWriteClientUsers) {
+		return (await queries.listInvitesForClient(db, session.client_id)).map(
+			toInviteResponse,
+		);
+	}
+
+	throw new InviteClientAccessDeniedError();
+}
+
 export async function createInvite(
 	db: Kysely<DB>,
 	session: SessionSubject,
@@ -184,11 +192,7 @@ export async function createInvite(
 	input: CreateInviteInput,
 ): Promise<InviteResponse> {
 	if (!access.canWriteExternalUsers && !access.canWriteClientUsers) {
-		throw new InviteAccessDeniedError();
-	}
-
-	if (!canCreateInviteForTarget(session, input)) {
-		throw new InviteAccessDeniedError();
+		throw new InviteClientAccessDeniedError();
 	}
 
 	const role = await queries.findRoleById(db, input.role_id);
@@ -196,6 +200,22 @@ export async function createInvite(
 	if (role.client_id !== input.client_id) {
 		throw new InviteRoleClientMismatchError(input.role_id, input.client_id);
 	}
+
+	if (!access.canWriteExternalUsers && input.client_id !== session.client_id) {
+		throw new InviteClientAccessDeniedError();
+	}
+
+    if (!access.canWriteExternalUsers) {
+        const actorOutranksTarget = await roleHasProperPermissionSupersetOfRole(
+            db,
+            session.role_id,
+            input.role_id,
+        );
+    
+        if (!actorOutranksTarget) {
+            throw new InviteRoleAccessDeniedError();
+        }
+    }
 
 	const invite = await queries.insertInvite(db, {
 		token: getRandomString(9),
@@ -283,12 +303,19 @@ export async function acceptInvite(
 export async function listAcceptedInvites(
 	db: Kysely<DB>,
 	session: SessionSubject,
+	access: InviteWriteAccess,
 ): Promise<AcceptedInviteResponse[]> {
-	if (!isAdmin(session)) {
-		throw new InviteAccessDeniedError();
+	if (access.canWriteExternalUsers) {
+		return (await queries.listAcceptedInvites(db)).map(
+			toAcceptedInviteResponse,
+		);
 	}
 
-	return (await queries.listAcceptedInvites(db)).map(
-		toAcceptedInviteResponse,
-	);
+	if (access.canWriteClientUsers) {
+		return (await queries.listAcceptedInvitesForClient(db, session.client_id)).map(
+			toAcceptedInviteResponse,
+		);
+	}
+
+	throw new InviteClientAccessDeniedError();
 }
