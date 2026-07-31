@@ -214,3 +214,16 @@ export function deleteUserForClient(
 		.returning(userSelections(encryptionKey))
 		.executeTakeFirst();
 }
+
+export async function userDeletedAtExists(
+	db: Kysely<DB>,
+	id: string,
+): Promise<Date | string | null> {
+	const user = await db
+		.selectFrom("user")
+		.select("deleted_at")
+		.where("id", "=", id)
+		.executeTakeFirst();
+
+	return user?.deleted_at ?? null;
+}

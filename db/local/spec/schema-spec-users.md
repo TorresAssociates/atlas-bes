@@ -50,7 +50,7 @@ A trailing `?` in the tables below means the column is nullable.
 | `phone_number_verified` | boolean NOT NULL DEFAULT false | Whether the user's phone number is verified |
 | `client_id` | INT NOT NULL REFERENCES client(id) | The client this user belongs to |
 | `role_id` | INT NOT NULL REFERENCES role(id) | The user's single role |
-| `deleted_at?` | timestamptz | UTC timestamp this user record was deleted. NULL means active/current |
+| `deleted_at?` | timestamptz DEFAULT NULL | UTC timestamp this user record was deleted. NULL means active/current |
 | `created_at` | timestamptz NOT NULL DEFAULT now() | When the user account was created |
 | `updated_at` | timestamptz NOT NULL | Last update to the user's information |
 

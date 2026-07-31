@@ -58,7 +58,7 @@ CREATE TABLE "user" (
   phone_number_verified boolean NOT NULL DEFAULT false,
   client_id int NOT NULL REFERENCES client (id),
   role_id int NOT NULL REFERENCES role (id),
-  deleted_at timestamptz,
+  deleted_at timestamptz DEFAULT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL
 );

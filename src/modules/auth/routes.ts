@@ -24,6 +24,7 @@ const authRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		handler: async (request, reply) => {
 			const url = new URL(request.url, app.config.BETTER_AUTH_URL);
 
+      // Uncomment to block signing up with a POST request
 			// if (
 			// 	request.method === "POST" &&
 			// 	url.pathname.endsWith("/sign-up/email")

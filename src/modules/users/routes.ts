@@ -17,6 +17,7 @@ import {
 	getUser,
 	listUsers,
 	UserEmailNotFoundError,
+	UserAlreadyDeletedError,
 	UserNotFoundError,
 	updateOwnPhoneNumber,
 	updateUserPhoneNumber,
@@ -40,6 +41,10 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
 		if (err instanceof UserEmailNotFoundError) {
 			return reply.notFound(err.message);
+		}
+
+		if (err instanceof UserAlreadyDeletedError) {
+			return reply.conflict(err.message);
 		}
 
 		return reply.send(err);
@@ -157,6 +162,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 					401: HttpErrorSchema,
 					403: HttpErrorSchema,
 					404: HttpErrorSchema,
+          409: HttpErrorSchema,
 				},
 			},
 		},

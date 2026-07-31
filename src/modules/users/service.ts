@@ -46,6 +46,13 @@ export class UserAccessDeniedError extends Error {
 	}
 }
 
+export class UserAlreadyDeletedError extends Error {
+	constructor(userId: string) {
+		super(`user ${userId} has already been deleted`);
+		this.name = "UserAlreadyDeletedError";
+	}
+}
+
 function toTimestamp(value: Date | string | null): string | null {
 	if (!value) return null;
 	return value instanceof Date ? value.toISOString() : value;
@@ -184,6 +191,11 @@ export async function deleteUser(
 	session: SessionSubject,
 	access: UserWriteAccess,
 ): Promise<UserResponse> {
+    const deletedAt = await queries.userDeletedAtExists(db, id);
+    if (deletedAt) {
+        throw new UserAlreadyDeletedError(id);
+    }
+
 	const updated = access.canWriteExternalUsers
 		? await queries.deleteUser(db, id, encryptionKey)
 		: access.canWriteClientUsers
