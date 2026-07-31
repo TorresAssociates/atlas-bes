@@ -55,11 +55,11 @@ export function requirePermission(...names: PermissionName[]) {
 		const session = await getSession(request);
 
 		if (!session) {
-			throw reply.unauthorized("authentication required");
+			throw request.server.httpErrors.unauthorized("authentication required");
 		}
 
 		if (!request.server.db) {
-			throw reply.serviceUnavailable("database is not configured");
+			throw request.server.httpErrors.serviceUnavailable("database is not configured");
 		}
 
 		const permissions = await listUserPermissionNames(
@@ -71,7 +71,7 @@ export function requirePermission(...names: PermissionName[]) {
 		const allowed = names.some((name) => permissions.includes(name));
 
 		if (!allowed) {
-			throw reply.forbidden("permission denied");
+			throw request.server.httpErrors.forbidden("permission denied");
 		}
 	};
 }
@@ -100,7 +100,7 @@ export function requireSession() {
 		const session = await getSession(request);
 
 		if (!session) {
-			throw reply.unauthorized("authentication required");
+			throw request.server.httpErrors.unauthorized("authentication required");
 		}
 	};
 }
