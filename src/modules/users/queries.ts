@@ -1,39 +1,58 @@
-import { type Kysely, type Selectable, sql } from "kysely";
+import { type Kysely, sql } from "kysely";
 import type { DB } from "@/db/types";
 
-const userColumns = [
-	"id",
-	"client_id",
-	"created_at",
-	"email",
-	"email_verified",
-	"image",
-	"name",
-	"phone_number_verified",
-	"role_id",
-	"deleted_at",
-	"updated_at",
-] as const;
-
-export type UserRow = Pick<Selectable<DB["user"]>, (typeof userColumns)[number] | "phone_number">;
+export interface UserRow {
+	id: string;
+	client_id: number;
+	created_at: Date;
+	email: string;
+	email_verified: boolean;
+	image: string | null;
+	name: string;
+	phone_number: string | null;
+	phone_number_verified: boolean;
+	role_id: number;
+	deleted_at: Date | string | null;
+	updated_at: Date;
+}
 
 function phoneNumberSelection(encryptionKey: string) {
 	return sql<string | null>`case
 		when phone_number is null then null
-		else pgp_sym_decrypt(phone_number::bytea, concat(${encryptionKey}::text, (select salt)))
+		else pgp_sym_decrypt(phone_number, concat(${encryptionKey}::text, salt))
 	end`.as("phone_number");
 }
 
 function encryptedPhoneNumber(phoneNumber: string, encryptionKey: string) {
-	return sql<string>`pgp_sym_encrypt(${phoneNumber}, concat(${encryptionKey}::text, (select salt)))`;
+	return sql<Buffer>`pgp_sym_encrypt(${phoneNumber}, concat(${encryptionKey}::text, salt))`;
 }
 
 function userSelections(encryptionKey: string) {
-	return [...userColumns, phoneNumberSelection(encryptionKey)] as const;
+	return [
+		"id",
+		"client_id",
+		"created_at",
+		"email",
+		"email_verified",
+		"image",
+		"name",
+		"phone_number_verified",
+		"role_id",
+		"deleted_at",
+		"updated_at",
+		phoneNumberSelection(encryptionKey),
+	] as const;
 }
 
-export function listUsers(db: Kysely<DB>, encryptionKey: string): Promise<UserRow[]> {
-	return db.selectFrom("user").select(userSelections(encryptionKey)).orderBy("name").execute();
+export function listUsers(
+	db: Kysely<DB>,
+	encryptionKey: string,
+): Promise<UserRow[]> {
+	return db
+		.selectFrom("user")
+		.select(userSelections(encryptionKey))
+		.orderBy("name")
+		.execute();
 }
 
 export function listUsersByClient(
@@ -75,7 +94,10 @@ export function findUserByIdForClient(
 		.executeTakeFirst();
 }
 
-export async function userEmailExists(db: Kysely<DB>, email: string): Promise<boolean> {
+export async function userEmailExists(
+	db: Kysely<DB>,
+	email: string,
+): Promise<boolean> {
 	const user = await db
 		.selectFrom("user")
 		.select("id")
@@ -214,3 +236,4 @@ export async function userDeletedAtExists(
 
 	return user?.deleted_at ?? null;
 }
+

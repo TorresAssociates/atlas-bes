@@ -38,7 +38,7 @@ export const UserAuditLogListQuerySchema = Type.Object({
 
 export const RolesPermsAuditLogListQuerySchema = Type.Object({
 	...listQueryBase,
-	role_id: Type.Optional(Type.Integer({ minimum: 1 })),
+	role_name: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export const ControlAuditLogSchema = Type.Object({
@@ -47,7 +47,7 @@ export const ControlAuditLogSchema = Type.Object({
 	action: Type.String(),
 	action_text: Type.String(),
 	device_id: Type.Integer(),
-	actor_id: Type.String(),
+	actor_user_id: Type.String(),
 });
 
 export const ControlAuditLogListSchema = Type.Object({
@@ -59,8 +59,8 @@ export const UserAuditLogSchema = Type.Object({
 	date: Type.String({ format: "date-time" }),
 	action: Type.String(),
 	action_text: Type.String(),
-	actor_id: Type.String(),
-	target_id: Type.String(),
+	actor_user_id: Type.String(),
+	target_user_id: Type.String(),
 });
 
 export const UserAuditLogListSchema = Type.Object({
@@ -72,10 +72,10 @@ export const RolesPermsAuditLogSchema = Type.Object({
 	date: Type.String({ format: "date-time" }),
 	action: Type.String(),
 	action_text: Type.String(),
-	actor_id: Type.String(),
-	role_id: Nullable(Type.Integer()),
+	actor_user_id: Type.String(),
+	role_name: Type.String(),
 	permission_id: Nullable(Type.Integer()),
-	added: Nullable(Type.Boolean()),
+	added: Type.Boolean(),
 });
 
 export const RolesPermsAuditLogListSchema = Type.Object({
@@ -97,7 +97,7 @@ export const CreateUserAuditLogBodySchema = Type.Object({
 
 export const CreateRolesPermsAuditLogBodySchema = Type.Object({
 	action: Type.String({ minLength: 1 }),
-	role_id: Type.Optional(Type.Integer({ minimum: 1 })),
+	role_id: Type.Integer({ minimum: 1 }),
 	permission_id: Type.Optional(Type.Integer({ minimum: 1 })),
 	added: Type.Optional(Type.Boolean()),
 });

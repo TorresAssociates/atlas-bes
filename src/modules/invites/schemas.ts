@@ -3,11 +3,11 @@ import { Nullable } from "@/schemas";
 
 export const InviteSchema = Type.Object({
 	id: Type.Integer(),
-	token: Type.String(),
+	token: Nullable(Type.String()),
 	expires_at: Nullable(Type.String({ format: "date-time" })),
 	sender_user_id: Type.String(),
-	client_id: Type.Integer(),
-	role_id: Type.Integer(),
+	client_id: Nullable(Type.Integer()),
+	role_id: Nullable(Type.Integer()),
 });
 
 export const InviteListSchema = Type.Object({

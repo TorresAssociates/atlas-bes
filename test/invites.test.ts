@@ -57,8 +57,8 @@ beforeAll(async () => {
 	deleteTargetInviteId = invites.rows.find((invite) => invite.token === "delete-target")!.id;
 
 	await db.pool.query(
-		`INSERT INTO accepted_invites (invite_id, user_id)
-		 VALUES ($1, $2), ($3, $4)`,
+		`INSERT INTO accepted_invites (invite_id, user_id, accepted_date)
+		 VALUES ($1, $2, now()), ($3, $4, now())`,
 		[adminInviteId, admin.id, cityInviteId, cityTechnician.id],
 	);
 });
@@ -70,11 +70,11 @@ afterAll(async () => {
 
 interface InviteBody {
 	id: number;
-	token: string;
+	token: string | null;
 	expires_at: string | null;
 	sender_user_id: string;
-	client_id: number;
-	role_id: number;
+	client_id: number | null;
+	role_id: number | null;
 }
 
 interface InviteListBody {
@@ -158,7 +158,7 @@ test("POST /v1/invites rejects a client manager inviting another client manager"
 		method: "POST",
 		url: "/v1/invites",
 		headers: { cookie: cityManager.cookie },
-		body: { client_id: 2, role_id: 3, expires_at: null },
+		body: { client_id: 2, role_id: 3, expires_at: "2026-12-31T23:59:59.000Z" },
 	});
 
 	expect(res.statusCode).toBe(403);
@@ -169,7 +169,7 @@ test("POST /v1/invites rejects a client manager inviting another client", async 
 		method: "POST",
 		url: "/v1/invites",
 		headers: { cookie: cityManager.cookie },
-		body: { client_id: 1, role_id: 2, expires_at: null },
+		body: { client_id: 1, role_id: 2, expires_at: "2026-12-31T23:59:59.000Z" },
 	});
 
 	expect(res.statusCode).toBe(403);
@@ -200,7 +200,7 @@ test("POST /v1/invites/accept creates a user from an invite", async () => {
 
 	expect(res.statusCode).toBe(201);
 	expect(
-		res.json<{ email: string; client_id: number; role_id: number; phone_number: string }>(),
+		res.json<{ email: string; client_id: number | null; role_id: number | null; phone_number: string }>(),
 	).toEqual(
 		expect.objectContaining({
 			email: "accepted-invite-user@example.com",
@@ -224,7 +224,7 @@ test("POST /v1/invites/accept rejects an email that already exists", async () =>
 		},
 	});
 
-	expect(res.statusCode).toBe(409);
+    expect(res.statusCode).toBe(409);
 });
 
 test("GET /v1/invites/accepted lets admins see accepted invites for all clients", async () => {
@@ -274,14 +274,15 @@ test("DELETE /v1/invites/:id deletes an unaccepted same-client invite", async ()
 	);
 });
 
-test("DELETE /v1/invites/:id returns 409 for an accepted invite", async () => {
+test("DELETE /v1/invites/:id soft-deletes an accepted invite", async () => {
 	const res = await app.inject({
 		method: "DELETE",
 		url: `/v1/invites/${cityInviteId}`,
 		headers: { cookie: cityManager.cookie },
 	});
 
-	expect(res.statusCode).toBe(409);
+    expect(res.statusCode).toBe(200);
+    expect(res.json<InviteBody>()).toEqual(expect.objectContaining({ id: cityInviteId, token: null, client_id: 2 }));
 });
 
 test("DELETE /v1/invites/:id hides another client's invite from a client manager", async () => {

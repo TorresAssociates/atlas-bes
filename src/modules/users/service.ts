@@ -19,7 +19,10 @@ export interface UserWriteAccess {
 	canWriteClientUsers: boolean;
 }
 
-export type UserResponse = Omit<UserRow, "deleted_at" | "created_at" | "updated_at"> & {
+export type UserResponse = Omit<
+	UserRow,
+	"deleted_at" | "created_at" | "updated_at"
+> & {
 	deleted_at: string | null;
 	created_at: string;
 	updated_at: string;
@@ -78,9 +81,13 @@ export async function listUsers(
 	}
 
 	if (access.canReadClientUsers) {
-		return (await queries.listUsersByClient(db, session.client_id, encryptionKey)).map(
-			toUserResponse,
-		);
+		return (
+			await queries.listUsersByClient(
+				db,
+				session.client_id,
+				encryptionKey,
+			)
+		).map(toUserResponse);
 	}
 
 	throw new UserAccessDeniedError();
@@ -96,7 +103,12 @@ export async function getUser(
 	const user = access.canReadExternalUsers
 		? await queries.findUserById(db, id, encryptionKey)
 		: access.canReadClientUsers
-			? await queries.findUserByIdForClient(db, id, session.client_id, encryptionKey)
+			? await queries.findUserByIdForClient(
+					db,
+					id,
+					session.client_id,
+					encryptionKey,
+				)
 			: null;
 
 	if (!user) throw new UserNotFoundError(id);
@@ -143,7 +155,12 @@ export async function updateUserPhoneNumber(
 	access: UserWriteAccess,
 ): Promise<UserResponse> {
 	const updated = access.canWriteExternalUsers
-		? await queries.updateUserPhoneNumber(db, id, phoneNumber, encryptionKey)
+		? await queries.updateUserPhoneNumber(
+				db,
+				id,
+				phoneNumber,
+				encryptionKey,
+			)
 		: access.canWriteClientUsers
 			? await queries.updateUserPhoneNumberForClient(
 					db,
@@ -168,7 +185,13 @@ export async function updateUserClientAndRole(
 	clientId: number,
 	roleId: number,
 ): Promise<UserResponse> {
-	const updated = await queries.updateUserClientAndRole(db, id, clientId, roleId, encryptionKey);
+	const updated = await queries.updateUserClientAndRole(
+		db,
+		id,
+		clientId,
+		roleId,
+		encryptionKey,
+	);
 	if (!updated) throw new UserNotFoundError(id);
 	return toUserResponse(updated);
 }
@@ -188,7 +211,12 @@ export async function deleteUser(
 	const updated = access.canWriteExternalUsers
 		? await queries.deleteUser(db, id, encryptionKey)
 		: access.canWriteClientUsers
-			? await queries.deleteUserForClient(db, id, session.client_id, encryptionKey)
+			? await queries.deleteUserForClient(
+					db,
+					id,
+					session.client_id,
+					encryptionKey,
+				)
 			: null;
 
 	if (!updated) {

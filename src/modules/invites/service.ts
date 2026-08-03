@@ -98,7 +98,7 @@ export class InviteRoleClientMismatchError extends Error {
 function toInviteResponse(invite: InviteRow): InviteResponse {
 	return {
 		...invite,
-		expires_at: invite.expires_at?.toISOString() ?? null,
+		expires_at: invite.expires_at === null ? null : new Date(invite.expires_at).toISOString(),
 	};
 }
 
@@ -107,14 +107,14 @@ function toAcceptedInviteResponse(
 ): AcceptedInviteResponse {
 	return {
 		...acceptedInvite,
-		accepted_date: acceptedInvite.accepted_date.toISOString(),
+		accepted_date: new Date(acceptedInvite.accepted_date).toISOString(),
 	};
 }
 
 function toUserResponse(user: UserRow): UserResponse {
 	return {
 		...user,
-		deleted_at: user.deleted_at?.toISOString() ?? null,
+		deleted_at: user.deleted_at === null ? null : new Date(user.deleted_at).toISOString(),
 		created_at: user.created_at.toISOString(),
 		updated_at: user.updated_at.toISOString(),
 	};
@@ -124,7 +124,7 @@ async function getValidInvite(db: Kysely<DB>, token: string): Promise<InviteRow>
 	const invite = await queries.findInviteByToken(db, token);
 	if (!invite) throw new InviteNotFoundError();
 
-	if (invite.expires_at && invite.expires_at.getTime() <= Date.now()) {
+	if (invite.expires_at !== null && new Date(invite.expires_at).getTime() <= Date.now()) {
 		throw new InviteExpiredError();
 	}
 
@@ -206,7 +206,7 @@ export async function createInvite(
 
 	const invite = await queries.insertInvite(db, {
 		token: getRandomString(9),
-		expires_at: input.expires_at ? new Date(input.expires_at) : null,
+		expires_at: input.expires_at === null ? null : new Date(input.expires_at),
 		sender_user_id: session.user_id,
 		client_id: input.client_id,
 		role_id: input.role_id,
@@ -229,17 +229,15 @@ export async function deleteInvite(
 
 	if (!invite) throw new InviteNotFoundError();
 
-	const acceptedInvite = await queries.findAcceptedInviteByInviteId(db, id);
-	if (acceptedInvite) throw new InviteAlreadyAcceptedError(id);
-
 	const deleted = access.canWriteExternalUsers
-		? await queries.deleteInviteById(db, id)
-		: await queries.deleteInviteByIdForClient(db, id, session.client_id);
+		? await queries.softDeleteInviteById(db, id)
+		: await queries.softDeleteInviteByIdForClient(db, id, session.client_id);
 
 	if (!deleted) throw new InviteNotFoundError();
 
 	return toInviteResponse(deleted);
 }
+
 export async function validateInvite(
 	db: Kysely<DB>,
 	token: string,
@@ -247,7 +245,7 @@ export async function validateInvite(
 	const invite = await getValidInvite(db, token);
 
 	return {
-		expires_at: invite.expires_at?.toISOString() ?? null,
+		expires_at: invite.expires_at === null ? null : new Date(invite.expires_at).toISOString(),
 	};
 }
 
@@ -257,6 +255,7 @@ export async function acceptInvite(
 	input: AcceptInviteInput,
 ): Promise<UserResponse> {
 	const invite = await getValidInvite(db, input.token);
+	if (invite.client_id === null || invite.role_id === null) throw new InviteNotFoundError();
 	const email = input.email.toLowerCase();
 
 	if (await userQueries.userEmailExists(db, email)) {

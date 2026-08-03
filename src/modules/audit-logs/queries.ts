@@ -23,8 +23,8 @@ export interface UserAuditLogFilters extends AuditLogListFilters {
 	targetId?: string;
 }
 
-export interface RolesPermsAuditLogFilters extends AuditLogListFilters {
-	roleId?: number;
+export interface RolePermissionsAuditLogFilters extends AuditLogListFilters {
+	roleName?: string;
 }
 
 export interface ControlAuditLogRow {
@@ -33,7 +33,7 @@ export interface ControlAuditLogRow {
 	action: string;
 	action_text: string;
 	device_id: number;
-	actor_id: string;
+	actor_user_id: string;
 }
 
 export interface UserAuditLogRow {
@@ -41,19 +41,19 @@ export interface UserAuditLogRow {
 	date: Date;
 	action: string;
 	action_text: string;
-	actor_id: string;
-	target_id: string;
+	actor_user_id: string;
+	target_user_id: string;
 }
 
-export interface RolesPermsAuditLogRow {
+export interface RolePermissionsAuditLogRow {
 	id: number;
 	date: Date;
 	action: string;
 	action_text: string;
-	actor_id: string;
-	role_id: number | null;
+	actor_user_id: string;
+	role_name: string;
 	permission_id: number | null;
-	added: boolean | null;
+	added: boolean;
 }
 
 // Inserts return only the generated columns; callers already hold the rest.
@@ -86,27 +86,28 @@ export function listControlAuditLogs(
 	let query = db
 		.selectFrom("control_audit_log")
 		.innerJoin("audit_log_action", "audit_log_action.id", "control_audit_log.log_action_id")
-		.innerJoin("user as actor", "actor.id", "control_audit_log.actor_id")
+		.innerJoin("user as actor", "actor.id", "control_audit_log.actor_user_id")
 		.select([
 			"control_audit_log.id",
 			"control_audit_log.date",
 			"audit_log_action.action_id as action",
 			"audit_log_action.action_text",
 			"control_audit_log.device_id",
-			"control_audit_log.actor_id",
+			"control_audit_log.actor_user_id",
 		]);
 
-	if (filters.clientId !== undefined)
-		query = query.where("actor.client_id", "=", filters.clientId);
-	if (filters.from !== undefined)
-		query = query.where("control_audit_log.date", ">=", filters.from);
+	if (filters.clientId !== undefined) query = query.where("actor.client_id", "=", filters.clientId);
+	if (filters.from !== undefined) query = query.where("control_audit_log.date", ">=", filters.from);
 	if (filters.to !== undefined) query = query.where("control_audit_log.date", "<=", filters.to);
-	if (filters.logActionId !== undefined)
+	if (filters.logActionId !== undefined) {
 		query = query.where("control_audit_log.log_action_id", "=", filters.logActionId);
-	if (filters.actorId !== undefined)
-		query = query.where("control_audit_log.actor_id", "=", filters.actorId);
-	if (filters.deviceId !== undefined)
+	}
+	if (filters.actorId !== undefined) {
+		query = query.where("control_audit_log.actor_user_id", "=", filters.actorId);
+	}
+	if (filters.deviceId !== undefined) {
 		query = query.where("control_audit_log.device_id", "=", filters.deviceId);
+	}
 
 	return query
 		.orderBy("control_audit_log.date", "desc")
@@ -118,11 +119,11 @@ export function listControlAuditLogs(
 
 export function insertControlAuditLog(
 	db: Kysely<DB>,
-	values: { log_action_id: number; device_id: number; actor_id: string },
+	values: { log_action_id: number; device_id: number; actor_user_id: string },
 ): Promise<InsertedAuditLogRow> {
 	return db
 		.insertInto("control_audit_log")
-		.values(values)
+		.values({ ...values, date: new Date() })
 		.returning(["id", "date"])
 		.executeTakeFirstOrThrow();
 }
@@ -135,26 +136,28 @@ export function listUserAuditLogs(
 	let query = db
 		.selectFrom("user_audit_log")
 		.innerJoin("audit_log_action", "audit_log_action.id", "user_audit_log.log_action_id")
-		.innerJoin("user as target", "target.id", "user_audit_log.target_id")
+		.innerJoin("user as target", "target.id", "user_audit_log.target_user_id")
 		.select([
 			"user_audit_log.id",
 			"user_audit_log.date",
 			"audit_log_action.action_id as action",
 			"audit_log_action.action_text",
-			"user_audit_log.actor_id",
-			"user_audit_log.target_id",
+			"user_audit_log.actor_user_id",
+			"user_audit_log.target_user_id",
 		]);
 
-	if (filters.clientId !== undefined)
-		query = query.where("target.client_id", "=", filters.clientId);
+	if (filters.clientId !== undefined) query = query.where("target.client_id", "=", filters.clientId);
 	if (filters.from !== undefined) query = query.where("user_audit_log.date", ">=", filters.from);
 	if (filters.to !== undefined) query = query.where("user_audit_log.date", "<=", filters.to);
-	if (filters.logActionId !== undefined)
+	if (filters.logActionId !== undefined) {
 		query = query.where("user_audit_log.log_action_id", "=", filters.logActionId);
-	if (filters.actorId !== undefined)
-		query = query.where("user_audit_log.actor_id", "=", filters.actorId);
-	if (filters.targetId !== undefined)
-		query = query.where("user_audit_log.target_id", "=", filters.targetId);
+	}
+	if (filters.actorId !== undefined) {
+		query = query.where("user_audit_log.actor_user_id", "=", filters.actorId);
+	}
+	if (filters.targetId !== undefined) {
+		query = query.where("user_audit_log.target_user_id", "=", filters.targetId);
+	}
 
 	return query
 		.orderBy("user_audit_log.date", "desc")
@@ -166,70 +169,72 @@ export function listUserAuditLogs(
 
 export function insertUserAuditLog(
 	db: Kysely<DB>,
-	values: { log_action_id: number; actor_id: string; target_id: string },
+	values: { log_action_id: number; actor_user_id: string; target_user_id: string },
 ): Promise<InsertedAuditLogRow> {
 	return db
 		.insertInto("user_audit_log")
-		.values(values)
+		.values({ ...values, date: new Date() })
 		.returning(["id", "date"])
 		.executeTakeFirstOrThrow();
 }
 
-export function listRolesPermsAuditLogs(
+export function listRolePermissionsAuditLogs(
 	db: Kysely<DB>,
-	filters: RolesPermsAuditLogFilters,
-): Promise<RolesPermsAuditLogRow[]> {
-	// role_id is nullable, so client scoping goes through the acting user
-	// rather than the affected role.
+	filters: RolePermissionsAuditLogFilters,
+): Promise<RolePermissionsAuditLogRow[]> {
 	let query = db
-		.selectFrom("roles_perms_audit_log")
-		.innerJoin("audit_log_action", "audit_log_action.id", "roles_perms_audit_log.log_action_id")
-		.innerJoin("user as actor", "actor.id", "roles_perms_audit_log.actor_id")
+		.selectFrom("role_permissions_audit_log")
+		.innerJoin("audit_log_action", "audit_log_action.id", "role_permissions_audit_log.log_action_id")
+		.innerJoin("user as actor", "actor.id", "role_permissions_audit_log.actor_user_id")
 		.select([
-			"roles_perms_audit_log.id",
-			"roles_perms_audit_log.date",
+			"role_permissions_audit_log.id",
+			"role_permissions_audit_log.date",
 			"audit_log_action.action_id as action",
 			"audit_log_action.action_text",
-			"roles_perms_audit_log.actor_id",
-			"roles_perms_audit_log.role_id",
-			"roles_perms_audit_log.permission_id",
-			"roles_perms_audit_log.added",
+			"role_permissions_audit_log.actor_user_id",
+			"role_permissions_audit_log.role_name",
+			"role_permissions_audit_log.permission_id",
+			"role_permissions_audit_log.added",
 		]);
 
-	if (filters.clientId !== undefined)
-		query = query.where("actor.client_id", "=", filters.clientId);
-	if (filters.from !== undefined)
-		query = query.where("roles_perms_audit_log.date", ">=", filters.from);
-	if (filters.to !== undefined)
-		query = query.where("roles_perms_audit_log.date", "<=", filters.to);
-	if (filters.logActionId !== undefined)
-		query = query.where("roles_perms_audit_log.log_action_id", "=", filters.logActionId);
-	if (filters.actorId !== undefined)
-		query = query.where("roles_perms_audit_log.actor_id", "=", filters.actorId);
-	if (filters.roleId !== undefined)
-		query = query.where("roles_perms_audit_log.role_id", "=", filters.roleId);
+	if (filters.clientId !== undefined) query = query.where("actor.client_id", "=", filters.clientId);
+	if (filters.from !== undefined) {
+		query = query.where("role_permissions_audit_log.date", ">=", filters.from);
+	}
+	if (filters.to !== undefined) {
+		query = query.where("role_permissions_audit_log.date", "<=", filters.to);
+	}
+	if (filters.logActionId !== undefined) {
+		query = query.where("role_permissions_audit_log.log_action_id", "=", filters.logActionId);
+	}
+	if (filters.actorId !== undefined) {
+		query = query.where("role_permissions_audit_log.actor_user_id", "=", filters.actorId);
+	}
+	if (filters.roleName !== undefined) {
+		query = query.where("role_permissions_audit_log.role_name", "=", filters.roleName);
+	}
 
 	return query
-		.orderBy("roles_perms_audit_log.date", "desc")
-		.orderBy("roles_perms_audit_log.id", "desc")
+		.orderBy("role_permissions_audit_log.date", "desc")
+		.orderBy("role_permissions_audit_log.id", "desc")
 		.limit(filters.limit)
 		.offset(filters.offset)
 		.execute();
 }
 
-export function insertRolesPermsAuditLog(
+export function insertRolePermissionsAuditLog(
 	db: Kysely<DB>,
 	values: {
 		log_action_id: number;
-		actor_id: string;
-		role_id: number | null;
+		actor_user_id: string;
+		role_name: string;
 		permission_id: number | null;
-		added: boolean | null;
+		added: boolean;
 	},
 ): Promise<InsertedAuditLogRow> {
 	return db
-		.insertInto("roles_perms_audit_log")
-		.values(values)
+		.insertInto("role_permissions_audit_log")
+		.values({ ...values, date: new Date() })
 		.returning(["id", "date"])
 		.executeTakeFirstOrThrow();
 }
@@ -242,23 +247,18 @@ export function findUserClientById(
 	db: Kysely<DB>,
 	id: string,
 ): Promise<{ id: string; client_id: number } | undefined> {
-	return db
-		.selectFrom("user")
-		.select(["id", "client_id"])
-		.where("id", "=", id)
-		.executeTakeFirst();
+	return db.selectFrom("user").select(["id", "client_id"]).where("id", "=", id).executeTakeFirst();
 }
 
-// client_id is nullable on role in the current schema; a null-client role never
-// matches a caller's client, so non-external writers cannot reference it.
 export function findRoleById(
 	db: Kysely<DB>,
 	id: number,
-): Promise<{ id: number; client_id: number | null } | undefined> {
+): Promise<{ id: number; name: string; client_id: number } | undefined> {
 	return db
 		.selectFrom("role")
-		.select(["id", "client_id"])
+		.select(["id", "name", "client_id"])
 		.where("id", "=", id)
+		.where("deleted_at", "is", null)
 		.executeTakeFirst();
 }
 

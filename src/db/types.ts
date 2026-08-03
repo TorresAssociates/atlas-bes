@@ -5,9 +5,17 @@
 
 import type { ColumnType } from "kysely";
 
+export type AlertLevel = "device" | "gauge_station";
+
+export type DeviceType = "barrier" | "camera" | "datalogger" | "flasher";
+
 export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
+
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
+
+export type InternalPowerSensorMeasurementType = "current" | "power" | "voltage";
 
 export type Json = JsonValue;
 
@@ -21,130 +29,473 @@ export type JsonPrimitive = boolean | number | string | null;
 
 export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
+export type NotificationType = "email" | "sms";
+
+export type ProtocolType = "coap" | "mqtt";
+
+export type SeasonalReportQuestionResponse = "no" | "unknown" | "yes";
+
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export type WorkOrderState = "cancelled" | "completed" | "in_progress" | "not_started";
+
 export interface AcceptedInvites {
-  /**
-   * When the invite was accepted
-   */
-  accepted_date: Generated<Timestamp>;
-  /**
-   * Unique identifier for the acceptance record
-   */
+  accepted_date: Timestamp;
   id: Generated<number>;
-  /**
-   * The invite that was accepted. Reusable invite tokens may have many acceptance rows
-   */
   invite_id: number;
-  /**
-   * The user created by accepting the invite
-   */
   user_id: string;
 }
 
 export interface Account {
-  /**
-   * The access token of the account. Returned by the provider
-   */
   access_token: string | null;
-  /**
-   * When the access token expires
-   */
   access_token_expires_at: Timestamp | null;
-  /**
-   * The ID of the account as provided by the SSO, or equal to user_id for credential accounts
-   */
   account_id: string;
-  /**
-   * When the account was created
-   */
-  created_at: Generated<Timestamp>;
-  /**
-   * Unique identifier for each account
-   */
+  created_at: Timestamp;
   id: string;
-  /**
-   * The ID token returned from the provider
-   */
   id_token: string | null;
-  /**
-   * The password of the account. Mainly used for email and password authentication
-   */
   password: string | null;
-  /**
-   * The ID of the provider
-   */
   provider_id: string;
-  /**
-   * The refresh token of the account. Returned by the provider
-   */
   refresh_token: string | null;
-  /**
-   * When the refresh token expires
-   */
   refresh_token_expires_at: Timestamp | null;
-  /**
-   * The scope of the account. Returned by the provider
-   */
   scope: string | null;
-  /**
-   * When the account was updated
-   */
   updated_at: Timestamp;
-  /**
-   * The ID of the user
-   */
   user_id: string;
 }
 
+export interface Alert {
+  archived: Timestamp | null;
+  client_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  level: AlertLevel;
+  type: string;
+}
+
+export interface AlertInfo {
+  alert_id: number;
+  id: Generated<number>;
+  retract_message: string;
+  send_message: string;
+}
+
+export interface AlertMonitor {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  local_id: number;
+  type_id: number;
+}
+
+export interface AlertMonitorConfig {
+  alert_id: number;
+  alert_monitor_id: number;
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  priority: number;
+}
+
+export interface AlertMonitorConfigActivity {
+  active: boolean;
+  alert_monitor_id: number;
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface AlertMonitorConfigRange {
+  alert_monitor_id: number;
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  max_value: number;
+  min_value: number;
+}
+
+export interface AlertSubscription {
+  alert_id: NotificationType;
+  archived: Timestamp | null;
+  gauge_station_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  user_id: string;
+}
+
+export interface Asset {
+  asset_type_id: number;
+  cost: string | null;
+  creation_date: Timestamp;
+  deploy_date: Timestamp;
+  eos_date: Timestamp;
+  gauge_station_id: number;
+  id: Generated<number>;
+  serial_number: string;
+}
+
+export interface AssetType {
+  asset_text: string;
+  current_value: string | null;
+  id: Generated<number>;
+  is_deprecated: Generated<boolean>;
+  lifespan: number | null;
+  owner_client_id: number;
+  point_of_sale: string | null;
+}
+
 export interface AuditLogAction {
-  /**
-   * Stable machine key
-   */
   action_id: string;
-  /**
-   * Human-readable label
-   */
   action_text: string;
   id: Generated<number>;
 }
 
-export interface Client {
-  /**
-   * Unique identifier for each client
-   */
+export interface Camera {
+  archived: Timestamp | null;
+  device_id: number;
   id: Generated<number>;
-  /**
-   * Name of the client
-   */
+  introduced: Generated<Timestamp>;
+  local_id: number;
+}
+
+export interface CameraCaptureData {
+  archived: Timestamp | null;
+  camera_data_record_id: Int8;
+  file_type: string;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  is_tagged: boolean;
+  path: string;
+}
+
+export interface CameraConfig {
+  archived: Timestamp | null;
+  boot_time_delay: number;
+  camera_id: number;
+  check_in_time: string | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  pan: number | null;
+  selected_preset: number;
+  tilt: number | null;
+  zoom: number | null;
+}
+
+export interface CameraConfigPreset {
+  archived: Timestamp | null;
+  camera_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  local_preset_id: number;
+  pan: number;
+  tilt: number;
+  zoom: number;
+}
+
+export interface CameraConfigRotation {
+  archived: Timestamp | null;
+  camera_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  rotation: number;
+}
+
+export interface CameraDataRecord {
+  archived: Timestamp | null;
+  camera_id: number;
+  date: Timestamp;
+  id: Generated<Int8>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface CameraDetectionData {
+  archived: Timestamp | null;
+  camera_data_record_id: Int8;
+  confidence: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  object: string;
+  present_duration: number;
+  stalled: boolean;
+  water_level: number;
+}
+
+export interface Channel {
+  archived: Timestamp | null;
+  channel_type_id: number;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  local_id: number;
+}
+
+export interface ChannelAlertMonitor {
+  alert_monitor_id: number;
+  archived: Timestamp | null;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface ChannelConfig {
+  active: boolean;
+  archived: Timestamp | null;
+  category: string;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  name: string;
+  offset: number;
+  scale: number;
+  units: string;
+}
+
+export interface ChannelConfigAccumulation {
+  archived: Timestamp | null;
+  channel_id: number;
+  drain_const: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  source_local_id: number;
+}
+
+export interface ChannelConfigDisplay {
+  archived: Timestamp | null;
+  channel_id: number;
+  display_index: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface ChannelConfigInternalPowerSensor {
+  archived: Timestamp | null;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  measurement_type: InternalPowerSensorMeasurementType;
+}
+
+export interface ChannelConfigSdi12 {
+  address: string;
+  archived: Timestamp | null;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  measurement_index: number;
+  measurement_set: number;
+}
+
+export interface ChannelConfigTilt {
+  alignment_x: number | null;
+  alignment_y: number | null;
+  alignment_z: number | null;
+  archived: Timestamp | null;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface ChannelError {
+  archived: Timestamp | null;
+  channel_id: number;
+  error_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface ChannelRiskLevelMonitor {
+  archived: Timestamp | null;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  risk_level_monitor_id: number;
+}
+
+export interface ChannelTimestepModifier {
+  archived: Timestamp | null;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  timestep_modifier_id: number;
+}
+
+export interface City {
+  id: Generated<number>;
+  name: string;
+  state: string;
+}
+
+export interface Client {
+  deleted_at: Timestamp | null;
+  id: Generated<number>;
   name: string;
 }
 
+export interface ClientGaugeStation {
+  client_id: number;
+  gauge_station_id: number;
+  id: Generated<number>;
+}
+
 export interface ControlAuditLog {
-  /**
-   * The user who performed the action
-   */
-  actor_id: string;
-  /**
-   * When the action occurred
-   */
-  date: Generated<Timestamp>;
-  /**
-   * The device acted upon
-   */
+  actor_user_id: string;
+  date: Timestamp;
   device_id: number;
   id: Generated<number>;
-  /**
-   * What action was performed
-   */
   log_action_id: number;
 }
 
 export interface Device {
-  /**
-   * Placeholder device identifier
-   */
+  archived: Timestamp | null;
   id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  serial_number: string;
+}
+
+export interface DeviceCameraAccumulationTrigger {
+  accumulation_time: number;
+  archived: Timestamp | null;
+  camera_id: number;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  trigger_amount: number;
+}
+
+export interface DeviceCameraAccumulationTriggerActive {
+  active: boolean;
+  archived: Timestamp | null;
+  camera_id: number;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface DeviceCameraInfo {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  trigger_override: boolean | null;
+}
+
+export interface DeviceCameraTrigger {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  triggered: boolean;
+}
+
+export interface DeviceConnected {
+  archived: Timestamp | null;
+  connected: boolean;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface DeviceConnectionQuality {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  max_rsrp: number | null;
+  max_rsrq: number | null;
+  max_rssi: number | null;
+  min_rsrp: number | null;
+  min_rsrq: number | null;
+  min_rssi: number | null;
+}
+
+export interface DeviceDatalogging {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  timestep: number;
+}
+
+export interface DeviceInfo {
+  activation_date: Timestamp | null;
+  active: boolean | null;
+  archived: Timestamp | null;
+  device_id: number;
+  gauge_station_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  latitude: number | null;
+  longitude: number | null;
+  page_version: string | null;
+  type: DeviceType;
+  warranty_end_date: Timestamp | null;
+}
+
+export interface DeviceNetworking {
+  api_version: string;
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  protocol: ProtocolType;
+}
+
+export interface DevicePower {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  max_voltage: number;
+  min_voltage: number;
+}
+
+export interface DeviceSim {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  sim_id: number;
+  sim_index: number | null;
+}
+
+export interface DeviceSimActive {
+  active_sim_index: number;
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface DeviceWifiInterfaceActive {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  wifi_active: boolean;
+}
+
+export interface DeviceWifiInterfaceConfig {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  password: Buffer;
+  salt: Generated<string>;
+}
+
+export interface GaugeStation {
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  name: string;
+}
+
+export interface GaugeStationInfo {
+  archived: Timestamp | null;
+  city_id: number;
+  gauge_station_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  name: string;
 }
 
 export interface GrantedPermission {
@@ -153,95 +504,108 @@ export interface GrantedPermission {
   user_id: string;
 }
 
-export interface Invite {
-  /**
-   * The client the invitee will belong to
-   */
-  client_id: number;
-  /**
-   * When the invite token expires. NULL means the invite is a permalink
-   */
-  expires_at: Timestamp | null;
-  /**
-   * Unique identifier for invites
-   */
+export interface IncidentCategory {
+  category: string;
   id: Generated<number>;
-  /**
-   * The role the invited user will receive on signup
-   */
-  role_id: number;
-  /**
-   * The user who sent the invite
-   */
+}
+
+export interface IncidentType {
+  id: Generated<number>;
+  incident_category_id: number;
+  type: string;
+}
+
+export interface Invite {
+  client_id: number | null;
+  expires_at: Timestamp | null;
+  id: Generated<number>;
+  role_id: number | null;
   sender_user_id: string;
-  /**
-   * varchar(32) for the invite token url
-   */
-  token: string;
+  token: string | null;
+}
+
+export interface LatestMeasurementRecord {
+  channel_id: number;
+  date: Timestamp;
+  id: Generated<Int8>;
+  value: number | null;
+}
+
+export interface MeasurementCategory {
+  archived: Timestamp | null;
+  category: string;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface MeasurementRecord {
+  archived: Timestamp | null;
+  channel_id: number;
+  date: Timestamp;
+  id: Generated<Int8>;
+  introduced: Generated<Timestamp>;
+  value: number | null;
 }
 
 export interface Permission {
-  /**
-   * Whether this permission may be attached to a role. false means it can only be granted to an individual user
-   */
   assign_role: boolean;
-  /**
-   * Description of what the permission does
-   */
   description: string;
-  /**
-   * Unique identifier for a permission
-   */
   id: Generated<number>;
-  /**
-   * Name of the permission
-   */
   name: string;
 }
 
 export interface Preference {
-  /**
-   * User presets for data visualizer graph
-   */
   data_vis_preset: Json | null;
-  /**
-   * (mobile) The favorites the user wants at the top of the bottom drawer menu
-   */
   favorite: Json | null;
-  /**
-   * Unique identifier for each preference row
-   */
   id: Generated<number>;
-  /**
-   * The layers the user wants to see on the map on load
-   */
   layers_on_load: Json | null;
-  /**
-   * The style of map the user chooses to display on render
-   */
   map_style: string | null;
-  /**
-   * The theme of the app the user wants on load
-   */
   theme: string | null;
-  /**
-   * The ID of the user. One preference row per user
-   */
   user_id: string;
 }
 
-export interface Role {
-  /**
-   * The client this role belongs to. Nullable — see open items
-   */
-  client_id: number | null;
-  /**
-   * Unique identifier for each role
-   */
+export interface RiskLevelMonitor {
+  archived: Timestamp | null;
+  device_id: number;
   id: Generated<number>;
-  /**
-   * Name of the role (clients may choose their own names)
-   */
+  introduced: Generated<Timestamp>;
+  local_id: number;
+  type_id: number;
+}
+
+export interface RiskLevelMonitorConfig {
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  priority: number;
+  risk_level_monitor_id: number;
+}
+
+export interface RiskLevelMonitorConfigGradient {
+  archived: Timestamp | null;
+  begin_risk_level: number;
+  begin_value: number;
+  end_risk_level: number;
+  end_value: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  risk_level_monitor_id: number;
+}
+
+export interface RiskLevelMonitorConfigRange {
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  max_value: number;
+  min_value: number;
+  risk_level: number;
+  risk_level_monitor_id: number;
+}
+
+export interface Role {
+  client_id: number;
+  deleted_at: Timestamp | null;
+  id: Generated<number>;
   name: string;
 }
 
@@ -251,187 +615,340 @@ export interface RolePermission {
   role_id: number;
 }
 
-export interface RolesPermsAuditLog {
-  /**
-   * The user who performed the action
-   */
-  actor_id: string;
-  /**
-   * TRUE if the permission was added, FALSE if removed
-   */
-  added: boolean | null;
-  /**
-   * When the action occurred
-   */
-  date: Generated<Timestamp>;
+export interface RolePermissionsAuditLog {
+  actor_user_id: string;
+  added: boolean;
+  date: Timestamp;
   id: Generated<number>;
-  /**
-   * What action was performed
-   */
   log_action_id: number;
-  /**
-   * The permission affected
-   */
   permission_id: number | null;
-  /**
-   * The role affected
-   */
-  role_id: number | null;
+  role_name: string;
 }
 
-export interface Session {
-  /**
-   * When the session was created
-   */
-  created_at: Generated<Timestamp>;
-  /**
-   * When the session expires
-   */
-  expires_at: Timestamp;
-  /**
-   * Unique identifier for each session
-   */
-  id: string;
-  /**
-   * The IP address of the device
-   */
-  ip_address: string | null;
-  /**
-   * The unique session token
-   */
-  token: string;
-  /**
-   * When the session was updated
-   */
-  updated_at: Timestamp;
-  /**
-   * The user agent information of the device
-   */
-  user_agent: string | null;
-  /**
-   * The ID of the user
-   */
+export interface SeasonalReport {
+  date: Timestamp;
+  device_id: number;
+  id: Generated<number>;
+  note: string;
+  passed: boolean;
+  seasonal_report_type_id: number;
   user_id: string;
 }
 
-export interface User {
-  /**
-   * The client this user belongs to
-   */
-  client_id: number;
-  /**
-   * When the user account was created
-   */
-  created_at: Generated<Timestamp>;
-  /**
-   * UTC timestamp this user record was deleted. NULL means active/current
-   */
-  deleted_at: Timestamp | null;
-  /**
-   * User's email address for communication and login
-   */
-  email: string;
-  /**
-   * Whether the user's email is verified
-   */
-  email_verified: boolean;
-  /**
-   * Unique identifier for each user
-   */
+export interface SeasonalReportAnswer {
+  id: Generated<number>;
+  response: SeasonalReportQuestionResponse;
+  seasonal_report_id: number;
+  seasonal_report_question_id: number;
+}
+
+export interface SeasonalReportImage {
+  description: string;
+  id: Generated<number>;
+  path: string;
+  seasonal_report_id: number;
+}
+
+export interface SeasonalReportQuestion {
+  expected_response: SeasonalReportQuestionResponse;
+  id: Generated<number>;
+  is_critical: boolean;
+  question_text: string;
+  seasonal_report_question_category_id: number;
+}
+
+export interface SeasonalReportQuestionCategory {
+  category: string;
+  id: Generated<number>;
+}
+
+export interface SeasonalReportType {
+  id: Generated<number>;
+  report_type: string;
+}
+
+export interface SeasonalReportTypeQuestion {
+  id: Generated<number>;
+  seasonal_report_question_id: number;
+  seasonal_report_type_id: number;
+}
+
+export interface Session {
+  created_at: Timestamp;
+  expires_at: Timestamp;
   id: string;
-  /**
-   * User's image url
-   */
+  ip_address: string | null;
+  token: string;
+  updated_at: Timestamp;
+  user_agent: string | null;
+  user_id: string;
+}
+
+export interface Sim {
+  archived: Timestamp | null;
+  iccid: string;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  provider: string;
+}
+
+export interface SimInfo {
+  activated: boolean;
+  archived: Timestamp | null;
+  id: Generated<number>;
+  imei: string;
+  introduced: Generated<Timestamp>;
+  paused: Generated<boolean>;
+  sim_id: number;
+}
+
+export interface SimInfoEmnify {
+  archived: Timestamp | null;
+  bic: string;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  sim_id: number;
+}
+
+export interface SimInfoHologram {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  sim_id: number;
+}
+
+export interface TimestepModifier {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  local_id: number;
+  type_id: number;
+}
+
+export interface TimestepModifierConfig {
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  min_timestep: number;
+  priority: number;
+  timestep_modifier_id: number;
+}
+
+export interface TimestepModifierConfigActivity {
+  active: boolean;
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  timestep_modifier_id: number;
+}
+
+export interface TimestepModifierConfigDeltaValue {
+  archived: Timestamp | null;
+  delta_value: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  min_change: number;
+  timestep_modifier_id: number;
+}
+
+export interface TimestepModifierConfigGradient {
+  archived: Timestamp | null;
+  begin_value: number;
+  end_value: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  timestep_modifier_id: number;
+}
+
+export interface TimestepModifierConfigRange {
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  max_value: number;
+  min_value: number;
+  timestep_modifier_id: number;
+}
+
+export interface UniversalMeasurementCategory {
+  archived: Timestamp | null;
+  category: string;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface User {
+  client_id: number;
+  created_at: Timestamp;
+  deleted_at: Timestamp | null;
+  email: string;
+  email_verified: boolean;
+  id: string;
   image: string | null;
-  /**
-   * User's chosen display name
-   */
   name: string;
-  /**
-   * Armored pgcrypto ciphertext for the user's phone number
-   */
-  phone_number: string | null;
-  /**
-   * Whether the user's phone number is verified
-   */
-  phone_number_verified: Generated<boolean>;
-  /**
-   * The user's single role
-   */
+  phone_number: Buffer | null;
+  phone_number_verified: boolean;
   role_id: number;
-  /**
-   * Salt used with the encryption key for encrypted user fields
-   */
   salt: Generated<string>;
-  /**
-   * Last update to the user's information
-   */
   updated_at: Timestamp;
 }
 
 export interface UserAuditLog {
-  /**
-   * The user who performed the action
-   */
-  actor_id: string;
-  /**
-   * When the action occurred
-   */
-  date: Generated<Timestamp>;
+  actor_user_id: string;
+  date: Timestamp;
   id: Generated<number>;
-  /**
-   * What action was performed
-   */
   log_action_id: number;
-  /**
-   * The user the action was performed on
-   */
-  target_id: string;
+  target_user_id: string;
 }
 
 export interface Verification {
-  /**
-   * When the verification request was created
-   */
-  created_at: Generated<Timestamp>;
-  /**
-   * When the verification request expires
-   */
+  created_at: Timestamp;
   expires_at: Timestamp;
-  /**
-   * Unique identifier for each verification
-   */
   id: string;
-  /**
-   * The identifier for the verification request
-   */
   identifier: string;
-  /**
-   * When the verification request was updated
-   */
   updated_at: Timestamp;
-  /**
-   * The value to be verified
-   */
   value: string;
+}
+
+export interface VmqAuthAcl {
+  client_id: string;
+  device_id: number;
+  id: Generated<number>;
+  mountpoint: string;
+  password: string | null;
+  publish_acl: Json | null;
+  subscribe_acl: Json | null;
+  username: string;
+}
+
+export interface WorkOrder {
+  created_at: Timestamp;
+  creator_user_id: string;
+  device_id: number;
+  id: Generated<number>;
+  incident_type_id: number;
+  priority: number;
+  state: WorkOrderState;
+  work_order_status_id: number;
+}
+
+export interface WorkOrderStatus {
+  id: Generated<number>;
+  status: string;
+}
+
+export interface WorkOrderUpdate {
+  created_at: Timestamp;
+  description: string;
+  id: Generated<number>;
+  new_priority: number;
+  new_state: WorkOrderState;
+  new_work_order_status_id: number;
+  user_id: string;
+  work_order_id: number;
+}
+
+export interface WorkOrderUpdateImage {
+  description: string;
+  id: Generated<number>;
+  path: string;
+  work_order_id: number;
 }
 
 export interface DB {
   accepted_invites: AcceptedInvites;
   account: Account;
+  alert: Alert;
+  alert_info: AlertInfo;
+  alert_monitor: AlertMonitor;
+  alert_monitor_config: AlertMonitorConfig;
+  alert_monitor_config_activity: AlertMonitorConfigActivity;
+  alert_monitor_config_range: AlertMonitorConfigRange;
+  alert_subscription: AlertSubscription;
+  asset: Asset;
+  asset_type: AssetType;
   audit_log_action: AuditLogAction;
+  camera: Camera;
+  camera_capture_data: CameraCaptureData;
+  camera_config: CameraConfig;
+  camera_config_preset: CameraConfigPreset;
+  camera_config_rotation: CameraConfigRotation;
+  camera_data_record: CameraDataRecord;
+  camera_detection_data: CameraDetectionData;
+  channel: Channel;
+  channel_alert_monitor: ChannelAlertMonitor;
+  channel_config: ChannelConfig;
+  channel_config_accumulation: ChannelConfigAccumulation;
+  channel_config_display: ChannelConfigDisplay;
+  channel_config_internal_power_sensor: ChannelConfigInternalPowerSensor;
+  channel_config_sdi12: ChannelConfigSdi12;
+  channel_config_tilt: ChannelConfigTilt;
+  channel_error: ChannelError;
+  channel_risk_level_monitor: ChannelRiskLevelMonitor;
+  channel_timestep_modifier: ChannelTimestepModifier;
+  city: City;
   client: Client;
+  client_gauge_station: ClientGaugeStation;
   control_audit_log: ControlAuditLog;
   device: Device;
+  device_camera_accumulation_trigger: DeviceCameraAccumulationTrigger;
+  device_camera_accumulation_trigger_active: DeviceCameraAccumulationTriggerActive;
+  device_camera_info: DeviceCameraInfo;
+  device_camera_trigger: DeviceCameraTrigger;
+  device_connected: DeviceConnected;
+  device_connection_quality: DeviceConnectionQuality;
+  device_datalogging: DeviceDatalogging;
+  device_info: DeviceInfo;
+  device_networking: DeviceNetworking;
+  device_power: DevicePower;
+  device_sim: DeviceSim;
+  device_sim_active: DeviceSimActive;
+  device_wifi_interface_active: DeviceWifiInterfaceActive;
+  device_wifi_interface_config: DeviceWifiInterfaceConfig;
+  gauge_station: GaugeStation;
+  gauge_station_info: GaugeStationInfo;
   granted_permission: GrantedPermission;
+  incident_category: IncidentCategory;
+  incident_type: IncidentType;
   invite: Invite;
+  latest_measurement_record: LatestMeasurementRecord;
+  measurement_category: MeasurementCategory;
+  measurement_record: MeasurementRecord;
   permission: Permission;
   preference: Preference;
+  risk_level_monitor: RiskLevelMonitor;
+  risk_level_monitor_config: RiskLevelMonitorConfig;
+  risk_level_monitor_config_gradient: RiskLevelMonitorConfigGradient;
+  risk_level_monitor_config_range: RiskLevelMonitorConfigRange;
   role: Role;
   role_permission: RolePermission;
-  roles_perms_audit_log: RolesPermsAuditLog;
+  role_permissions_audit_log: RolePermissionsAuditLog;
+  seasonal_report: SeasonalReport;
+  seasonal_report_answer: SeasonalReportAnswer;
+  seasonal_report_image: SeasonalReportImage;
+  seasonal_report_question: SeasonalReportQuestion;
+  seasonal_report_question_category: SeasonalReportQuestionCategory;
+  seasonal_report_type: SeasonalReportType;
+  seasonal_report_type_question: SeasonalReportTypeQuestion;
   session: Session;
+  sim: Sim;
+  sim_info: SimInfo;
+  sim_info_emnify: SimInfoEmnify;
+  sim_info_hologram: SimInfoHologram;
+  timestep_modifier: TimestepModifier;
+  timestep_modifier_config: TimestepModifierConfig;
+  timestep_modifier_config_activity: TimestepModifierConfigActivity;
+  timestep_modifier_config_delta_value: TimestepModifierConfigDeltaValue;
+  timestep_modifier_config_gradient: TimestepModifierConfigGradient;
+  timestep_modifier_config_range: TimestepModifierConfigRange;
+  universal_measurement_category: UniversalMeasurementCategory;
   user: User;
   user_audit_log: UserAuditLog;
   verification: Verification;
+  vmq_auth_acl: VmqAuthAcl;
+  work_order: WorkOrder;
+  work_order_status: WorkOrderStatus;
+  work_order_update: WorkOrderUpdate;
+  work_order_update_image: WorkOrderUpdateImage;
 }

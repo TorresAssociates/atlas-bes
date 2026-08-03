@@ -26,7 +26,7 @@ beforeAll(async () => {
 
 	// The device table is a placeholder (id only) and ships unseeded.
 	const device = await db.pool.query<{ id: number }>(
-		"INSERT INTO device DEFAULT VALUES RETURNING id",
+		"INSERT INTO device (serial_number) VALUES ('audit-test-device') RETURNING id",
 	);
 	const deviceRow = device.rows[0];
 	if (!deviceRow) throw new Error("device insert returned no row");
@@ -134,13 +134,13 @@ test("POST /v1/audit-logs/control creates a log entry with the session user as a
 		action: string;
 		action_text: string;
 		device_id: number;
-		actor_id: string;
+		actor_user_id: string;
 	}>();
 	expect(body.action).toBe("WIFI_ON");
 	expect(body.action_text).toBe("Wifi On");
 	expect(body.device_id).toBe(deviceId);
 	// The actor is the session user — creating a log as someone else is impossible.
-	expect(body.actor_id).toBe(manager.id);
+	expect(body.actor_user_id).toBe(manager.id);
 	expect(Date.parse(body.date)).not.toBeNaN();
 });
 
@@ -179,9 +179,9 @@ test("GET /v1/audit-logs/control scopes client readers to their own client", asy
 		headers: { cookie: manager.cookie },
 	});
 	expect(managerList.statusCode).toBe(200);
-	const managerRows = managerList.json<{ data: Array<{ actor_id: string }> }>().data;
+	const managerRows = managerList.json<{ data: Array<{ actor_user_id: string }> }>().data;
 	expect(managerRows).toHaveLength(1);
-	expect(managerRows[0]?.actor_id).toBe(manager.id);
+	expect(managerRows[0]?.actor_user_id).toBe(manager.id);
 
 	// The admin reads external: both entries, newest first.
 	const adminList = await app.inject({
@@ -245,9 +245,9 @@ test("POST /v1/audit-logs/users scopes client writers to targets in their own cl
 		body: { action: "UPDATE_USER", target_id: manager.id },
 	});
 	expect(ownClient.statusCode).toBe(201);
-	const body = ownClient.json<{ actor_id: string; target_id: string; action: string }>();
-	expect(body.actor_id).toBe(manager.id);
-	expect(body.target_id).toBe(manager.id);
+	const body = ownClient.json<{ actor_user_id: string; target_user_id: string; action: string }>();
+	expect(body.actor_user_id).toBe(manager.id);
+	expect(body.target_user_id).toBe(manager.id);
 	expect(body.action).toBe("UPDATE_USER");
 });
 
@@ -258,9 +258,9 @@ test("GET /v1/audit-logs/users scopes client readers by the target's client", as
 		headers: { cookie: manager.cookie },
 	});
 	expect(managerList.statusCode).toBe(200);
-	const rows = managerList.json<{ data: Array<{ target_id: string }> }>().data;
+	const rows = managerList.json<{ data: Array<{ target_user_id: string }> }>().data;
 	expect(rows).toHaveLength(1);
-	expect(rows[0]?.target_id).toBe(manager.id);
+	expect(rows[0]?.target_user_id).toBe(manager.id);
 });
 
 test("POST /v1/audit-logs/roles-perms scopes client writers to their own client's roles", async () => {
@@ -283,12 +283,12 @@ test("POST /v1/audit-logs/roles-perms scopes client writers to their own client'
 	expect(ownClient.statusCode).toBe(201);
 	const body = ownClient.json<{
 		action: string;
-		role_id: number | null;
+		role_name: string;
 		permission_id: number | null;
 		added: boolean | null;
 	}>();
 	expect(body.action).toBe("UPDATE_ROLE_PERMISSIONS");
-	expect(body.role_id).toBe(3);
+	expect(body.role_name).toBe("CLIENT_MANAGER");
 	expect(body.permission_id).toBe(9);
 	expect(body.added).toBe(true);
 });
@@ -301,8 +301,10 @@ test("POST /v1/audit-logs/roles-perms accepts role-only entries with null extras
 		body: { action: "DELETE_ROLE", role_id: 4 },
 	});
 	expect(res.statusCode).toBe(201);
-	const body = res.json<{ role_id: number | null; permission_id: null; added: null }>();
-	expect(body.role_id).toBe(4);
+	const body = res.json<{ role_name: string; permission_id: null; added: boolean }>();
+	expect(body.role_name).toBe("TECHNICIAN");
 	expect(body.permission_id).toBeNull();
-	expect(body.added).toBeNull();
+	expect(body.added).toBe(false);
 });
+
+

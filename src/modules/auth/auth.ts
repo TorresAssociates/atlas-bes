@@ -59,6 +59,7 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 			additionalFields: {
 				client_id: { type: "number", required: true },
 				role_id: { type: "number", required: true },
+				phone_number_verified: { type: "boolean", required: false, defaultValue: false },
 			},
 		},
 		session: {

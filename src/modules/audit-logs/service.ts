@@ -5,7 +5,7 @@ import type {
 	AuditLogActionRow,
 	AuditLogListFilters,
 	ControlAuditLogRow,
-	RolesPermsAuditLogRow,
+	RolePermissionsAuditLogRow,
 	UserAuditLogRow,
 } from "./queries";
 import * as queries from "./queries";
@@ -41,7 +41,7 @@ export interface UserAuditLogListInput extends AuditLogListInput {
 }
 
 export interface RolesPermsAuditLogListInput extends AuditLogListInput {
-	role_id?: number;
+	role_name?: string;
 }
 
 export interface CreateControlAuditLogInput {
@@ -56,7 +56,7 @@ export interface CreateUserAuditLogInput {
 
 export interface CreateRolesPermsAuditLogInput {
 	action: string;
-	role_id?: number;
+	role_id: number;
 	permission_id?: number;
 	added?: boolean;
 }
@@ -69,7 +69,9 @@ export interface AuditLogActionResponse {
 
 export type ControlAuditLogResponse = Omit<ControlAuditLogRow, "date"> & { date: string };
 export type UserAuditLogResponse = Omit<UserAuditLogRow, "date"> & { date: string };
-export type RolesPermsAuditLogResponse = Omit<RolesPermsAuditLogRow, "date"> & { date: string };
+export type RolesPermsAuditLogResponse = Omit<RolePermissionsAuditLogRow, "date"> & {
+	date: string;
+};
 
 export class AuditLogAccessDeniedError extends Error {
 	constructor() {
@@ -164,11 +166,7 @@ export async function listControlAuditLogs(
 	input: ControlAuditLogListInput,
 ): Promise<ControlAuditLogResponse[]> {
 	const filters = await resolveListFilters(db, session, access, input);
-
-	const rows = await queries.listControlAuditLogs(db, {
-		...filters,
-		deviceId: input.device_id,
-	});
+	const rows = await queries.listControlAuditLogs(db, { ...filters, deviceId: input.device_id });
 
 	return rows.map((row) => ({ ...row, date: row.date.toISOString() }));
 }
@@ -191,7 +189,7 @@ export async function createControlAuditLog(
 	const inserted = await queries.insertControlAuditLog(db, {
 		log_action_id: action.id,
 		device_id: input.device_id,
-		actor_id: session.user_id,
+		actor_user_id: session.user_id,
 	});
 
 	return {
@@ -200,7 +198,7 @@ export async function createControlAuditLog(
 		action: action.action_id,
 		action_text: action.action_text,
 		device_id: input.device_id,
-		actor_id: session.user_id,
+		actor_user_id: session.user_id,
 	};
 }
 
@@ -211,11 +209,7 @@ export async function listUserAuditLogs(
 	input: UserAuditLogListInput,
 ): Promise<UserAuditLogResponse[]> {
 	const filters = await resolveListFilters(db, session, access, input);
-
-	const rows = await queries.listUserAuditLogs(db, {
-		...filters,
-		targetId: input.target_id,
-	});
+	const rows = await queries.listUserAuditLogs(db, { ...filters, targetId: input.target_id });
 
 	return rows.map((row) => ({ ...row, date: row.date.toISOString() }));
 }
@@ -239,8 +233,8 @@ export async function createUserAuditLog(
 
 	const inserted = await queries.insertUserAuditLog(db, {
 		log_action_id: action.id,
-		actor_id: session.user_id,
-		target_id: input.target_id,
+		actor_user_id: session.user_id,
+		target_user_id: input.target_id,
 	});
 
 	return {
@@ -248,8 +242,8 @@ export async function createUserAuditLog(
 		date: inserted.date.toISOString(),
 		action: action.action_id,
 		action_text: action.action_text,
-		actor_id: session.user_id,
-		target_id: input.target_id,
+		actor_user_id: session.user_id,
+		target_user_id: input.target_id,
 	};
 }
 
@@ -260,10 +254,9 @@ export async function listRolesPermsAuditLogs(
 	input: RolesPermsAuditLogListInput,
 ): Promise<RolesPermsAuditLogResponse[]> {
 	const filters = await resolveListFilters(db, session, access, input);
-
-	const rows = await queries.listRolesPermsAuditLogs(db, {
+	const rows = await queries.listRolePermissionsAuditLogs(db, {
 		...filters,
-		roleId: input.role_id,
+		roleName: input.role_name,
 	});
 
 	return rows.map((row) => ({ ...row, date: row.date.toISOString() }));
@@ -278,14 +271,9 @@ export async function createRolesPermsAuditLog(
 	requireWrite(access);
 
 	const action = await getActionByKey(db, input.action);
-
-	let roleId: number | null = null;
-	if (input.role_id !== undefined) {
-		const role = await queries.findRoleById(db, input.role_id);
-		if (!role || (!access.canWriteExternal && role.client_id !== session.client_id)) {
-			throw new AuditLogRoleNotFoundError(input.role_id);
-		}
-		roleId = role.id;
+	const role = await queries.findRoleById(db, input.role_id);
+	if (!role || (!access.canWriteExternal && role.client_id !== session.client_id)) {
+		throw new AuditLogRoleNotFoundError(input.role_id);
 	}
 
 	let permissionId: number | null = null;
@@ -295,12 +283,13 @@ export async function createRolesPermsAuditLog(
 		permissionId = permission.id;
 	}
 
-	const inserted = await queries.insertRolesPermsAuditLog(db, {
+	const added = input.added ?? false;	
+	const inserted = await queries.insertRolePermissionsAuditLog(db, {
 		log_action_id: action.id,
-		actor_id: session.user_id,
-		role_id: roleId,
+		actor_user_id: session.user_id,
+		role_name: role.name,
 		permission_id: permissionId,
-		added: input.added ?? null,
+		added,
 	});
 
 	return {
@@ -308,9 +297,9 @@ export async function createRolesPermsAuditLog(
 		date: inserted.date.toISOString(),
 		action: action.action_id,
 		action_text: action.action_text,
-		actor_id: session.user_id,
-		role_id: roleId,
+		actor_user_id: session.user_id,
+		role_name: role.name,
 		permission_id: permissionId,
-		added: input.added ?? null,
+		added,
 	};
 }

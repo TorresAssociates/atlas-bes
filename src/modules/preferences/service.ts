@@ -49,12 +49,7 @@ export async function updateOwnPreferences(
 		return ensurePreference(db, session.user_id);
 	}
 
-	const updated = await queries.updatePreferenceByUserId(
-		db,
-		session.user_id,
-		input,
-	);
-
+	const updated = await queries.updatePreferenceByUserId(db, session.user_id, input);
 	if (!updated) throw new PreferenceNotFoundError(session.user_id);
 
 	return updated;

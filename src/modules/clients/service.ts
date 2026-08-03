@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { isForeignKeyViolation, isUniqueViolation } from "@/db";
+import { isUniqueViolation } from "@/db";
 import type { DB } from "@/db/types";
 import * as queries from "./queries";
 
@@ -52,21 +52,13 @@ export async function updateClient(db: Kysely<DB>, id: number, name: string) {
 }
 
 export async function deleteClient(db: Kysely<DB>, id: number): Promise<void> {
-	// Explicit check (user.client_id is NOT NULL) rather than relying on the FK
-	// error surfacing, so the client gets a real message.
-	const userCount = await queries.countClientUsers(db, id);
-	if (userCount > 0) {
-		throw new ClientInUseError(`client ${id} still has ${userCount} user(s)`);
+	const activeRoleCount = await queries.countActiveClientRoles(db, id);
+	if (activeRoleCount > 0) {
+		throw new ClientInUseError(`client ${id} still has ${activeRoleCount} active role(s)`);
 	}
-	try {
-		const deleted = await queries.deleteClientById(db, id);
-		if (!deleted) throw new ClientNotFoundError(id);
-	} catch (err) {
-		// Backstop for other referencing tables (role, invite) and for the
-		// check-then-delete race: still a conflict, never a raw driver error.
-		if (isForeignKeyViolation(err)) {
-			throw new ClientInUseError(`client ${id} is still referenced by other records`);
-		}
-		throw err;
-	}
+
+	const deleted = await queries.softDeleteClientById(db, id);
+	if (!deleted) throw new ClientNotFoundError(id);
 }
+
+

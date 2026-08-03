@@ -1,5 +1,9 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { hasPermission, requirePermission, requireSession } from "@/plugins/authorization";
+import {
+	hasPermission,
+	requirePermission,
+	requireSession,
+} from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
 import { getSession } from "../auth/service";
 import {
@@ -22,7 +26,9 @@ import {
 const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
 		if (!app.db) {
-			throw app.httpErrors.serviceUnavailable("database is not configured");
+			throw app.httpErrors.serviceUnavailable(
+				"database is not configured",
+			);
 		}
 
 		return app.db;
@@ -95,13 +101,21 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
-			const canReadExternalUsers = await hasPermission(request, "R_EXTERNAL_USERS");
+			const canReadExternalUsers = await hasPermission(
+				request,
+				"R_EXTERNAL_USERS",
+			);
 
 			return {
-				data: await listUsers(getDb(), app.config.ENCRYPTION_KEY, session, {
-					canReadExternalUsers,
-					canReadClientUsers: true,
-				}),
+				data: await listUsers(
+					getDb(),
+					app.config.ENCRYPTION_KEY,
+					session,
+					{
+						canReadExternalUsers,
+						canReadClientUsers: true,
+					},
+				),
 			};
 		},
 	);
@@ -128,12 +142,21 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
-			const canReadExternalUsers = await hasPermission(request, "R_EXTERNAL_USERS");
+			const canReadExternalUsers = await hasPermission(
+				request,
+				"R_EXTERNAL_USERS",
+			);
 
-			return getUser(getDb(), app.config.ENCRYPTION_KEY, request.params.id, session, {
-				canReadExternalUsers,
-				canReadClientUsers: true,
-			});
+			return getUser(
+				getDb(),
+				app.config.ENCRYPTION_KEY,
+				request.params.id,
+				session,
+				{
+					canReadExternalUsers,
+					canReadClientUsers: true,
+				},
+			);
 		},
 	);
 
@@ -160,12 +183,21 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
-			const canWriteExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
+			const canWriteExternalUsers = await hasPermission(
+				request,
+				"W_EXTERNAL_USERS",
+			);
 
-			return deleteUser(getDb(), app.config.ENCRYPTION_KEY, request.params.id, session, {
-				canWriteExternalUsers,
-				canWriteClientUsers: true,
-			});
+			return deleteUser(
+				getDb(),
+				app.config.ENCRYPTION_KEY,
+				request.params.id,
+				session,
+				{
+					canWriteExternalUsers,
+					canWriteClientUsers: true,
+				},
+			);
 		},
 	);
 
@@ -193,7 +225,10 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
-			const canWriteExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
+			const canWriteExternalUsers = await hasPermission(
+				request,
+				"W_EXTERNAL_USERS",
+			);
 
 			return updateUserPhoneNumber(
 				getDb(),

@@ -8,14 +8,7 @@ export type AcceptedInviteWithSenderRow = AcceptedInviteRow & {
 };
 export type InsertInviteRow = Insertable<DB["invite"]>;
 
-const inviteColumns = [
-	"id",
-	"token",
-	"expires_at",
-	"sender_user_id",
-	"client_id",
-	"role_id",
-] as const;
+const inviteColumns = ["id", "token", "expires_at", "sender_user_id", "client_id", "role_id"] as const;
 
 export function listInvites(db: Kysely<DB>): Promise<InviteRow[]> {
 	return db.selectFrom("invite").select(inviteColumns).orderBy("id", "desc").execute();
@@ -31,11 +24,7 @@ export function listInvitesForClient(db: Kysely<DB>, clientId: number): Promise<
 }
 
 export function insertInvite(db: Kysely<DB>, invite: InsertInviteRow): Promise<InviteRow> {
-	return db
-		.insertInto("invite")
-		.values(invite)
-		.returning(inviteColumns)
-		.executeTakeFirstOrThrow();
+	return db.insertInto("invite").values(invite).returning(inviteColumns).executeTakeFirstOrThrow();
 }
 
 export function findInviteByToken(db: Kysely<DB>, token: string): Promise<InviteRow | undefined> {
@@ -63,17 +52,23 @@ export function findInviteByIdForClient(
 		.executeTakeFirst();
 }
 
-export function deleteInviteById(db: Kysely<DB>, id: number): Promise<InviteRow | undefined> {
-	return db.deleteFrom("invite").where("id", "=", id).returning(inviteColumns).executeTakeFirst();
+export function softDeleteInviteById(db: Kysely<DB>, id: number): Promise<InviteRow | undefined> {
+	return db
+		.updateTable("invite")
+		.set({ token: null, expires_at: new Date() })
+		.where("id", "=", id)
+		.returning(inviteColumns)
+		.executeTakeFirst();
 }
 
-export function deleteInviteByIdForClient(
+export function softDeleteInviteByIdForClient(
 	db: Kysely<DB>,
 	id: number,
 	clientId: number,
 ): Promise<InviteRow | undefined> {
 	return db
-		.deleteFrom("invite")
+		.updateTable("invite")
+		.set({ token: null, expires_at: new Date() })
 		.where("id", "=", id)
 		.where("client_id", "=", clientId)
 		.returning(inviteColumns)
@@ -98,7 +93,7 @@ export function insertAcceptedInvite(
 ): Promise<AcceptedInviteRow> {
 	return db
 		.insertInto("accepted_invites")
-		.values({ invite_id: inviteId, user_id: userId })
+		.values({ invite_id: inviteId, user_id: userId, accepted_date: new Date() })
 		.returningAll()
 		.executeTakeFirstOrThrow();
 }
@@ -142,5 +137,6 @@ export function findRoleById(db: Kysely<DB>, roleId: number) {
 		.selectFrom("role")
 		.select(["id", "client_id"])
 		.where("id", "=", roleId)
+		.where("deleted_at", "is", null)
 		.executeTakeFirst();
 }

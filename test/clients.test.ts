@@ -79,17 +79,15 @@ test("POST /v1/clients creates a client", async () => {
 	expect(await findClient(createdId)).toEqual({ id: createdId, name: "Acme Water District" });
 });
 
-test("POST /v1/clients returns 409 on a duplicate name", async () => {
+test("POST /v1/clients allows a duplicate name", async () => {
 	const res = await app.inject({
 		method: "POST",
 		url: "/v1/clients",
 		headers: { cookie: admin.cookie },
 		body: { name: "City of Bryan" },
 	});
-	expect(res.statusCode).toBe(409);
-	const body = res.json<{ statusCode: number; error: string; message: string }>();
-	expect(body.error).toBe("Conflict");
-	expect(body.message).toContain("City of Bryan");
+	expect(res.statusCode).toBe(201);
+	expect(res.json<{ name: string }>().name).toBe("City of Bryan");
 });
 
 test("POST /v1/clients returns 400 on an empty name", async () => {
@@ -136,14 +134,14 @@ test("PATCH /v1/clients/:id returns 400 for a non-integer id", async () => {
 	expect(res.statusCode).toBe(400);
 });
 
-test("PATCH /v1/clients/:id returns 409 when renaming onto an existing name", async () => {
+test("PATCH /v1/clients/:id allows renaming onto an existing name", async () => {
 	const res = await app.inject({
 		method: "PATCH",
 		url: `/v1/clients/${createdId}`,
 		headers: { cookie: admin.cookie },
 		body: { name: "City of Bryan" },
 	});
-	expect(res.statusCode).toBe(409);
+	expect(res.statusCode).toBe(200);
 });
 
 test("DELETE /v1/clients/:id deletes a client without users", async () => {
@@ -167,8 +165,8 @@ test("DELETE /v1/clients/:id returns 404 for a nonexistent id", async () => {
 	expect(res.statusCode).toBe(404);
 });
 
-test("DELETE /v1/clients/:id returns 409 when the client still has users", async () => {
-	// The admin test user already lives in client 1, so the delete conflicts.
+test("DELETE /v1/clients/:id returns 409 while active roles still belong to the client", async () => {
+	// Seeded roles still belong to client 1, so the client cannot be deleted yet.
 	const res = await app.inject({
 		method: "DELETE",
 		url: "/v1/clients/1",
@@ -177,8 +175,6 @@ test("DELETE /v1/clients/:id returns 409 when the client still has users", async
 	expect(res.statusCode).toBe(409);
 	const body = res.json<{ error: string; message: string }>();
 	expect(body.error).toBe("Conflict");
-	expect(body.message).toContain("user");
-
-	// Still there afterwards.
+	expect(body.message).toContain("active role");
 	expect(await findClient(1)).toEqual({ id: 1, name: "Torres & Associates" });
 });
