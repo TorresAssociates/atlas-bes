@@ -1,4 +1,5 @@
 import type { Kysely } from "kysely";
+import { isUniqueViolation } from "@/db";
 import type { DB } from "@/db/types";
 import { roleHasProperPermissionSupersetOfRole } from "@/plugins/authorization.hierarchy";
 import { createInvitedEmailPasswordUser, type SessionSubject } from "../auth/service";
@@ -7,6 +8,9 @@ import * as userQueries from "../users/queries";
 import type { UserResponse } from "../users/service";
 import type { AcceptedInviteWithSenderRow, InviteRow } from "./queries";
 import * as queries from "./queries";
+
+const INVITE_TOKEN_LENGTH = 12;
+const INVITE_TOKEN_CREATE_ATTEMPTS = 10;
 
 export interface CreateInviteInput {
 	client_id: number;
@@ -156,6 +160,32 @@ function getRandomString(strLen: number) {
 	return out;
 }
 
+async function insertInviteWithUniqueToken(
+	db: Kysely<DB>,
+	invite: {
+		expires_at: Date | null;
+		sender_user_id: string;
+		client_id: number;
+		role_id: number;
+	},
+): Promise<InviteRow> {
+	for (let attempt = 1; attempt <= INVITE_TOKEN_CREATE_ATTEMPTS; attempt += 1) {
+		try {
+			return await queries.insertInvite(db, {
+				...invite,
+				token: getRandomString(INVITE_TOKEN_LENGTH),
+			});
+		} catch (err) {
+			if (!isUniqueViolation(err)) throw err;
+			if (attempt === INVITE_TOKEN_CREATE_ATTEMPTS) {
+				throw new Error("failed to generate a unique invite token");
+			}
+		}
+	}
+
+	throw new Error("failed to generate a unique invite token");
+}
+
 export async function listInvites(
 	db: Kysely<DB>,
 	session: SessionSubject,
@@ -204,8 +234,7 @@ export async function createInvite(
 		}
 	}
 
-	const invite = await queries.insertInvite(db, {
-		token: getRandomString(9),
+	const invite = await insertInviteWithUniqueToken(db, {
 		expires_at: input.expires_at === null ? null : new Date(input.expires_at),
 		sender_user_id: session.user_id,
 		client_id: input.client_id,

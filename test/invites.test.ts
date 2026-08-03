@@ -129,7 +129,9 @@ test("POST /v1/invites lets an external admin create an invite for any client", 
 	});
 
 	expect(res.statusCode).toBe(201);
-	expect(res.json<InviteBody>()).toEqual(
+	const body = res.json<InviteBody>();
+	expect(body.token).toHaveLength(12);
+	expect(body).toEqual(
 		expect.objectContaining({
 			sender_user_id: admin.id,
 			client_id: 2,
@@ -148,9 +150,46 @@ test("POST /v1/invites lets a client manager invite a lower role in their client
 	});
 
 	expect(res.statusCode).toBe(201);
-	expect(res.json<InviteBody>()).toEqual(
+	const body = res.json<InviteBody>();
+	expect(body.token).toHaveLength(12);
+	expect(body).toEqual(
 		expect.objectContaining({ sender_user_id: cityManager.id, client_id: 2, role_id: 4 }),
 	);
+});
+
+test("POST /v1/invites returns 500 when no unique token is found after retries", async () => {
+	await db.pool.query(
+		`INSERT INTO invite (token, expires_at, sender_user_id, client_id, role_id)
+		 VALUES ('000000000000', now() + interval '1 day', $1, 2, 4)`,
+		[cityManager.id],
+	);
+
+	const originalGetRandomValues = crypto.getRandomValues;
+	Object.defineProperty(crypto, "getRandomValues", {
+		configurable: true,
+		value: (<T extends ArrayBufferView | null>(array: T): T => {
+			if (array) {
+				new Uint8Array(array.buffer, array.byteOffset, array.byteLength).fill(0);
+			}
+			return array;
+		}) as Crypto["getRandomValues"],
+	});
+
+	try {
+		const res = await app.inject({
+			method: "POST",
+			url: "/v1/invites",
+			headers: { cookie: cityManager.cookie },
+			body: { client_id: 2, role_id: 4, expires_at: null },
+		});
+
+		expect(res.statusCode).toBe(500);
+	} finally {
+		Object.defineProperty(crypto, "getRandomValues", {
+			configurable: true,
+			value: originalGetRandomValues,
+		});
+	}
 });
 
 test("POST /v1/invites rejects a client manager inviting another client manager", async () => {
