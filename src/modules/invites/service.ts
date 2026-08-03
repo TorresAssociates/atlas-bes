@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 import { isUniqueViolation } from "@/db";
 import type { DB } from "@/db/types";
 import { roleHasProperPermissionSupersetOfRole } from "@/plugins/authorization.hierarchy";
+import { recordInviteAuditLog } from "../audit-logs/service";
 import { createInvitedEmailPasswordUser, type SessionSubject } from "../auth/service";
 import type { UserRow } from "../users/queries";
 import * as userQueries from "../users/queries";
@@ -241,6 +242,8 @@ export async function createInvite(
 		role_id: input.role_id,
 	});
 
+	await recordInviteAuditLog(db, session.user_id, "INVITE_USER");
+
 	return toInviteResponse(invite);
 }
 
@@ -264,6 +267,7 @@ export async function deleteInvite(
 
 	if (!deleted) throw new InviteNotFoundError();
 
+	await recordInviteAuditLog(db, session.user_id, "DELETE_INVITE_USER");
 	return toInviteResponse(deleted);
 }
 

@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
+import { recordUserAuditLog } from "../audit-logs/service";
 import type { SessionSubject } from "../auth/service";
 import type { UserRow } from "./queries";
 import * as queries from "./queries";
@@ -143,6 +144,7 @@ export async function updateOwnPhoneNumber(
 		throw new UserNotFoundError(session.user_id);
 	}
 
+	await recordUserAuditLog(db, session.user_id, "UPDATE_USER", session.user_id);
 	return toUserResponse(updated);
 }
 
@@ -175,6 +177,7 @@ export async function updateUserPhoneNumber(
 		throw new UserNotFoundError(id);
 	}
 
+	await recordUserAuditLog(db, session.user_id, "UPDATE_USER", id);
 	return toUserResponse(updated);
 }
 
@@ -223,5 +226,6 @@ export async function deleteUser(
 		throw new UserNotFoundError(id);
 	}
 
+	await recordUserAuditLog(db, session.user_id, "DELETE_USER", id);
 	return toUserResponse(updated);
 }

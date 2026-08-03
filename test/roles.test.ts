@@ -64,6 +64,30 @@ interface PermissionListBody {
 	data: Array<{ id: number; name: string; assign_role: boolean }>;
 }
 
+async function listRoleAuditLogs(roleName: string, actionId: string) {
+	const audit = await db.pool.query<{
+		action_id: string;
+		actor_user_id: string;
+		role_name: string;
+		permission_id: number | null;
+		added: boolean;
+	}>(
+		`SELECT audit_log_action.action_id,
+		        role_permissions_audit_log.actor_user_id,
+		        role_permissions_audit_log.role_name,
+		        role_permissions_audit_log.permission_id,
+		        role_permissions_audit_log.added
+		 FROM role_permissions_audit_log
+		 INNER JOIN audit_log_action ON audit_log_action.id = role_permissions_audit_log.log_action_id
+		 WHERE role_permissions_audit_log.role_name = $1
+		   AND audit_log_action.action_id = $2
+		 ORDER BY role_permissions_audit_log.id`,
+		[roleName, actionId],
+	);
+
+	return audit.rows;
+}
+
 test("GET /v1/roles returns 401 without a session", async () => {
 	const res = await app.inject({ method: "GET", url: "/v1/roles" });
 	expect(res.statusCode).toBe(401);
@@ -176,6 +200,15 @@ test("POST /v1/roles lets a client manager create a lower role in their client",
 			]),
 		}),
 	);
+	expect(await listRoleAuditLogs("FIELD_VIEWER", "CREATE_ROLE")).toEqual([
+		expect.objectContaining({
+			action_id: "CREATE_ROLE",
+			actor_user_id: cityManager.id,
+			role_name: "FIELD_VIEWER",
+			permission_id: null,
+			added: true,
+		}),
+	]);
 });
 
 test("POST /v1/roles rejects assigning non-role permissions", async () => {
@@ -235,6 +268,22 @@ test("PUT /v1/roles/:id/permissions replaces role permissions", async () => {
 
 	expect(res.statusCode).toBe(200);
 	expect(res.json<RoleBody>().permissions.map((permission) => permission.id)).toEqual([1, 5]);
+	expect(await listRoleAuditLogs("DELETE_ME_RENAMED", "UPDATE_ROLE_PERMISSIONS")).toEqual([
+		expect.objectContaining({
+			action_id: "UPDATE_ROLE_PERMISSIONS",
+			actor_user_id: cityManager.id,
+			role_name: "DELETE_ME_RENAMED",
+			permission_id: 1,
+			added: true,
+		}),
+		expect.objectContaining({
+			action_id: "UPDATE_ROLE_PERMISSIONS",
+			actor_user_id: cityManager.id,
+			role_name: "DELETE_ME_RENAMED",
+			permission_id: 5,
+			added: true,
+		}),
+	]);
 });
 
 test("DELETE /v1/roles/:id returns 409 for a role with users", async () => {
@@ -257,4 +306,19 @@ test("DELETE /v1/roles/:id deletes an unused same-client role", async () => {
 
 	expect(res.statusCode).toBe(204);
 	expect(res.body).toBe("");
+	expect(await listRoleAuditLogs("DELETE_ME_RENAMED", "DELETE_ROLE")).toEqual([
+		expect.objectContaining({
+			action_id: "DELETE_ROLE",
+			actor_user_id: cityManager.id,
+			role_name: "DELETE_ME_RENAMED",
+			permission_id: null,
+			added: false,
+		}),
+	]);
+
+	const permissions = await db.pool.query<{ permission_count: number }>(
+		`SELECT count(*)::int AS permission_count FROM role_permission WHERE role_id = $1`,
+		[deletableRoleId],
+	);
+	expect(permissions.rows[0]?.permission_count).toBe(0);
 });

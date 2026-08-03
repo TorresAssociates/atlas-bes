@@ -124,6 +124,12 @@ export async function softDeleteRoleById(
 			.set({ role_id: null })
 			.where("role_id", "=", id)
 			.execute();
+
+		await trx
+			.deleteFrom("role_permission")
+			.where("role_id", "=", id)
+			.execute();
+
 		return deleted;
 	});
 }
@@ -150,6 +156,12 @@ export async function softDeleteRoleByIdForClient(
 			.set({ role_id: null })
 			.where("role_id", "=", id)
 			.execute();
+
+		await trx
+			.deleteFrom("role_permission")
+			.where("role_id", "=", id)
+			.execute();
+
 		return deleted;
 	});
 }

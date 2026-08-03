@@ -1,11 +1,11 @@
 import type { Kysely } from "kysely";
-import { isForeignKeyViolation } from "@/db";
 import type { DB } from "@/db/types";
 import type { PermissionName } from "@/plugins/authorization";
 import {
 	isProperPermissionSuperset,
 	listRolePermissionNames,
 } from "@/plugins/authorization.hierarchy";
+import { recordRolePermissionsAuditLog } from "../audit-logs/service";
 import type { SessionSubject } from "../auth/service";
 import type { PermissionRow, RoleRow } from "./queries";
 import * as queries from "./queries";
@@ -78,6 +78,43 @@ async function toRoleResponse(db: Kysely<DB>, role: RoleRow): Promise<RoleRespon
 
 async function toRoleResponses(db: Kysely<DB>, roles: RoleRow[]): Promise<RoleResponse[]> {
 	return Promise.all(roles.map((role) => toRoleResponse(db, role)));
+}
+
+async function recordRolePermissionDiff(
+	db: Kysely<DB>,
+	session: SessionSubject,
+	roleName: string,
+	previousPermissionIds: readonly number[],
+	nextPermissionIds: readonly number[],
+): Promise<void> {
+	const previous = new Set(previousPermissionIds);
+	const next = new Set(nextPermissionIds);
+
+	for (const permissionId of next) {
+		if (!previous.has(permissionId)) {
+			await recordRolePermissionsAuditLog(
+				db,
+				session.user_id,
+				"UPDATE_ROLE_PERMISSIONS",
+				roleName,
+				permissionId,
+				true,
+			);
+		}
+	}
+
+	for (const permissionId of previous) {
+		if (!next.has(permissionId)) {
+			await recordRolePermissionsAuditLog(
+				db,
+				session.user_id,
+				"UPDATE_ROLE_PERMISSIONS",
+				roleName,
+				permissionId,
+				false,
+			);
+		}
+	}
 }
 
 function ensureAccess(access: RoleAccess): void {
@@ -190,6 +227,7 @@ export async function createRole(
 		client_id: input.client_id,
 	});
 	await queries.replaceRolePermissions(db, role.id, input.permission_ids ?? []);
+	await recordRolePermissionsAuditLog(db, session.user_id, "CREATE_ROLE", role.name, null, true);
 
 	return toRoleResponse(db, role);
 }
@@ -222,8 +260,13 @@ export async function replaceRolePermissions(
 	const role = await findVisibleRole(db, id, session, access);
 	ensureClientAccess(session, access, role.client_id);
 	await validateAssignablePermissions(db, session, input.permission_ids);
+	const previousPermissionIds = (await queries.listRolePermissions(db, id)).map(
+		(permission) => permission.id,
+	);
+	const nextPermissionIds = [...new Set(input.permission_ids)];
 
-	await queries.replaceRolePermissions(db, id, input.permission_ids);
+	await queries.replaceRolePermissions(db, id, nextPermissionIds);
+	await recordRolePermissionDiff(db, session, role.name, previousPermissionIds, nextPermissionIds);
 	return toRoleResponse(db, role);
 }
 
@@ -245,6 +288,8 @@ export async function deleteRole(
 		? await queries.softDeleteRoleById(db, id)
 		: await queries.softDeleteRoleByIdForClient(db, id, session.client_id);
 	if (!deleted) throw new RoleNotFoundError(id);
+
+	await recordRolePermissionsAuditLog(db, session.user_id, "DELETE_ROLE", role.name, null, false);
 }
 
 

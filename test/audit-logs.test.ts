@@ -117,6 +117,14 @@ test("GET /v1/audit-logs/actions lists the seeded action registry", async () => 
 	expect(res.statusCode).toBe(200);
 	const body = res.json<{ data: Array<{ id: number; action: string; action_text: string }> }>();
 	expect(body.data).toHaveLength(23);
+	expect(body.data).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ id: 17, action: "INVITE_USER" }),
+			expect.objectContaining({ id: 18, action: "DELETE_INVITE_USER" }),
+			expect.objectContaining({ id: 19, action: "DELETE_USER" }),
+			expect.objectContaining({ id: 20, action: "UPDATE_USER" }),
+		]),
+	);
 	expect(body.data[0]).toEqual({ id: 1, action: "WIFI_ON", action_text: "Wifi On" });
 });
 

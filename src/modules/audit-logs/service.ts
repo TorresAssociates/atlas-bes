@@ -159,6 +159,46 @@ export async function listAuditLogActions(db: Kysely<DB>): Promise<AuditLogActio
 	return (await queries.listAuditLogActions(db)).map(toActionResponse);
 }
 
+export async function recordUserAuditLog(
+	db: Kysely<DB>,
+	actorUserId: string,
+	actionKey: string,
+	targetUserId: string,
+): Promise<void> {
+	const action = await getActionByKey(db, actionKey);
+	await queries.insertUserAuditLog(db, {
+		log_action_id: action.id,
+		actor_user_id: actorUserId,
+		target_user_id: targetUserId,
+	});
+}
+
+export async function recordInviteAuditLog(
+	db: Kysely<DB>,
+	actorUserId: string,
+	actionKey: string,
+): Promise<void> {
+	await recordUserAuditLog(db, actorUserId, actionKey, actorUserId);
+}
+
+export async function recordRolePermissionsAuditLog(
+	db: Kysely<DB>,
+	actorUserId: string,
+	actionKey: string,
+	roleName: string,
+	permissionId: number | null = null,
+	added: boolean,
+): Promise<void> {
+	const action = await getActionByKey(db, actionKey);
+	await queries.insertRolePermissionsAuditLog(db, {
+		log_action_id: action.id,
+		actor_user_id: actorUserId,
+		role_name: roleName,
+		permission_id: permissionId,
+		added,
+	});
+}
+
 export async function listControlAuditLogs(
 	db: Kysely<DB>,
 	session: SessionSubject,

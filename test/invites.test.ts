@@ -85,6 +85,25 @@ interface AcceptedInviteListBody {
 	data: Array<{ invite_id: number; user_id: string; sender_user_id: string }>;
 }
 
+async function latestInviteAuditLog(actorUserId: string) {
+	const audit = await db.pool.query<{
+		action_id: string;
+		actor_user_id: string;
+		target_user_id: string;
+	}>(
+		`SELECT audit_log_action.action_id, user_audit_log.actor_user_id, user_audit_log.target_user_id
+		 FROM user_audit_log
+		 INNER JOIN audit_log_action ON audit_log_action.id = user_audit_log.log_action_id
+		 WHERE user_audit_log.actor_user_id = $1
+		   AND user_audit_log.target_user_id = $1
+		 ORDER BY user_audit_log.id DESC
+		 LIMIT 1`,
+		[actorUserId],
+	);
+
+	return audit.rows[0];
+}
+
 test("GET /v1/invites returns 401 without a session", async () => {
 	const res = await app.inject({ method: "GET", url: "/v1/invites" });
 	expect(res.statusCode).toBe(401);
@@ -137,6 +156,13 @@ test("POST /v1/invites lets an external admin create an invite for any client", 
 			client_id: 2,
 			role_id: 4,
 			expires_at: null,
+		}),
+	);
+	expect(await latestInviteAuditLog(admin.id)).toEqual(
+		expect.objectContaining({
+			action_id: "INVITE_USER",
+			actor_user_id: admin.id,
+			target_user_id: admin.id,
 		}),
 	);
 });
@@ -310,6 +336,13 @@ test("DELETE /v1/invites/:id deletes an unaccepted same-client invite", async ()
 	expect(res.statusCode).toBe(200);
 	expect(res.json<InviteBody>()).toEqual(
 		expect.objectContaining({ id: deleteTargetInviteId, client_id: 2 }),
+	);
+	expect(await latestInviteAuditLog(cityManager.id)).toEqual(
+		expect.objectContaining({
+			action_id: "DELETE_INVITE_USER",
+			actor_user_id: cityManager.id,
+			target_user_id: cityManager.id,
+		}),
 	);
 });
 

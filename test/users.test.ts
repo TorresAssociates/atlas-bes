@@ -77,6 +77,24 @@ interface UserListBody {
 	data: UserBody[];
 }
 
+async function latestUserAuditLog(targetUserId: string) {
+	const audit = await db.pool.query<{
+		action_id: string;
+		actor_user_id: string;
+		target_user_id: string;
+	}>(
+		`SELECT audit_log_action.action_id, user_audit_log.actor_user_id, user_audit_log.target_user_id
+		 FROM user_audit_log
+		 INNER JOIN audit_log_action ON audit_log_action.id = user_audit_log.log_action_id
+		 WHERE user_audit_log.target_user_id = $1
+		 ORDER BY user_audit_log.id DESC
+		 LIMIT 1`,
+		[targetUserId],
+	);
+
+	return audit.rows[0];
+}
+
 test("GET /v1/users returns 401 without a session", async () => {
 	const res = await app.inject({ method: "GET", url: "/v1/users" });
 	expect(res.statusCode).toBe(401);
@@ -167,6 +185,13 @@ test("PATCH /v1/users/me/phone-number updates the current user's phone number", 
 			phone_number_verified: false,
 		}),
 	);
+	expect(await latestUserAuditLog(cityManager.id)).toEqual(
+		expect.objectContaining({
+			action_id: "UPDATE_USER",
+			actor_user_id: cityManager.id,
+			target_user_id: cityManager.id,
+		}),
+	);
 });
 
 test("PATCH /v1/users/:id lets a client manager update a same-client user's phone number", async () => {
@@ -180,6 +205,13 @@ test("PATCH /v1/users/:id lets a client manager update a same-client user's phon
 	expect(res.statusCode).toBe(200);
 	expect(res.json<UserBody>()).toEqual(
 		expect.objectContaining({ id: cityTechnician.id, phone_number: "+15555550101" }),
+	);
+	expect(await latestUserAuditLog(cityTechnician.id)).toEqual(
+		expect.objectContaining({
+			action_id: "UPDATE_USER",
+			actor_user_id: cityManager.id,
+			target_user_id: cityTechnician.id,
+		}),
 	);
 });
 
@@ -220,6 +252,13 @@ test("PATCH /v1/users/delete/:id soft-deletes a same-client user as a client man
 	expect(body.id).toBe(deleteTarget.id);
 	expect(body.deleted_at).not.toBeNull();
 	expect(body.phone_number).toBeNull();
+	expect(await latestUserAuditLog(deleteTarget.id)).toEqual(
+		expect.objectContaining({
+			action_id: "DELETE_USER",
+			actor_user_id: cityManager.id,
+			target_user_id: deleteTarget.id,
+		}),
+	);
 });
 
 test("PATCH /v1/users/delete/:id soft-deletes any user as an admin", async () => {
