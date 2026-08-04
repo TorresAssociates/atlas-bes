@@ -206,7 +206,10 @@ CREATE TABLE IF NOT EXISTS "gauge_station_info" (
     "id" SERIAL NOT NULL UNIQUE,
     "gauge_station_id" INT NOT NULL,
     "city_id" INT NOT NULL,
-    "name" VARCHAR(32) NOT NULL UNIQUE,
+    "location" VARCHAR(128) NOT NULL,
+    "latitude" FLOAT8 NOT NULL,
+    "longitude" FLOAT8 NOT NULL,
+    "publicly_visible" BOOLEAN NOT NULL DEFAULT TRUE,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
@@ -240,6 +243,8 @@ CREATE TABLE IF NOT EXISTS "alert_info" (
     "alert_id" INT NOT NULL,
     "send_message" VARCHAR(1024) NOT NULL,
     "retract_message" VARCHAR(1024) NOT NULL,
+    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("alert_id") REFERENCES "alert"("id")
 );
@@ -249,12 +254,14 @@ CREATE TABLE IF NOT EXISTS "alert_subscription" (
     "id" SERIAL NOT NULL UNIQUE,
     "user_id" TEXT NOT NULL,
     "gauge_station_id" INT NOT NULL,
-    "alert_id" NOTIFICATION_TYPE NOT NULL,
+    "alert_id" INT NOT NULL,
+    "notification_type" NOTIFICATION_TYPE NOT NULL,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("user_id") REFERENCES "user"("id"),
-    FOREIGN KEY("gauge_station_id") REFERENCES "gauge_station"("id")
+    FOREIGN KEY("gauge_station_id") REFERENCES "gauge_station"("id"),
+    FOREIGN KEY("alert_id") REFERENCES "alert"("id")
 );
 
 --------------------------------
