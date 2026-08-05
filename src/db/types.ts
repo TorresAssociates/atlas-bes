@@ -493,6 +493,7 @@ export interface GaugeStation {
 }
 
 export interface GaugeStationInfo {
+  active: Generated<boolean>;
   archived: Timestamp | null;
   city_id: number;
   gauge_station_id: number;

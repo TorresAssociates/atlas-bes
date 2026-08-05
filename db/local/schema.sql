@@ -212,6 +212,7 @@ CREATE TABLE IF NOT EXISTS "gauge_station_info" (
     "publicly_visible" BOOLEAN NOT NULL DEFAULT TRUE,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT TRUE,
     PRIMARY KEY("id"),
     FOREIGN KEY("gauge_station_id") REFERENCES "gauge_station"("id")
 );
