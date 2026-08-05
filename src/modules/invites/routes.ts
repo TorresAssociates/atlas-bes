@@ -2,9 +2,9 @@ import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { hasPermission, requirePermission } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
 import { getSession } from "../auth/service";
-import { UserSchema } from "../users/schemas";
 import {
 	AcceptedInviteListSchema,
+	AcceptedInviteUserSchema,
 	AcceptInviteBodySchema,
 	CreateInviteBodySchema,
 	InviteIdParamsSchema,
@@ -232,7 +232,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				tags: ["invites"],
 				body: AcceptInviteBodySchema,
 				response: {
-					201: UserSchema,
+					201: AcceptedInviteUserSchema,
 					400: HttpErrorSchema,
 					404: HttpErrorSchema,
 					409: HttpErrorSchema,

@@ -89,6 +89,17 @@ beforeAll(async () => {
 			`failed to set phone: ${phone.statusCode} ${phone.body}`,
 		);
 
+	const adminPhone = await app.inject({
+		method: "PATCH",
+		url: "/v1/users/me/phone-number",
+		headers: { cookie: admin.cookie },
+		body: { phone_number: "+15555550100" },
+	});
+	if (adminPhone.statusCode !== 200)
+		throw new Error(
+			`failed to set admin phone: ${adminPhone.statusCode} ${adminPhone.body}`,
+		);
+
 	const station = await db.pool.query<{ id: number }>(
 		`INSERT INTO gauge_station (name) VALUES ('alert-test-gauge') RETURNING id`,
 	);
@@ -189,6 +200,28 @@ test("POST /v1/alert/subscriptions/user/:userId/gaugeAlerts subscribes a user to
 		level: "gauge_station",
 		type: "flood",
 		client_id: 2,
+	});
+});
+
+test("POST /v1/alert/subscriptions/user/:userId/gaugeAlerts lets admins subscribe themselves to another client's gauge", async () => {
+	const res = await app.inject({
+		method: "POST",
+		url: `/v1/alert/subscriptions/user/${admin.id}/gaugeAlerts`,
+		headers: { cookie: admin.cookie },
+		body: { gauge_station_id: gaugeStationId, alert_type: "adminSelf" },
+	});
+
+	expect(res.statusCode).toBe(201);
+	expect(res.json<AlertSubscriptionBody>()).toEqual(
+		expect.objectContaining({
+			user_id: admin.id,
+			gauge_station_id: gaugeStationId,
+			notification_type: "sms",
+		}),
+	);
+	expect(snsSubscriptions).toContainEqual({
+		phoneNumber: "+15555550100",
+		topic: "alert-test-gauge_alert_adminSelf",
 	});
 });
 
@@ -433,4 +466,3 @@ test("POST /v1/alert/testMessage/subscriptions rejects client alert senders", as
 
 	expect(res.statusCode).toBe(403);
 });
-

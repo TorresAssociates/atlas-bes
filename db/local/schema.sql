@@ -1149,7 +1149,7 @@ CREATE TABLE IF NOT EXISTS "seasonal_report_image" (
 CREATE TABLE IF NOT EXISTS "asset_type" (
     "id" SERIAL NOT NULL UNIQUE,
     "owner_client_id" INT NOT NULL,
-    "asset_text" VARCHAR(32) NOT NULL,
+    "name" VARCHAR(32) NOT NULL,
     "lifespan" INT,
     "current_value" MONEY,
     "point_of_sale" VARCHAR(255),
@@ -1161,10 +1161,10 @@ CREATE TABLE IF NOT EXISTS "asset_type" (
 CREATE TABLE IF NOT EXISTS "asset" (
     "id" SERIAL NOT NULL UNIQUE,
     "asset_type_id" INT NOT NULL,
-    "serial_number" VARCHAR(32) NOT NULL,
+    "serial_number" VARCHAR(32),
     "creation_date" TIMESTAMPTZ NOT NULL,
-    "deploy_date" TIMESTAMPTZ NOT NULL,
-    "eos_date" TIMESTAMPTZ NOT NULL,
+    "deploy_date" TIMESTAMPTZ,
+    "eos_date" TIMESTAMPTZ,
     "cost" MONEY,
     "gauge_station_id" INT NOT NULL,
     PRIMARY KEY("id"),

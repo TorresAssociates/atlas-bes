@@ -60,7 +60,7 @@ export interface GaugeResponse {
 }
 
 export class GaugeNotFoundError extends Error {
-	constructor(gaugeId: number) {
+	constructor(gaugeId: number | string) {
 		super(`gauge station ${gaugeId} does not exist`);
 		this.name = "GaugeNotFoundError";
 	}
@@ -150,6 +150,19 @@ export async function getGauge(
 		: await queries.findGaugeStationByIdForClient(db, id, session.client_id);
 	// Inactive gauges stay hidden from read-only users, matching listGauges.
 	if (!row || (!row.active && !access.canViewInactive)) throw new GaugeNotFoundError(id);
+	return toGaugeResponse(row);
+}
+
+export async function getGaugeByName(
+	db: Kysely<DB>,
+	name: string,
+	session: SessionSubject,
+	access: GaugeReadAccess,
+): Promise<GaugeResponse> {
+	const row = access.canReadExternal
+		? await queries.findGaugeStationByName(db, name)
+		: await queries.findGaugeStationByNameForClient(db, name, session.client_id);
+	if (!row || (!row.active && !access.canViewInactive)) throw new GaugeNotFoundError(name);
 	return toGaugeResponse(row);
 }
 

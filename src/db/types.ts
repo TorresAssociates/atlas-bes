@@ -129,19 +129,19 @@ export interface Asset {
   asset_type_id: number;
   cost: string | null;
   creation_date: Timestamp;
-  deploy_date: Timestamp;
-  eos_date: Timestamp;
+  deploy_date: Timestamp | null;
+  eos_date: Timestamp | null;
   gauge_station_id: number;
   id: Generated<number>;
-  serial_number: string;
+  serial_number: string | null;
 }
 
 export interface AssetType {
-  asset_text: string;
   current_value: string | null;
   id: Generated<number>;
   is_deprecated: Generated<boolean>;
   lifespan: number | null;
+  name: string;
   owner_client_id: number;
   point_of_sale: string | null;
 }

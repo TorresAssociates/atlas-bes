@@ -102,6 +102,23 @@ export function findGaugeStationByIdForClient(
 		.executeTakeFirst();
 }
 
+export function findGaugeStationByName(
+	db: Kysely<DB>,
+	name: string,
+): Promise<GaugeStationRow | undefined> {
+	return gaugeSelect(db).where("gauge_station.name", "=", name).executeTakeFirst();
+}
+
+export function findGaugeStationByNameForClient(
+	db: Kysely<DB>,
+	name: string,
+	clientId: number,
+): Promise<GaugeStationRow | undefined> {
+	return linkedToClient(gaugeSelect(db), clientId)
+		.where("gauge_station.name", "=", name)
+		.executeTakeFirst();
+}
+
 // Existence checks used to validate foreign keys before inserting, so callers
 // get a clear error instead of a raw FK violation.
 export function findCityById(db: Kysely<DB>, id: number): Promise<{ id: number } | undefined> {

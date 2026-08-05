@@ -6,6 +6,7 @@ import {
 	SNSUnknownError,
 } from "@/lib/sns/errors";
 import type { SessionSubject } from "../auth/service";
+import { GaugeNotFoundError, getGauge, getGaugeByName } from "../gauges/service";
 import type {
 	AlertSubscriptionDetailRow,
 	AlertSubscriptionForUnsubscribe,
@@ -253,7 +254,10 @@ export async function subscribeGaugeAlert(
 		targetUserId,
 	);
 
-	const gaugeStation = await resolveGaugeStation(db, input, user.client_id);
+	const gaugeStation = await resolveGaugeStation(db, input, {
+		clientId: user.client_id,
+		canReadExternal: session.user_id === user.id && access.canSendExternalAlert,
+	});
 	if (notificationType === "sms") {
 		await subscribeSmsIfNeeded(
 			sns,
@@ -567,33 +571,38 @@ async function unsubscribeSmsIfNeeded(
 async function resolveGaugeStation(
 	db: Kysely<DB>,
 	input: SubscribeGaugeAlertInput,
-	clientId: number,
+	options: { clientId: number; canReadExternal: boolean },
 ): Promise<GaugeStationTarget> {
-	if (input.gauge_station_id !== undefined) {
-		const gaugeStation = await queries.findGaugeStationForClientById(
-			db,
-			input.gauge_station_id,
-			clientId,
-		);
-		if (!gaugeStation)
-			throw new AlertSubscriptionTargetNotFoundError("gauge_station");
-		return gaugeStation;
-	}
+	const targetSession: SessionSubject = {
+		user_id: "",
+		client_id: options.clientId,
+		role_id: 0,
+	};
+	const access = {
+		canReadExternal: options.canReadExternal,
+		canViewInactive: true,
+	};
 
-	if (input.gauge_station_name !== undefined) {
-		const gaugeStation = await queries.findGaugeStationForClientByName(
-			db,
-			input.gauge_station_name,
-			clientId,
-		);
-		if (!gaugeStation)
-			throw new AlertSubscriptionTargetNotFoundError("gauge_station");
-		return gaugeStation;
-	}
+	try {
+		const gauge = input.gauge_station_id !== undefined
+			? await getGauge(db, input.gauge_station_id, targetSession, access)
+			: input.gauge_station_name !== undefined
+				? await getGaugeByName(db, input.gauge_station_name, targetSession, access)
+				: null;
 
-	throw new AlertSubscriptionInputError(
-		"gauge_station_id or gauge_station_name is required",
-	);
+		if (!gauge) {
+			throw new AlertSubscriptionInputError(
+				"gauge_station_id or gauge_station_name is required",
+			);
+		}
+
+		return { id: gauge.id, name: gauge.name };
+	} catch (error) {
+		if (error instanceof GaugeNotFoundError) {
+			throw new AlertSubscriptionTargetNotFoundError("gauge_station");
+		}
+		throw error;
+	}
 }
 
 async function resolveDeviceAlertTarget(

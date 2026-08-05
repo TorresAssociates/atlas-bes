@@ -50,3 +50,18 @@ export const AcceptedInviteSchema = Type.Object({
 export const AcceptedInviteListSchema = Type.Object({
 	data: Type.Array(AcceptedInviteSchema),
 });
+
+export const AcceptedInviteUserSchema = Type.Object({
+	id: Type.String(),
+	client_id: Type.Integer(),
+	created_at: Type.String({ format: "date-time" }),
+	email: Type.String({ format: "email" }),
+	email_verified: Type.Boolean(),
+	image: Nullable(Type.String()),
+	name: Type.String(),
+	phone_number: Nullable(Type.String()),
+	phone_number_verified: Type.Boolean(),
+	role_id: Type.Integer(),
+	deleted_at: Nullable(Type.String({ format: "date-time" })),
+	updated_at: Type.String({ format: "date-time" }),
+});

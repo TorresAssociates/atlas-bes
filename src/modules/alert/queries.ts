@@ -73,44 +73,6 @@ export function findSubscriptionTargetUser(
 		.executeTakeFirst();
 }
 
-export function findGaugeStationForClientById(
-	db: Kysely<DB>,
-	gaugeStationId: number,
-	clientId: number,
-): Promise<GaugeStationTarget | undefined> {
-	return db
-		.selectFrom("gauge_station")
-		.innerJoin(
-			"client_gauge_station",
-			"client_gauge_station.gauge_station_id",
-			"gauge_station.id",
-		)
-		.select(["gauge_station.id", "gauge_station.name"])
-		.where("gauge_station.id", "=", gaugeStationId)
-		.where("gauge_station.archived", "is", null)
-		.where("client_gauge_station.client_id", "=", clientId)
-		.executeTakeFirst();
-}
-
-export function findGaugeStationForClientByName(
-	db: Kysely<DB>,
-	name: string,
-	clientId: number,
-): Promise<GaugeStationTarget | undefined> {
-	return db
-		.selectFrom("gauge_station")
-		.innerJoin(
-			"client_gauge_station",
-			"client_gauge_station.gauge_station_id",
-			"gauge_station.id",
-		)
-		.select(["gauge_station.id", "gauge_station.name"])
-		.where("gauge_station.name", "=", name)
-		.where("gauge_station.archived", "is", null)
-		.where("client_gauge_station.client_id", "=", clientId)
-		.executeTakeFirst();
-}
-
 export function findDeviceAlertTargetForClientById(
 	db: Kysely<DB>,
 	deviceId: number,
