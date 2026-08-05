@@ -15,12 +15,14 @@ import type { Kysely } from "kysely";
 import type pg from "pg";
 import { configPlugin } from "@/config";
 import { createDb, createPool } from "@/db";
+import { createAlertSNSClient, type AlertSNSClient } from "@/lib/sns/AlertSNSClient";
 import type { DB } from "@/db/types";
 
 declare module "fastify" {
 	interface FastifyInstance {
 		pool: pg.Pool | null;
 		db: Kysely<DB> | null;
+		alertSns: AlertSNSClient;
 	}
 }
 
@@ -37,6 +39,8 @@ export interface BuildAppOptions {
 	pool?: pg.Pool;
 	/** Logger override for tests — pass false to silence. */
 	logger?: boolean;
+	/** SNS client override for tests. Defaults to a real AWS SNS client. */
+	alertSns?: AlertSNSClient;
 }
 
 const READINESS_PROBE_INTERVAL_MS = 5_000;
@@ -91,6 +95,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 	// Kysely rides on the same pg pool (no separate connections, no lifecycle
 	// of its own — closing the pool is enough). Modules query through app.db.
 	app.decorate("db", pool ? createDb(pool) : null);
+	app.decorate("alertSns", opts.alertSns ?? createAlertSNSClient(app.config.AWS_REGION));
 
 	if (createdPool) {
 		app.addHook("onClose", async (instance) => {

@@ -39,8 +39,8 @@ beforeAll(async () => {
 	const stationTwoId = stations.rows.find((station) => station.name === "city-test-station-two")!.id;
 
 	await db.pool.query(
-		`INSERT INTO gauge_station_info (gauge_station_id, city_id, name)
-		 VALUES ($1, 1, 'city-test-info-one'), ($2, 2, 'city-test-info-two')`,
+		`INSERT INTO gauge_station_info (gauge_station_id, city_id, location, latitude, longitude)
+		 VALUES ($1, 1, 'City Test Location One', 30.6279, -96.3344), ($2, 2, 'City Test Location Two', 30.6744, -96.37)`,
 		[stationOneId, stationTwoId],
 	);
 	await db.pool.query(

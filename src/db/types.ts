@@ -73,7 +73,9 @@ export interface Alert {
 
 export interface AlertInfo {
   alert_id: number;
+  archived: Timestamp | null;
   id: Generated<number>;
+  introduced: Generated<Timestamp>;
   retract_message: string;
   send_message: string;
 }
@@ -114,11 +116,12 @@ export interface AlertMonitorConfigRange {
 }
 
 export interface AlertSubscription {
-  alert_id: NotificationType;
+  alert_id: number;
   archived: Timestamp | null;
   gauge_station_id: number;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
+  notification_type: NotificationType;
   user_id: string;
 }
 
@@ -495,7 +498,10 @@ export interface GaugeStationInfo {
   gauge_station_id: number;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
-  name: string;
+  latitude: number;
+  location: string;
+  longitude: number;
+  publicly_visible: Generated<boolean>;
 }
 
 export interface GrantedPermission {

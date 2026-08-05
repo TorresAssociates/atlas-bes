@@ -153,6 +153,83 @@ INSERT INTO "role_permission" ("role_id", "permission_id") VALUES
 ON CONFLICT ON CONSTRAINT "unique_role_id_permission_id"
 DO NOTHING;
 
+-----------------------
+---- Gauge Station ----
+-----------------------
+
+INSERT INTO "gauge_station" ("id", "name") VALUES
+    (1, 'bryan-test-gauge'),
+    (2, 'college-station-test-gauge')
+ON CONFLICT("id")
+DO UPDATE SET
+    "name" = EXCLUDED."name",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"gauge_station"', 'id'), (SELECT max("id") FROM "gauge_station"));
+
+INSERT INTO "gauge_station_info" ("id", "gauge_station_id", "city_id", "location", "latitude", "longitude") VALUES
+    (1, 1, 2, 'Bryan Alert Test Gauge', 30.6744, -96.3700),
+    (2, 2, 1, 'College Station Alert Test Gauge', 30.6279, -96.3344)
+ON CONFLICT("id")
+DO UPDATE SET
+    "gauge_station_id" = EXCLUDED."gauge_station_id",
+    "city_id" = EXCLUDED."city_id",
+    "location" = EXCLUDED."location",
+    "latitude" = EXCLUDED."latitude",
+    "longitude" = EXCLUDED."longitude",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"gauge_station_info"', 'id'), (SELECT max("id") FROM "gauge_station_info"));
+
+INSERT INTO "client_gauge_station" ("id", "gauge_station_id", "client_id") VALUES
+    (1, 1, 2),
+    (2, 2, 1)
+ON CONFLICT("id")
+DO UPDATE SET
+    "gauge_station_id" = EXCLUDED."gauge_station_id",
+    "client_id" = EXCLUDED."client_id";
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"client_gauge_station"', 'id'), (SELECT max("id") FROM "client_gauge_station"));
+
+----------------
+---- Device ----
+----------------
+
+INSERT INTO "device" ("id", "serial_number") VALUES
+    (1, 'bryan-test-device'),
+    (2, 'college-station-test-device')
+ON CONFLICT("serial_number")
+DO UPDATE SET
+    "id" = EXCLUDED."id",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"device"', 'id'), (SELECT max("id") FROM "device"));
+
+INSERT INTO "device_info" ("id", "device_id", "gauge_station_id", "type", "active", "latitude", "longitude") VALUES
+    (1, 1, 1, 'datalogger', TRUE, 30.6744, -96.3700),
+    (2, 2, 2, 'datalogger', TRUE, 30.6279, -96.3344)
+ON CONFLICT("id")
+DO UPDATE SET
+    "device_id" = EXCLUDED."device_id",
+    "gauge_station_id" = EXCLUDED."gauge_station_id",
+    "type" = EXCLUDED."type",
+    "active" = EXCLUDED."active",
+    "latitude" = EXCLUDED."latitude",
+    "longitude" = EXCLUDED."longitude",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"device_info"', 'id'), (SELECT max("id") FROM "device_info"));
+
 ----------------------------------------
 ---- Universal Measurement Category ----
 ----------------------------------------
