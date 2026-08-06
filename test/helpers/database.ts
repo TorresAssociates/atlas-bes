@@ -27,7 +27,7 @@ function databaseNameFrom(connectionUri: string): string {
 
 function maintenanceDatabaseUrl(connectionUri: string): string {
 	const url = new URL(connectionUri);
-	url.pathname = "/postgres";
+	url.pathname = "/template1";
 	return url.toString();
 }
 
@@ -171,4 +171,3 @@ export function stubConfigEnv(): void {
 	process.env.BETTER_AUTH_URL ??= "http://localhost:8000";
 	process.env.FRONTEND_ORIGIN ??= "http://localhost:5173";
 }
-
