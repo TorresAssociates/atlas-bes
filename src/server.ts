@@ -16,6 +16,8 @@ import type pg from "pg";
 import { configPlugin } from "@/config";
 import { createDb, createPool } from "@/db";
 import { createAlertSNSClient, type AlertSNSClient } from "@/lib/sns/AlertSNSClient";
+import { createEmnifyClient, type EmnifyClient } from "@/lib/emnify/EmnifyClient";
+import { createHologramClient, type HologramClient } from "@/lib/hologram/HologramClient";
 import type { DB } from "@/db/types";
 
 declare module "fastify" {
@@ -23,6 +25,8 @@ declare module "fastify" {
 		pool: pg.Pool | null;
 		db: Kysely<DB> | null;
 		alertSns: AlertSNSClient;
+		emnify: EmnifyClient;
+		hologram: HologramClient;
 	}
 }
 
@@ -41,6 +45,10 @@ export interface BuildAppOptions {
 	logger?: boolean;
 	/** SNS client override for tests. Defaults to a real AWS SNS client. */
 	alertSns?: AlertSNSClient;
+	/** Hologram client override for tests. Defaults to a real Hologram API client. */
+	hologram?: HologramClient;
+	/** Emnify client override for tests. Defaults to a real Emnify API client. */
+	emnify?: EmnifyClient;
 }
 
 const READINESS_PROBE_INTERVAL_MS = 5_000;
@@ -96,7 +104,16 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 	// of its own — closing the pool is enough). Modules query through app.db.
 	app.decorate("db", pool ? createDb(pool) : null);
 	app.decorate("alertSns", opts.alertSns ?? createAlertSNSClient(app.config.AWS_REGION));
-
+	app.decorate("hologram", opts.hologram ?? createHologramClient({
+		orgId: app.config.HOLOGRAM_ORG_ID ?? process.env.Hologram_Org_Id,
+		apiKey: app.config.HOLOGRAM_API_KEY ?? process.env.Hologram_API_Key,
+	}));
+	app.decorate("emnify", opts.emnify ?? createEmnifyClient({
+		applicationToken: app.config.EMNIFY_APPLICATION_TOKEN ?? process.env.Emnify_Application_Token,
+		organisationId: app.config.EMNIFY_ORG_ID ?? process.env.Emnify_Org_Id,
+		serviceProfileId: app.config.EMNIFY_SERVICE_PROFILE_ID,
+		tariffProfileId: app.config.EMNIFY_TARIFF_PROFILE_ID,
+	}));
 	if (createdPool) {
 		app.addHook("onClose", async (instance) => {
 			instance.log.info("shutdown: closing database pool");

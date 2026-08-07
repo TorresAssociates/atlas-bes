@@ -34,6 +34,12 @@ const configSchema = Type.Object({
 	// allowlist and better-auth's trustedOrigins — cross-origin cookies depend
 	// on this being exact.
 	FRONTEND_ORIGIN: Type.String({ minLength: 1 }),
+	HOLOGRAM_ORG_ID: Type.Optional(Type.String({ minLength: 1 })),
+	HOLOGRAM_API_KEY: Type.Optional(Type.String({ minLength: 1 })),
+	EMNIFY_APPLICATION_TOKEN: Type.Optional(Type.String({ minLength: 1 })),
+	EMNIFY_ORG_ID: Type.Optional(Type.String({ minLength: 1 })),
+	EMNIFY_SERVICE_PROFILE_ID: Type.Optional(Type.Number()),
+	EMNIFY_TARIFF_PROFILE_ID: Type.Optional(Type.Number()),
 });
 
 export type AppConfig = Static<typeof configSchema>;

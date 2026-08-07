@@ -170,4 +170,8 @@ export function stubConfigEnv(): void {
 	process.env.ENCRYPTION_KEY ??= "test-encryption-key";
 	process.env.BETTER_AUTH_URL ??= "http://localhost:8000";
 	process.env.FRONTEND_ORIGIN ??= "http://localhost:5173";
+	process.env.HOLOGRAM_ORG_ID ??= "123";
+	process.env.HOLOGRAM_API_KEY ??= "test-hologram-key";
+	process.env.EMNIFY_APPLICATION_TOKEN ??= "test-emnify-token";
+	process.env.EMNIFY_ORG_ID ??= "27343";
 }
