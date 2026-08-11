@@ -168,10 +168,10 @@ interface TestAlertSubscriptionBody {
 	phone_number: string;
 }
 
-test("POST /v1/alert/subscriptions/user/:userId/gaugeAlerts subscribes a user to a gauge alert", async () => {
+test("POST /v1/alerts/subscriptions/user/:userId/gaugeAlerts subscribes a user to a gauge alert", async () => {
 	const res = await app.inject({
 		method: "POST",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts`,
 		headers: { cookie: cityManager.cookie },
 		body: { gauge_station_id: gaugeStationId, alert_type: "flood" },
 	});
@@ -203,10 +203,10 @@ test("POST /v1/alert/subscriptions/user/:userId/gaugeAlerts subscribes a user to
 	});
 });
 
-test("POST /v1/alert/subscriptions/user/:userId/gaugeAlerts lets admins subscribe themselves to another client's gauge", async () => {
+test("POST /v1/alerts/subscriptions/user/:userId/gaugeAlerts lets admins subscribe themselves to another client's gauge", async () => {
 	const res = await app.inject({
 		method: "POST",
-		url: `/v1/alert/subscriptions/user/${admin.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${admin.id}/gaugeAlerts`,
 		headers: { cookie: admin.cookie },
 		body: { gauge_station_id: gaugeStationId, alert_type: "adminSelf" },
 	});
@@ -225,10 +225,10 @@ test("POST /v1/alert/subscriptions/user/:userId/gaugeAlerts lets admins subscrib
 	});
 });
 
-test("POST /v1/alert/subscriptions/user/:userId/deviceAlerts subscribes a user to a device alert", async () => {
+test("POST /v1/alerts/subscriptions/user/:userId/deviceAlerts subscribes a user to a device alert", async () => {
 	const res = await app.inject({
 		method: "POST",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/deviceAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/deviceAlerts`,
 		headers: { cookie: cityManager.cookie },
 		body: { device_id: deviceId, alert_type: "offline" },
 	});
@@ -260,10 +260,10 @@ test("POST /v1/alert/subscriptions/user/:userId/deviceAlerts subscribes a user t
 	});
 });
 
-test("GET /v1/alert/subscriptions/user/:userId/gaugeAlerts lists gauge alert subscriptions", async () => {
+test("GET /v1/alerts/subscriptions/user/:userId/gaugeAlerts lists gauge alert subscriptions", async () => {
 	const created = await app.inject({
 		method: "POST",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts`,
 		headers: { cookie: cityManager.cookie },
 		body: { gauge_station_id: gaugeStationId, alert_type: "listGauge" },
 	});
@@ -271,7 +271,7 @@ test("GET /v1/alert/subscriptions/user/:userId/gaugeAlerts lists gauge alert sub
 
 	const res = await app.inject({
 		method: "GET",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts`,
 		headers: { cookie: cityManager.cookie },
 	});
 
@@ -286,10 +286,10 @@ test("GET /v1/alert/subscriptions/user/:userId/gaugeAlerts lists gauge alert sub
 	);
 });
 
-test("GET /v1/alert/subscriptions/user/:userId/deviceAlerts lists device alert subscriptions", async () => {
+test("GET /v1/alerts/subscriptions/user/:userId/deviceAlerts lists device alert subscriptions", async () => {
 	const created = await app.inject({
 		method: "POST",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/deviceAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/deviceAlerts`,
 		headers: { cookie: cityManager.cookie },
 		body: { device_id: deviceId, alert_type: "listDevice" },
 	});
@@ -297,7 +297,7 @@ test("GET /v1/alert/subscriptions/user/:userId/deviceAlerts lists device alert s
 
 	const res = await app.inject({
 		method: "GET",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/deviceAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/deviceAlerts`,
 		headers: { cookie: cityManager.cookie },
 	});
 
@@ -312,10 +312,10 @@ test("GET /v1/alert/subscriptions/user/:userId/deviceAlerts lists device alert s
 	);
 });
 
-test("DELETE /v1/alert/subscriptions/user/:userId/gaugeAlerts archives one gauge alert subscription", async () => {
+test("DELETE /v1/alerts/subscriptions/user/:userId/gaugeAlerts archives one gauge alert subscription", async () => {
 	const created = await app.inject({
 		method: "POST",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts`,
 		headers: { cookie: cityManager.cookie },
 		body: { gauge_station_id: gaugeStationId, alert_type: "delGauge" },
 	});
@@ -323,7 +323,7 @@ test("DELETE /v1/alert/subscriptions/user/:userId/gaugeAlerts archives one gauge
 
 	const res = await app.inject({
 		method: "DELETE",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/gaugeAlerts?gaugeSubscriptionId=${subscriptionId}`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts?gaugeSubscriptionId=${subscriptionId}`,
 		headers: { cookie: cityManager.cookie },
 	});
 
@@ -352,10 +352,10 @@ test("DELETE /v1/alert/subscriptions/user/:userId/gaugeAlerts archives one gauge
 	expect(archived.rows[0]!.archived).toBeInstanceOf(Date);
 });
 
-test("DELETE /v1/alert/subscriptions/user/:userId/deviceAlerts archives device alert subscriptions", async () => {
+test("DELETE /v1/alerts/subscriptions/user/:userId/deviceAlerts archives device alert subscriptions", async () => {
 	const created = await app.inject({
 		method: "POST",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/deviceAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/deviceAlerts`,
 		headers: { cookie: cityManager.cookie },
 		body: { device_id: deviceId, alert_type: "delDevice" },
 	});
@@ -363,7 +363,7 @@ test("DELETE /v1/alert/subscriptions/user/:userId/deviceAlerts archives device a
 
 	const res = await app.inject({
 		method: "DELETE",
-		url: `/v1/alert/subscriptions/user/${cityManager.id}/deviceAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/deviceAlerts`,
 		headers: { cookie: cityManager.cookie },
 	});
 
@@ -386,10 +386,10 @@ test("DELETE /v1/alert/subscriptions/user/:userId/deviceAlerts archives device a
 	);
 });
 
-test("POST /v1/alert/testMessage sends the monthly test message", async () => {
+test("POST /v1/alerts/testMessage sends the monthly test message", async () => {
 	const res = await app.inject({
 		method: "POST",
-		url: "/v1/alert/testMessage",
+		url: "/v1/alerts/testMessage",
 		headers: { cookie: admin.cookie },
 	});
 
@@ -406,19 +406,19 @@ test("POST /v1/alert/testMessage sends the monthly test message", async () => {
 	});
 });
 
-test("POST /v1/alert/testMessage rejects client alert senders", async () => {
+test("POST /v1/alerts/testMessage rejects client alert senders", async () => {
 	const res = await app.inject({
 		method: "POST",
-		url: "/v1/alert/testMessage",
+		url: "/v1/alerts/testMessage",
 		headers: { cookie: cityManager.cookie },
 	});
 
 	expect(res.statusCode).toBe(403);
 });
-test("POST /v1/alert/testMessage/subscriptions subscribes a phone number to ATLASTEST", async () => {
+test("POST /v1/alerts/testMessage/subscriptions subscribes a phone number to ATLASTEST", async () => {
 	const res = await app.inject({
 		method: "POST",
-		url: "/v1/alert/testMessage/subscriptions",
+		url: "/v1/alerts/testMessage/subscriptions",
 		headers: { cookie: admin.cookie },
 		body: { phone_number: "+15555550400" },
 	});
@@ -435,10 +435,10 @@ test("POST /v1/alert/testMessage/subscriptions subscribes a phone number to ATLA
 	});
 });
 
-test("DELETE /v1/alert/testMessage/subscriptions unsubscribes a phone number from ATLASTEST", async () => {
+test("DELETE /v1/alerts/testMessage/subscriptions unsubscribes a phone number from ATLASTEST", async () => {
 	const res = await app.inject({
 		method: "DELETE",
-		url: "/v1/alert/testMessage/subscriptions",
+		url: "/v1/alerts/testMessage/subscriptions",
 		headers: { cookie: admin.cookie },
 		body: { phone_number: "+15555550400" },
 	});
@@ -456,10 +456,10 @@ test("DELETE /v1/alert/testMessage/subscriptions unsubscribes a phone number fro
 	expect(snsDeletedTopics).toContain("ATLASTEST");
 });
 
-test("POST /v1/alert/testMessage/subscriptions rejects client alert senders", async () => {
+test("POST /v1/alerts/testMessage/subscriptions rejects client alert senders", async () => {
 	const res = await app.inject({
 		method: "POST",
-		url: "/v1/alert/testMessage/subscriptions",
+		url: "/v1/alerts/testMessage/subscriptions",
 		headers: { cookie: cityManager.cookie },
 		body: { phone_number: "+15555550400" },
 	});

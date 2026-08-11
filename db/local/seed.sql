@@ -230,6 +230,101 @@ DO UPDATE SET
 -- highest seeded id so future inserts don't collide
 SELECT setval(pg_get_serial_sequence('"device_info"', 'id'), (SELECT max("id") FROM "device_info"));
 
+-----------------
+---- Channel ----
+-----------------
+
+INSERT INTO "channel" ("id", "device_id", "local_id", "channel_type_id") VALUES
+    (1, 1, 1, 1),
+    (2, 1, 2, 1),
+    (3, 2, 1, 1),
+    (4, 2, 2, 1)
+ON CONFLICT("id")
+DO UPDATE SET
+    "device_id" = EXCLUDED."device_id",
+    "local_id" = EXCLUDED."local_id",
+    "channel_type_id" = EXCLUDED."channel_type_id",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"channel"', 'id'), (SELECT max("id") FROM "channel"));
+
+INSERT INTO "channel_config" ("id", "channel_id", "name", "active", "category", "units", "scale", "offset") VALUES
+    (1, 1, 'Stage', TRUE, 'water', 'ft', 1, 0),
+    (2, 2, 'Rain', TRUE, 'rain', 'in', 1, 0),
+    (3, 3, 'Stage', TRUE, 'water', 'ft', 1, 0),
+    (4, 4, 'Battery', TRUE, 'power', 'V', 1, 0)
+ON CONFLICT("id")
+DO UPDATE SET
+    "channel_id" = EXCLUDED."channel_id",
+    "name" = EXCLUDED."name",
+    "active" = EXCLUDED."active",
+    "category" = EXCLUDED."category",
+    "units" = EXCLUDED."units",
+    "scale" = EXCLUDED."scale",
+    "offset" = EXCLUDED."offset",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"channel_config"', 'id'), (SELECT max("id") FROM "channel_config"));
+
+INSERT INTO "channel_config_display" ("id", "channel_id", "display_index") VALUES
+    (1, 1, 1),
+    (2, 2, 2),
+    (3, 3, 1),
+    (4, 4, 2)
+ON CONFLICT("id")
+DO UPDATE SET
+    "channel_id" = EXCLUDED."channel_id",
+    "display_index" = EXCLUDED."display_index",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"channel_config_display"', 'id'), (SELECT max("id") FROM "channel_config_display"));
+
+INSERT INTO "channel_config_internal_power_sensor" ("id", "channel_id", "measurement_type") VALUES
+    (1, 4, 'voltage')
+ON CONFLICT("id")
+DO UPDATE SET
+    "channel_id" = EXCLUDED."channel_id",
+    "measurement_type" = EXCLUDED."measurement_type",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"channel_config_internal_power_sensor"', 'id'), (SELECT max("id") FROM "channel_config_internal_power_sensor"));
+
+INSERT INTO "channel_config_sdi12" ("id", "channel_id", "address", "measurement_set", "measurement_index") VALUES
+    (1, 1, '0', 0, 0),
+    (2, 3, '0', 0, 0)
+ON CONFLICT("id")
+DO UPDATE SET
+    "channel_id" = EXCLUDED."channel_id",
+    "address" = EXCLUDED."address",
+    "measurement_set" = EXCLUDED."measurement_set",
+    "measurement_index" = EXCLUDED."measurement_index",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"channel_config_sdi12"', 'id'), (SELECT max("id") FROM "channel_config_sdi12"));
+
+INSERT INTO "channel_config_accumulation" ("id", "channel_id", "source_local_id", "drain_const") VALUES
+    (1, 2, 1, 0)
+ON CONFLICT("id")
+DO UPDATE SET
+    "channel_id" = EXCLUDED."channel_id",
+    "source_local_id" = EXCLUDED."source_local_id",
+    "drain_const" = EXCLUDED."drain_const",
+    "archived" = NULL;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"channel_config_accumulation"', 'id'), (SELECT max("id") FROM "channel_config_accumulation"));
+
 ----------------------------------------
 ---- Universal Measurement Category ----
 ----------------------------------------
