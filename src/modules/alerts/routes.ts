@@ -245,7 +245,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		{
 			preHandler: requirePermission("EX_EXTERNAL_ALERT"),
 			schema: {
-				tags: ["alert"],
+				tags: ["alerts"],
 				response: {
 					200: SendTestAlertMessageResponseSchema,
 					400: HttpErrorSchema,
@@ -263,7 +263,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		{
 			preHandler: requirePermission("EX_EXTERNAL_ALERT"),
 			schema: {
-				tags: ["alert"],
+				tags: ["alerts"],
 				body: TestAlertSubscriptionBodySchema,
 				response: {
 					201: TestAlertSubscriptionResponseSchema,
@@ -281,7 +281,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		{
 			preHandler: requirePermission("EX_EXTERNAL_ALERT"),
 			schema: {
-				tags: ["alert"],
+				tags: ["alerts"],
 				body: TestAlertSubscriptionBodySchema,
 				response: {
 					200: TestAlertSubscriptionResponseSchema,
@@ -300,7 +300,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		{
 			preHandler: requireSession(),
 			schema: {
-				tags: ["alert"],
+				tags: ["alerts"],
 				params: AlertSubscriptionUserParamsSchema,
 				response: {
 					200: AlertSubscriptionListSchema,
@@ -318,7 +318,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		{
 			preHandler: requireSession(),
 			schema: {
-				tags: ["alert"],
+				tags: ["alerts"],
 				params: AlertSubscriptionUserParamsSchema,
 				body: GaugeAlertSubscriptionBodySchema,
 				response: {
@@ -338,7 +338,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		{
 			preHandler: requireSession(),
 			schema: {
-				tags: ["alert"],
+				tags: ["alerts"],
 				params: AlertSubscriptionUserParamsSchema,
 				querystring: DeleteGaugeAlertSubscriptionQuerySchema,
 				response: {
@@ -358,7 +358,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		{
 			preHandler: requireSession(),
 			schema: {
-				tags: ["alert"],
+				tags: ["alerts"],
 				params: AlertSubscriptionUserParamsSchema,
 				response: {
 					200: AlertSubscriptionListSchema,
@@ -376,7 +376,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		{
 			preHandler: requireSession(),
 			schema: {
-				tags: ["alert"],
+				tags: ["alerts"],
 				params: AlertSubscriptionUserParamsSchema,
 				body: DeviceAlertSubscriptionBodySchema,
 				response: {
@@ -396,7 +396,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		{
 			preHandler: requireSession(),
 			schema: {
-				tags: ["alert"],
+				tags: ["alerts"],
 				params: AlertSubscriptionUserParamsSchema,
 				querystring: DeleteDeviceAlertSubscriptionQuerySchema,
 				response: {

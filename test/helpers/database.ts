@@ -174,4 +174,5 @@ export function stubConfigEnv(): void {
 	process.env.HOLOGRAM_API_KEY ??= "test-hologram-key";
 	process.env.EMNIFY_APPLICATION_TOKEN ??= "test-emnify-token";
 	process.env.EMNIFY_ORG_ID ??= "27343";
+	process.env.MQTX_HOSTNAME ??= "mqtx.test.local";
 }

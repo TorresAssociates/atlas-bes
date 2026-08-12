@@ -40,6 +40,7 @@ const configSchema = Type.Object({
 	EMNIFY_ORG_ID: Type.Optional(Type.String({ minLength: 1 })),
 	EMNIFY_SERVICE_PROFILE_ID: Type.Optional(Type.Number()),
 	EMNIFY_TARIFF_PROFILE_ID: Type.Optional(Type.Number()),
+	MQTX_HOSTNAME: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export type AppConfig = Static<typeof configSchema>;

@@ -18,6 +18,7 @@ import { createDb, createPool } from "@/db";
 import { createAlertSNSClient, type AlertSNSClient } from "@/lib/sns/AlertSNSClient";
 import { createEmnifyClient, type EmnifyClient } from "@/lib/emnify/EmnifyClient";
 import { createHologramClient, type HologramClient } from "@/lib/hologram/HologramClient";
+import { createMqtxClient, type MqtxClient } from "@/lib/mqtx/MqtxClient";
 import type { DB } from "@/db/types";
 
 declare module "fastify" {
@@ -27,6 +28,7 @@ declare module "fastify" {
 		alertSns: AlertSNSClient;
 		emnify: EmnifyClient;
 		hologram: HologramClient;
+		mqtx: MqtxClient;
 	}
 }
 
@@ -49,6 +51,8 @@ export interface BuildAppOptions {
 	hologram?: HologramClient;
 	/** Emnify client override for tests. Defaults to a real Emnify API client. */
 	emnify?: EmnifyClient;
+	/** MQTX client override for tests. Defaults to a signed real MQTX API client. */
+	mqtx?: MqtxClient;
 }
 
 const READINESS_PROBE_INTERVAL_MS = 5_000;
@@ -113,6 +117,10 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 		organisationId: app.config.EMNIFY_ORG_ID ?? process.env.Emnify_Org_Id,
 		serviceProfileId: app.config.EMNIFY_SERVICE_PROFILE_ID,
 		tariffProfileId: app.config.EMNIFY_TARIFF_PROFILE_ID,
+	}));
+	app.decorate("mqtx", opts.mqtx ?? createMqtxClient({
+		hostname: app.config.MQTX_HOSTNAME,
+		region: app.config.AWS_REGION,
 	}));
 	if (createdPool) {
 		app.addHook("onClose", async (instance) => {
