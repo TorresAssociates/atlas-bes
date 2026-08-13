@@ -95,7 +95,6 @@ export interface AlertMonitorConfig {
   archived: Timestamp | null;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
-  priority: number;
 }
 
 export interface AlertMonitorConfigActivity {
@@ -104,6 +103,14 @@ export interface AlertMonitorConfigActivity {
   archived: Timestamp | null;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
+}
+
+export interface AlertMonitorConfigActivityOverride {
+  alert_monitor_id: number;
+  archived: Timestamp | null;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  override: boolean | null;
 }
 
 export interface AlertMonitorConfigRange {
@@ -871,6 +878,7 @@ export interface DB {
   alert_monitor: AlertMonitor;
   alert_monitor_config: AlertMonitorConfig;
   alert_monitor_config_activity: AlertMonitorConfigActivity;
+  alert_monitor_config_activity_override: AlertMonitorConfigActivityOverride;
   alert_monitor_config_range: AlertMonitorConfigRange;
   alert_subscription: AlertSubscription;
   asset: Asset;

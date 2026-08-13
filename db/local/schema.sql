@@ -843,7 +843,6 @@ CREATE TABLE IF NOT EXISTS "alert_monitor" (
 CREATE TABLE IF NOT EXISTS "alert_monitor_config" (
 	"id" SERIAL NOT NULL UNIQUE,
     "alert_monitor_id" INT NOT NULL,
-    "priority" INT NOT NULL,
     "alert_id" INT NOT NULL,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
@@ -855,6 +854,15 @@ CREATE TABLE IF NOT EXISTS "alert_monitor_config_activity" (
 	"id" SERIAL NOT NULL UNIQUE,
     "alert_monitor_id" INT NOT NULL,
     "active" BOOLEAN NOT NULL,
+    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("alert_monitor_id") REFERENCES "alert_monitor"("id")
+);
+CREATE TABLE IF NOT EXISTS "alert_monitor_config_activity_override" (
+	"id" SERIAL NOT NULL UNIQUE,
+    "alert_monitor_id" INT NOT NULL,
+    "override" BOOLEAN,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
