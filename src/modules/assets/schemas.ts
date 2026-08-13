@@ -12,7 +12,7 @@ export const AssetSchema = Type.Object({
 	creation_date: Type.String({ format: "date-time" }),
 	deploy_date: Nullable(Type.String({ format: "date-time" })),
 	eos_date: Nullable(Type.String({ format: "date-time" })),
-	gauge_station_id: Type.Integer(),
+	gauge_station_id: Nullable(Type.Integer()),
 	serial_number: Nullable(Type.String()),
 });
 

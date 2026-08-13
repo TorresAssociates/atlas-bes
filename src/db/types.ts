@@ -129,19 +129,19 @@ export interface Asset {
   asset_type_id: number;
   cost: string | null;
   creation_date: Timestamp;
-  deploy_date: Timestamp;
-  eos_date: Timestamp;
-  gauge_station_id: number;
+  deploy_date: Timestamp | null;
+  eos_date: Timestamp | null;
+  gauge_station_id: number | null;
   id: Generated<number>;
-  serial_number: string;
+  serial_number: string | null;
 }
 
 export interface AssetType {
-  asset_text: string;
   current_value: string | null;
   id: Generated<number>;
   is_deprecated: Generated<boolean>;
   lifespan: number | null;
+  name: string;
   owner_client_id: number;
   point_of_sale: string | null;
 }
@@ -161,11 +161,9 @@ export interface Camera {
 }
 
 export interface CameraCaptureData {
-  archived: Timestamp | null;
   camera_data_record_id: Int8;
   file_type: string;
   id: Generated<number>;
-  introduced: Generated<Timestamp>;
   is_tagged: boolean;
   path: string;
 }
@@ -203,19 +201,15 @@ export interface CameraConfigRotation {
 }
 
 export interface CameraDataRecord {
-  archived: Timestamp | null;
   camera_id: number;
   date: Timestamp;
   id: Generated<Int8>;
-  introduced: Generated<Timestamp>;
 }
 
 export interface CameraDetectionData {
-  archived: Timestamp | null;
   camera_data_record_id: Int8;
   confidence: number;
   id: Generated<number>;
-  introduced: Generated<Timestamp>;
   object: string;
   present_duration: number;
   stalled: boolean;
@@ -546,11 +540,9 @@ export interface MeasurementCategory {
 }
 
 export interface MeasurementRecord {
-  archived: Timestamp | null;
   channel_id: number;
   date: Timestamp;
   id: Generated<Int8>;
-  introduced: Generated<Timestamp>;
   value: number | null;
 }
 
@@ -607,6 +599,14 @@ export interface RiskLevelMonitorConfigRange {
   min_value: number;
   risk_level: number;
   risk_level_monitor_id: number;
+}
+
+export interface RiskLevelMonitorOverride {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  risk_level: number;
 }
 
 export interface Role {
@@ -928,6 +928,7 @@ export interface DB {
   risk_level_monitor_config: RiskLevelMonitorConfig;
   risk_level_monitor_config_gradient: RiskLevelMonitorConfigGradient;
   risk_level_monitor_config_range: RiskLevelMonitorConfigRange;
+  risk_level_monitor_override: RiskLevelMonitorOverride;
   role: Role;
   role_permission: RolePermission;
   role_permissions_audit_log: RolePermissionsAuditLog;

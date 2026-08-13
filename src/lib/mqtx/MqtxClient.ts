@@ -103,6 +103,18 @@ export class MqtxClient {
 		return this.#post(`/${version}/${deviceId}/ping/in`);
 	}
 
+	async sendCameraCaptureGet(
+		deviceId: string,
+		version: string,
+		payload: unknown,
+	): Promise<MqtxResponse> {
+		return this.#post(`/${version}/${deviceId}/camData/get/in`, payload);
+	}
+
+	async sendLegacyCameraCapture(deviceId: string): Promise<MqtxResponse> {
+		return this.#post(`/v1/commands/${deviceId}`, { command: "CAP" });
+	}
+
 	async #post(path: string, payload?: unknown): Promise<MqtxResponse> {
 		const body =
 			payload === undefined ? undefined : JSON.stringify(payload);

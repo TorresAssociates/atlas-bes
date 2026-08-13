@@ -668,8 +668,6 @@ CREATE TABLE IF NOT EXISTS "measurement_record" (
     "date" TIMESTAMPTZ NOT NULL,
     "channel_id" INT NOT NULL,
     "value" REAL,
-    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("channel_id") REFERENCES "channel"("id")
 );
@@ -678,8 +676,6 @@ CREATE TABLE IF NOT EXISTS "camera_data_record" (
 	"id" BIGSERIAL NOT NULL UNIQUE,
     "date" TIMESTAMPTZ NOT NULL,
     "camera_id" INT NOT NULL,
-    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("camera_id") REFERENCES "camera"("id")
 );
@@ -689,8 +685,6 @@ CREATE TABLE IF NOT EXISTS "camera_capture_data" (
     "path" VARCHAR(255) NOT NULL,
     "file_type" VARCHAR(255) NOT NULL,
     "is_tagged" BOOLEAN NOT NULL,
-    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("camera_data_record_id") REFERENCES "camera_data_record"("id")
 );
@@ -701,9 +695,7 @@ CREATE TABLE IF NOT EXISTS "camera_detection_data" (
     "present_duration" REAL NOT NULL,
     "confidence" REAL NOT NULL,
     "stalled" BOOLEAN NOT NULL,
-    "water_level" INT NOT NULL,
-    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "archived" TIMESTAMPTZ DEFAULT NULL,
+    "water_level" REAL NOT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("camera_data_record_id") REFERENCES "camera_data_record"("id")
 );
@@ -953,6 +945,15 @@ CREATE TABLE IF NOT EXISTS "risk_level_monitor_config_gradient" (
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("risk_level_monitor_id") REFERENCES "risk_level_monitor"("id")
+);
+CREATE TABLE IF NOT EXISTS "risk_level_monitor_override" (
+	"id" SERIAL NOT NULL UNIQUE,
+    "device_id" INT NOT NULL,
+    "risk_level" REAL NOT NULL,
+    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("device_id") REFERENCES "device"("id")
 );
 
 -------------------

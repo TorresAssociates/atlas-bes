@@ -116,7 +116,6 @@ export function listMeasurementRecords(db: Kysely<DB>, channelIds: number[], fro
 			convertedValue.as("value"),
 		])
 		.where("measurement_record.channel_id", "in", channelIds)
-		.where("measurement_record.archived", "is", null)
 		.where("measurement_record.date", ">=", from)
 		.where("measurement_record.date", "<=", to)
 		.orderBy("measurement_record.channel_id")

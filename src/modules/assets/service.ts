@@ -40,7 +40,7 @@ export interface AssetResponse {
 	creation_date: string;
 	deploy_date: string | null;
 	eos_date: string | null;
-	gauge_station_id: number;
+	gauge_station_id: number | null;
 	serial_number: string | null;
 }
 
@@ -166,7 +166,7 @@ export async function createAsset(
 	access: AssetWriteAccess,
 	input: CreateAssetInput,
 ): Promise<AssetResponse> {
-	await ensureAssetTypeAccess(db, session, access, input.asset_type_id);
+	await ensureAssetTypeAccess(db, session, access, input.asset_type_id);
 	await ensureGaugeStationAccess(db, session, access, input.gauge_station_id);
 
 	try {

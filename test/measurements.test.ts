@@ -22,6 +22,7 @@ let stageChannelId: number;
 let inactiveChannelId: number;
 let hourAgo: Date;
 let twoHoursAgo: Date;
+let ninetyMinutesAgo: Date;
 let thirtyHoursAgo: Date;
 
 beforeAll(async () => {
@@ -120,20 +121,20 @@ beforeAll(async () => {
 	hourAgo = new Date(base - 1 * HOUR_MS);
 	twoHoursAgo = new Date(base - 2 * HOUR_MS);
 	thirtyHoursAgo = new Date(base - 30 * HOUR_MS);
-	const ninetyMinutesAgo = new Date(base - 1.5 * HOUR_MS);
+	ninetyMinutesAgo = new Date(base - 1.5 * HOUR_MS);
 
 	// Inserted sequentially so the latest_measurement_record trigger sees them
-	// in a deterministic order (the archived and older rows arrive after the
-	// newest one and must not displace it).
-	const insertRecord = (channel: number, date: Date, value: number | null, archived = false) =>
+	// in a deterministic order (older rows arrive after the newest one and must
+	// not displace it).
+	const insertRecord = (channel: number, date: Date, value: number | null) =>
 		db.pool.query(
-			`INSERT INTO measurement_record (date, channel_id, value, archived)
-			 VALUES ($1, $2, $3, ${archived ? "NOW()" : "NULL"})`,
+			`INSERT INTO measurement_record (date, channel_id, value)
+			 VALUES ($1, $2, $3)`,
 			[date, channel, value],
 		);
 	await insertRecord(waterChannelId, twoHoursAgo, null);
 	await insertRecord(waterChannelId, hourAgo, 10);
-	await insertRecord(waterChannelId, ninetyMinutesAgo, 99, true);
+	await insertRecord(waterChannelId, ninetyMinutesAgo, 99);
 	await insertRecord(waterChannelId, thirtyHoursAgo, 5);
 	await insertRecord(batteryChannelId, hourAgo, 12.5);
 	await insertRecord(inactiveChannelId, hourAgo, 7);
@@ -207,10 +208,11 @@ test("GET /v1/devices/:id/data returns converted measurements grouped by channel
 		active: true,
 		displayIndex: 0,
 	});
-	// Converted (raw * 2 + 1), ordered by date; the archived record and the
-	// 30h-old record are excluded. A null raw value stays null.
+	// Converted (raw * 2 + 1), ordered by date; the 30h-old record is
+	// excluded. A null raw value stays null.
 	expect(water.measurements).toEqual([
 		{ date: twoHoursAgo.toISOString(), value: null },
+		{ date: ninetyMinutesAgo.toISOString(), value: 199 },
 		{ date: hourAgo.toISOString(), value: 21 },
 	]);
 
@@ -301,7 +303,7 @@ test("GET /v1/devices/:id/data/latest serves current values per channel", async 
 		batteryChannelId,
 		stageChannelId,
 	]);
-	// The archived newer record must not have displaced the latest value.
+	// The older record inserted later must not have displaced the latest value.
 	expect(body.data[0]!.date).toBe(hourAgo.toISOString());
 	expect(body.data[0]!.value).toBe(21);
 	expect(body.data[1]!.value).toBe(12.5);
