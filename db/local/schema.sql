@@ -210,9 +210,9 @@ CREATE TABLE IF NOT EXISTS "gauge_station_info" (
     "latitude" FLOAT8 NOT NULL,
     "longitude" FLOAT8 NOT NULL,
     "publicly_visible" BOOLEAN NOT NULL DEFAULT TRUE,
+    "active" BOOLEAN NOT NULL DEFAULT TRUE,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
-    "active" BOOLEAN NOT NULL DEFAULT TRUE,
     PRIMARY KEY("id"),
     FOREIGN KEY("gauge_station_id") REFERENCES "gauge_station"("id")
 );
@@ -1166,7 +1166,7 @@ CREATE TABLE IF NOT EXISTS "asset" (
     "deploy_date" TIMESTAMPTZ,
     "eos_date" TIMESTAMPTZ,
     "cost" MONEY,
-    "gauge_station_id" INT NOT NULL,
+    "gauge_station_id" INT,
     PRIMARY KEY("id"),
     FOREIGN KEY("asset_type_id") REFERENCES "asset_type"("id"),
     FOREIGN KEY("gauge_station_id") REFERENCES "gauge_station"("id"),
