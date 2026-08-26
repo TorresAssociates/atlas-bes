@@ -32,7 +32,7 @@ export const DeviceDataSchema = Type.Object({
 	data: Type.Array(ChannelMeasurementsSchema),
 });
 
-// GET /v1/devices/:id/data/latest — served from latest_measurement_record,
+// GET /v1/devices/:id/data/latest — served from measurement_record_latest,
 export const ChannelLatestSchema = Type.Object({
 	channel: ChannelSchema,
 	date: Nullable(Type.String({ format: "date-time" })),

@@ -109,7 +109,11 @@ export class SimGaugeNotFoundError extends Error {
 }
 
 function isUniqueViolation(error: unknown): boolean {
-	return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "23505";
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		(error as { code?: unknown }).code === "23505"
+	);
 }
 
 function toApn(provider: string): string | null {
@@ -133,7 +137,8 @@ function toSimResponse(row: SimAggregateRow): SimResponse {
 		boxSerialNumber: row.device?.serial_number ?? null,
 		gaugeName: row.device?.gauge_station_name ?? null,
 	};
-	if (row.hologram) response.deviceId = row.hologram.device_id;
+	if (row.hologram?.device_id !== null && row.hologram?.device_id !== undefined)
+		response.deviceId = row.hologram.device_id;
 	if (row.emnify) response.bic = row.emnify.bic.trim();
 	return response;
 }
@@ -197,7 +202,9 @@ export async function listSims(
 	session: SessionSubject,
 	access: SimReadAccess,
 ): Promise<SimResponse[]> {
-	const sims = access.canReadExternal ? await queries.listSims(db) : await queries.listSimsForClient(db, session.client_id);
+	const sims = access.canReadExternal
+		? await queries.listSims(db)
+		: await queries.listSimsForClient(db, session.client_id);
 	const hydrated = await Promise.all(sims.map((sim) => hydrateSim(db, sim)));
 	return hydrated.map(toSimResponse);
 }
@@ -235,9 +242,11 @@ export async function createSim(db: Kysely<DB>, input: CreateSimInput): Promise<
 					device_id: Number(input.deviceId),
 				});
 			} else {
+				const bic = input.bic;
+				if (bic === undefined) throw new SimBadRequestError("Missing required field: bic");
 				await queries.insertEmnifyInfo(trx, {
 					sim_id: created.id,
-					bic: input.bic!,
+					bic,
 				});
 			}
 			return created;
@@ -274,7 +283,10 @@ export async function activateSims(
 	const sims = await queries.findSimsByCurrentImei(db, input.imei);
 	if (sims.length === 0) throw new SimNotFoundError("for provided IMEI");
 
-	const device = await queries.findCurrentDeviceForSims(db, sims.map((sim) => sim.id));
+	const device = await queries.findCurrentDeviceForSims(
+		db,
+		sims.map((sim) => sim.id),
+	);
 	if (!device) throw new SimDeviceNotFoundError();
 	await ensureDeviceAccess(db, session, access, device);
 	const gaugeStationId = await ensureGaugeAccess(db, session, access, input.gaugeId);
@@ -285,7 +297,8 @@ export async function activateSims(
 			queries.findCurrentHologramInfo(db, sim.id),
 			queries.findCurrentEmnifyInfo(db, sim.id),
 		]);
-		if (!info || info.activated) continue;
+		if (!info || info.activated || info.imei === null) continue;
+		const imei = info.imei;
 
 		if (hologram) {
 			const result = await clients.hologram.activateSim({
@@ -293,10 +306,13 @@ export async function activateSims(
 				boxId: device.serial_number,
 			});
 			await db.transaction().execute(async (trx) => {
-				await writeSimInfo(trx, sim.id, { imei: info.imei, activated: true, paused: false });
+				await writeSimInfo(trx, sim.id, { imei, activated: true, paused: false });
 				if (result.deviceId !== null) {
 					await queries.archiveCurrentHologramInfo(trx, sim.id);
-					await queries.insertHologramInfo(trx, { sim_id: sim.id, device_id: result.deviceId });
+					await queries.insertHologramInfo(trx, {
+						sim_id: sim.id,
+						device_id: result.deviceId,
+					});
 				}
 			});
 		} else if (emnify) {
@@ -310,7 +326,7 @@ export async function activateSims(
 					boxTypeId: input.boxType,
 				},
 			});
-			await writeSimInfo(db, sim.id, { imei: info.imei, activated: true, paused: false });
+			await writeSimInfo(db, sim.id, { imei, activated: true, paused: false });
 		}
 	}
 

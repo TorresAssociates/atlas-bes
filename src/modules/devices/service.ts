@@ -41,7 +41,7 @@ export interface DeviceSummaryResponse {
 	id: number;
 	serialNumber: string;
 	type: DeviceType;
-	gaugeStationId: number;
+	gaugeStationId: number | null;
 	latitude: number | null;
 	longitude: number | null;
 	active: boolean | null;

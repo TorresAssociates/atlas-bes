@@ -11,6 +11,10 @@ import fp from "fastify-plugin";
 // validation error. URL-shaped variables are checked with new URL() below.
 const configSchema = Type.Object({
 	DATABASE_URL: Type.String({ minLength: 1 }),
+	AWS_SECRET_ID_DB_CREDENTIALS: Type.Optional(Type.String({ minLength: 1 })),
+	AWS_REGION_OVERRIDE: Type.Optional(Type.String({ minLength: 1 })),
+	AWS_ACCESS_KEY_ID_OVERRIDE: Type.Optional(Type.String({ minLength: 1 })),
+	AWS_SECRET_ACCESS_KEY_OVERRIDE: Type.Optional(Type.String({ minLength: 1 })),
 	PORT: Type.Number({ default: 8000 }),
 	LOG_LEVEL: Type.Union(
 		[

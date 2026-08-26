@@ -123,7 +123,7 @@ beforeAll(async () => {
 	thirtyHoursAgo = new Date(base - 30 * HOUR_MS);
 	ninetyMinutesAgo = new Date(base - 1.5 * HOUR_MS);
 
-	// Inserted sequentially so the latest_measurement_record trigger sees them
+	// Inserted sequentially so the measurement_record_latest trigger sees them
 	// in a deterministic order (older rows arrive after the newest one and must
 	// not displace it).
 	const insertRecord = (channel: number, date: Date, value: number | null) =>

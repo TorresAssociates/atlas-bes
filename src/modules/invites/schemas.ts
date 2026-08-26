@@ -61,7 +61,7 @@ export const AcceptedInviteUserSchema = Type.Object({
 	name: Type.String(),
 	phone_number: Nullable(Type.String()),
 	phone_number_verified: Type.Boolean(),
-	role_id: Type.Integer(),
+	role_id: Nullable(Type.Integer()),
 	deleted_at: Nullable(Type.String({ format: "date-time" })),
 	updated_at: Type.String({ format: "date-time" }),
 });

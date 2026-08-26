@@ -30,15 +30,15 @@ function deviceLinkedToClient(clientId: number) {
 
 const riskLevelCase = sql<number | null>`CASE
 	WHEN risk_level_monitor_config_range.id IS NOT NULL
-		AND latest_measurement_record.value >= risk_level_monitor_config_range.min_value
-		AND latest_measurement_record.value <= risk_level_monitor_config_range.max_value
+		AND measurement_record_latest.value >= risk_level_monitor_config_range.min_value
+		AND measurement_record_latest.value <= risk_level_monitor_config_range.max_value
 		THEN risk_level_monitor_config_range.risk_level
 	WHEN risk_level_monitor_config_gradient.id IS NOT NULL
-		AND latest_measurement_record.value IS NOT NULL
+		AND measurement_record_latest.value IS NOT NULL
 		THEN risk_level_monitor_config_gradient.begin_risk_level
 			+ (risk_level_monitor_config_gradient.end_risk_level - risk_level_monitor_config_gradient.begin_risk_level)
 			* LEAST(1, GREATEST(0,
-				(latest_measurement_record.value - risk_level_monitor_config_gradient.begin_value)
+				(measurement_record_latest.value - risk_level_monitor_config_gradient.begin_value)
 				/ NULLIF(risk_level_monitor_config_gradient.end_value - risk_level_monitor_config_gradient.begin_value, 0)))
 END`;
 
@@ -59,19 +59,19 @@ function deviceRiskLevel(at?: Date) {
 				)
 				.on(validAt("risk_level_monitor_config")),
 		)
-		.innerJoin("channel_risk_level_monitor", (join) =>
+		.innerJoin("risk_level_monitor_channel", (join) =>
 			join
 				.onRef(
-					"channel_risk_level_monitor.risk_level_monitor_id",
+					"risk_level_monitor_channel.risk_level_monitor_id",
 					"=",
 					"risk_level_monitor.id",
 				)
-				.on(validAt("channel_risk_level_monitor")),
+				.on(validAt("risk_level_monitor_channel")),
 		)
 		.leftJoin(
-			"latest_measurement_record",
-			"latest_measurement_record.channel_id",
-			"channel_risk_level_monitor.channel_id",
+			"measurement_record_latest",
+			"measurement_record_latest.channel_id",
+			"risk_level_monitor_channel.channel_id",
 		)
 		.leftJoin("risk_level_monitor_config_range", (join) =>
 			join
@@ -117,19 +117,19 @@ function deviceRiskLevels(at?: Date) {
 				)
 				.on(validAt("risk_level_monitor_config")),
 		)
-		.innerJoin("channel_risk_level_monitor", (join) =>
+		.innerJoin("risk_level_monitor_channel", (join) =>
 			join
 				.onRef(
-					"channel_risk_level_monitor.risk_level_monitor_id",
+					"risk_level_monitor_channel.risk_level_monitor_id",
 					"=",
 					"risk_level_monitor.id",
 				)
-				.on(validAt("channel_risk_level_monitor")),
+				.on(validAt("risk_level_monitor_channel")),
 		)
 		.leftJoin(
-			"latest_measurement_record",
-			"latest_measurement_record.channel_id",
-			"channel_risk_level_monitor.channel_id",
+			"measurement_record_latest",
+			"measurement_record_latest.channel_id",
+			"risk_level_monitor_channel.channel_id",
 		)
 		.leftJoin("risk_level_monitor_config_range", (join) =>
 			join
@@ -153,18 +153,18 @@ function deviceRiskLevels(at?: Date) {
 		.where(validAt("risk_level_monitor"))
 		.select([
 			"risk_level_monitor.id as monitor_id",
-			"channel_risk_level_monitor.channel_id",
+			"risk_level_monitor_channel.channel_id",
 			"risk_level_monitor_config.priority",
-			"latest_measurement_record.date",
-			"latest_measurement_record.value",
+			"measurement_record_latest.date",
+			"measurement_record_latest.value",
 		])
 		.select(sql<number | null>`MAX(${riskLevelCase})`.as("risk_level"))
 		.groupBy([
 			"risk_level_monitor.id",
-			"channel_risk_level_monitor.channel_id",
+			"risk_level_monitor_channel.channel_id",
 			"risk_level_monitor_config.priority",
-			"latest_measurement_record.date",
-			"latest_measurement_record.value",
+			"measurement_record_latest.date",
+			"measurement_record_latest.value",
 		])
 		.orderBy("risk_level_monitor_config.priority")
 		.orderBy("risk_level_monitor.id");
@@ -235,10 +235,10 @@ function deviceDetailSelect(db: Kysely<DB>, at?: Date) {
 				.onRef("device_connection_quality.device_id", "=", "device.id")
 				.on(validAt("device_connection_quality", at)),
 		)
-		.leftJoin("device_camera_info", (join) =>
+		.leftJoin("device_camera_trigger_override", (join) =>
 			join
-				.onRef("device_camera_info.device_id", "=", "device.id")
-				.on(validAt("device_camera_info", at)),
+				.onRef("device_camera_trigger_override.device_id", "=", "device.id")
+				.on(validAt("device_camera_trigger_override", at)),
 		)
 		.leftJoin("device_camera_trigger", (join) =>
 			join
@@ -300,8 +300,8 @@ function deviceDetailSelect(db: Kysely<DB>, at?: Date) {
 			"device_connection_quality.max_rsrp",
 			"device_connection_quality.min_rsrq",
 			"device_connection_quality.max_rsrq",
-			"device_camera_info.id as camera_info_id",
-			"device_camera_info.trigger_override",
+			"device_camera_trigger_override.id as camera_info_id",
+			"device_camera_trigger_override.trigger_override",
 			"device_camera_trigger.triggered",
 			deviceRiskLevel(at).as("risk_level"),
 		]);
@@ -398,7 +398,7 @@ export function isGaugeStationLinkedToClient(
 
 export interface InsertDeviceInfoInput {
 	device_id: number;
-	gauge_station_id: number;
+	gauge_station_id: number | null;
 	type: DeviceType;
 	page_version: string | null;
 	activation_date: Date | string | null;

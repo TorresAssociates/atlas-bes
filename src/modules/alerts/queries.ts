@@ -27,7 +27,7 @@ export interface DeviceAlertTarget {
 export interface AlertSubscriptionDetailRow extends AlertSubscriptionRow {
 	alert_type: string;
 	alert_level: AlertLevel;
-	client_id: number;
+	client_id: number | null;
 	gauge_station_name: string;
 }
 
@@ -35,14 +35,7 @@ export interface AlertSubscriptionForUnsubscribe extends AlertSubscriptionDetail
 	phone_number: string | null;
 }
 
-const alertColumns = [
-	"id",
-	"client_id",
-	"type",
-	"level",
-	"introduced",
-	"archived",
-] as const;
+const alertColumns = ["id", "client_id", "type", "level", "introduced", "archived"] as const;
 const subscriptionColumns = [
 	"id",
 	"user_id",
@@ -97,11 +90,7 @@ function deviceAlertTargetQuery(db: Kysely<DB>, clientId: number) {
 	return db
 		.selectFrom("device")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"device_info.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.innerJoin(
 			"client_gauge_station",
 			"client_gauge_station.gauge_station_id",
@@ -134,15 +123,8 @@ export function findActiveAlert(
 		.executeTakeFirst();
 }
 
-export function insertAlert(
-	db: Kysely<DB>,
-	alert: InsertAlertRow,
-): Promise<AlertRow> {
-	return db
-		.insertInto("alert")
-		.values(alert)
-		.returning(alertColumns)
-		.executeTakeFirstOrThrow();
+export function insertAlert(db: Kysely<DB>, alert: InsertAlertRow): Promise<AlertRow> {
+	return db.insertInto("alert").values(alert).returning(alertColumns).executeTakeFirstOrThrow();
 }
 
 export function findActiveAlertSubscription(
@@ -206,11 +188,7 @@ export function findActiveAlertSubscriptionsForUnsubscribe(
 		.where("alert_subscription.archived", "is", null);
 
 	if (input.subscription_id !== undefined) {
-		query = query.where(
-			"alert_subscription.id",
-			"=",
-			input.subscription_id,
-		);
+		query = query.where("alert_subscription.id", "=", input.subscription_id);
 	}
 
 	return query.orderBy("alert_subscription.id", "asc").execute();
@@ -220,11 +198,7 @@ function alertSubscriptionDetailQuery(db: Kysely<DB>) {
 	return db
 		.selectFrom("alert_subscription")
 		.innerJoin("alert", "alert.id", "alert_subscription.alert_id")
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"alert_subscription.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "alert_subscription.gauge_station_id")
 		.select([
 			"alert_subscription.id",
 			"alert_subscription.user_id",

@@ -11,7 +11,7 @@ export interface UserRow {
 	name: string;
 	phone_number: string | null;
 	phone_number_verified: boolean;
-	role_id: number;
+	role_id: number | null;
 	deleted_at: Date | string | null;
 	updated_at: Date;
 }
@@ -44,15 +44,8 @@ function userSelections(encryptionKey: string) {
 	] as const;
 }
 
-export function listUsers(
-	db: Kysely<DB>,
-	encryptionKey: string,
-): Promise<UserRow[]> {
-	return db
-		.selectFrom("user")
-		.select(userSelections(encryptionKey))
-		.orderBy("name")
-		.execute();
+export function listUsers(db: Kysely<DB>, encryptionKey: string): Promise<UserRow[]> {
+	return db.selectFrom("user").select(userSelections(encryptionKey)).orderBy("name").execute();
 }
 
 export function listUsersByClient(
@@ -94,10 +87,7 @@ export function findUserByIdForClient(
 		.executeTakeFirst();
 }
 
-export async function userEmailExists(
-	db: Kysely<DB>,
-	email: string,
-): Promise<boolean> {
+export async function userEmailExists(db: Kysely<DB>, email: string): Promise<boolean> {
 	const user = await db
 		.selectFrom("user")
 		.select("id")
@@ -236,4 +226,3 @@ export async function userDeletedAtExists(
 
 	return user?.deleted_at ?? null;
 }
-

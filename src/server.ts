@@ -12,18 +12,17 @@ import underPressure from "@fastify/under-pressure";
 import { Type } from "@sinclair/typebox";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
-import type pg from "pg";
 import { configPlugin } from "@/config";
-import { createDb, createPool } from "@/db";
-import { createAlertSNSClient, type AlertSNSClient } from "@/lib/sns/AlertSNSClient";
+import { createDatabaseClient, createDb, type DatabasePool } from "@/db";
+import type { DB } from "@/db/types";
 import { createEmnifyClient, type EmnifyClient } from "@/lib/emnify/EmnifyClient";
 import { createHologramClient, type HologramClient } from "@/lib/hologram/HologramClient";
 import { createMqtxClient, type MqtxClient } from "@/lib/mqtx/MqtxClient";
-import type { DB } from "@/db/types";
+import { type AlertSNSClient, createAlertSNSClient } from "@/lib/sns/AlertSNSClient";
 
 declare module "fastify" {
 	interface FastifyInstance {
-		pool: pg.Pool | null;
+		pool: DatabasePool | null;
 		db: Kysely<DB> | null;
 		alertSns: AlertSNSClient;
 		emnify: EmnifyClient;
@@ -42,7 +41,7 @@ export interface BuildAppOptions {
 	 * Inject an existing pool (e.g. testcontainers). The caller owns its
 	 * lifecycle; buildApp only closes pools it created itself.
 	 */
-	pool?: pg.Pool;
+	pool?: DatabasePool;
 	/** Logger override for tests — pass false to silence. */
 	logger?: boolean;
 	/** SNS client override for tests. Defaults to a real AWS SNS client. */
@@ -101,27 +100,48 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
 	// Pool creation lives after configPlugin so DATABASE_URL is validated.
 	const createdPool =
-		opts.database === false || opts.pool ? null : createPool(app.config.DATABASE_URL);
+		opts.database === false || opts.pool
+			? null
+			: await createDatabaseClient({
+					connectionString: app.config.DATABASE_URL,
+					awsSecretIdDbCredentials: app.config.AWS_SECRET_ID_DB_CREDENTIALS,
+					awsRegionOverride: app.config.AWS_REGION_OVERRIDE,
+					awsAccessKeyIdOverride: app.config.AWS_ACCESS_KEY_ID_OVERRIDE,
+					awsSecretAccessKeyOverride: app.config.AWS_SECRET_ACCESS_KEY_OVERRIDE,
+				});
 	const pool = opts.pool ?? createdPool;
 	app.decorate("pool", pool);
 	// Kysely rides on the same pg pool (no separate connections, no lifecycle
 	// of its own — closing the pool is enough). Modules query through app.db.
 	app.decorate("db", pool ? createDb(pool) : null);
 	app.decorate("alertSns", opts.alertSns ?? createAlertSNSClient(app.config.AWS_REGION));
-	app.decorate("hologram", opts.hologram ?? createHologramClient({
-		orgId: app.config.HOLOGRAM_ORG_ID ?? process.env.Hologram_Org_Id,
-		apiKey: app.config.HOLOGRAM_API_KEY ?? process.env.Hologram_API_Key,
-	}));
-	app.decorate("emnify", opts.emnify ?? createEmnifyClient({
-		applicationToken: app.config.EMNIFY_APPLICATION_TOKEN ?? process.env.Emnify_Application_Token,
-		organisationId: app.config.EMNIFY_ORG_ID ?? process.env.Emnify_Org_Id,
-		serviceProfileId: app.config.EMNIFY_SERVICE_PROFILE_ID,
-		tariffProfileId: app.config.EMNIFY_TARIFF_PROFILE_ID,
-	}));
-	app.decorate("mqtx", opts.mqtx ?? createMqtxClient({
-		hostname: app.config.MQTX_HOSTNAME,
-		region: app.config.AWS_REGION,
-	}));
+	app.decorate(
+		"hologram",
+		opts.hologram ??
+			createHologramClient({
+				orgId: app.config.HOLOGRAM_ORG_ID ?? process.env.Hologram_Org_Id,
+				apiKey: app.config.HOLOGRAM_API_KEY ?? process.env.Hologram_API_Key,
+			}),
+	);
+	app.decorate(
+		"emnify",
+		opts.emnify ??
+			createEmnifyClient({
+				applicationToken:
+					app.config.EMNIFY_APPLICATION_TOKEN ?? process.env.Emnify_Application_Token,
+				organisationId: app.config.EMNIFY_ORG_ID ?? process.env.Emnify_Org_Id,
+				serviceProfileId: app.config.EMNIFY_SERVICE_PROFILE_ID,
+				tariffProfileId: app.config.EMNIFY_TARIFF_PROFILE_ID,
+			}),
+	);
+	app.decorate(
+		"mqtx",
+		opts.mqtx ??
+			createMqtxClient({
+				hostname: app.config.MQTX_HOSTNAME,
+				region: app.config.AWS_REGION,
+			}),
+	);
 	if (createdPool) {
 		app.addHook("onClose", async (instance) => {
 			instance.log.info("shutdown: closing database pool");
@@ -144,7 +164,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 	return app;
 }
 
-function registerHealthRoutes(app: FastifyInstance, pool: pg.Pool | null): void {
+function registerHealthRoutes(app: FastifyInstance, pool: DatabasePool | null): void {
 	// Shared route options: /health and /ready are exempt from rate limiting
 	// (config.rateLimit: false) and from request logging (logLevel: "silent").
 	const probeRouteOptions = {

@@ -11,12 +11,13 @@
 		"db:setup": "docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d atlas < db/local/schema.sql",
 		"db:seed": "docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d atlas < db/local/seed.sql",
 		"db:sync": "bun run db:destroy && bun run db:create && bun run db:setup && bun run db:seed && bun run db:codegen",
-		"db:codegen": "kysely-codegen --dialect postgres --out-file src/db/types.ts",
+		"db:codegen": "bun scripts/db-codegen.ts",
 		"auth:schema": "docker compose exec -T db psql -U postgres -c 'DROP DATABASE IF EXISTS better_auth_ddl' -c 'CREATE DATABASE better_auth_ddl' && bunx @better-auth/cli generate --config scripts/better-auth-cli-config.ts --output db/local/spec/better-auth-schema.sql --yes && docker compose exec -T db psql -U postgres -c 'DROP DATABASE IF EXISTS better_auth_ddl'",
 		"lint": "biome check .",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@aws-sdk/client-secrets-manager": "^3.1102.0",
 		"@aws-sdk/client-sns": "^3.1102.0",
 		"@aws-sdk/credential-provider-node": "^3.972.77",
 		"@fastify/autoload": "^6.5.0",
@@ -42,6 +43,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.5",
 		"@testcontainers/postgresql": "^12.0.4",
+		"@types/node": "^26.3.0",
 		"@types/pg": "^8.20.0",
 		"bun-types": "^1.3.14",
 		"kysely-codegen": "^0.20.0",

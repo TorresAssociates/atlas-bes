@@ -1,5 +1,5 @@
-import type { DB } from "@/db/types";
 import type { Insertable, Kysely, Selectable } from "kysely";
+import type { DB } from "@/db/types";
 
 export type SimRow = Selectable<DB["sim"]>;
 export type SimInfoRow = Selectable<DB["sim_info"]>;
@@ -14,7 +14,7 @@ type InsertSimInfoEmnifyRow = Insertable<DB["sim_info_emnify"]>;
 export interface SimDeviceRow {
 	device_id: number;
 	serial_number: string;
-	gauge_station_id: number;
+	gauge_station_id: number | null;
 	gauge_station_name: string;
 	type: DB["device_info"]["type"];
 }
@@ -28,7 +28,15 @@ export interface SimAggregateRow {
 }
 
 const simColumns = ["id", "iccid", "provider", "introduced", "archived"] as const;
-const simInfoColumns = ["id", "sim_id", "imei", "activated", "paused", "introduced", "archived"] as const;
+const simInfoColumns = [
+	"id",
+	"sim_id",
+	"imei",
+	"activated",
+	"paused",
+	"introduced",
+	"archived",
+] as const;
 const hologramColumns = ["id", "sim_id", "device_id", "introduced", "archived"] as const;
 const emnifyColumns = ["id", "sim_id", "bic", "introduced", "archived"] as const;
 
@@ -48,7 +56,11 @@ export function listSimsForClient(db: Kysely<DB>, clientId: number): Promise<Sim
 		.innerJoin("device", "device.id", "device_sim.device_id")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
 		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
-		.innerJoin("client_gauge_station", "client_gauge_station.gauge_station_id", "gauge_station.id")
+		.innerJoin(
+			"client_gauge_station",
+			"client_gauge_station.gauge_station_id",
+			"gauge_station.id",
+		)
 		.select(simColumns.map((column) => `sim.${column}` as const))
 		.distinct()
 		.where("sim.archived", "is", null)
@@ -81,7 +93,11 @@ export function findSimByIccidForClient(
 		.innerJoin("device", "device.id", "device_sim.device_id")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
 		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
-		.innerJoin("client_gauge_station", "client_gauge_station.gauge_station_id", "gauge_station.id")
+		.innerJoin(
+			"client_gauge_station",
+			"client_gauge_station.gauge_station_id",
+			"gauge_station.id",
+		)
 		.select(simColumns.map((column) => `sim.${column}` as const))
 		.distinct()
 		.where("sim.iccid", "=", iccid)
@@ -145,7 +161,10 @@ export function findCurrentEmnifyInfo(
 		.executeTakeFirst();
 }
 
-export function findCurrentDeviceForSim(db: Kysely<DB>, simId: number): Promise<SimDeviceRow | undefined> {
+export function findCurrentDeviceForSim(
+	db: Kysely<DB>,
+	simId: number,
+): Promise<SimDeviceRow | undefined> {
 	return db
 		.selectFrom("device_sim")
 		.innerJoin("device", "device.id", "device_sim.device_id")
@@ -204,7 +223,11 @@ export function findDeviceByIdForClient(
 		.selectFrom("device")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
 		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
-		.innerJoin("client_gauge_station", "client_gauge_station.gauge_station_id", "gauge_station.id")
+		.innerJoin(
+			"client_gauge_station",
+			"client_gauge_station.gauge_station_id",
+			"gauge_station.id",
+		)
 		.select("device.id")
 		.where("device.id", "=", deviceId)
 		.where("device.archived", "is", null)
@@ -214,7 +237,10 @@ export function findDeviceByIdForClient(
 		.executeTakeFirst();
 }
 
-export function findGaugeStationByName(db: Kysely<DB>, name: string): Promise<{ id: number } | undefined> {
+export function findGaugeStationByName(
+	db: Kysely<DB>,
+	name: string,
+): Promise<{ id: number } | undefined> {
 	return db
 		.selectFrom("gauge_station")
 		.select("id")
@@ -230,7 +256,11 @@ export function findGaugeStationByNameForClient(
 ): Promise<{ id: number } | undefined> {
 	return db
 		.selectFrom("gauge_station")
-		.innerJoin("client_gauge_station", "client_gauge_station.gauge_station_id", "gauge_station.id")
+		.innerJoin(
+			"client_gauge_station",
+			"client_gauge_station.gauge_station_id",
+			"gauge_station.id",
+		)
 		.select("gauge_station.id")
 		.where("gauge_station.name", "=", name)
 		.where("gauge_station.archived", "is", null)
@@ -243,18 +273,33 @@ export function insertSim(db: Kysely<DB>, sim: InsertSimRow): Promise<SimRow> {
 }
 
 export function insertSimInfo(db: Kysely<DB>, info: InsertSimInfoRow): Promise<SimInfoRow> {
-	return db.insertInto("sim_info").values(info).returning(simInfoColumns).executeTakeFirstOrThrow();
+	return db
+		.insertInto("sim_info")
+		.values(info)
+		.returning(simInfoColumns)
+		.executeTakeFirstOrThrow();
 }
 
 export function insertHologramInfo(
 	db: Kysely<DB>,
 	info: InsertSimInfoHologramRow,
 ): Promise<SimInfoHologramRow> {
-	return db.insertInto("sim_info_hologram").values(info).returning(hologramColumns).executeTakeFirstOrThrow();
+	return db
+		.insertInto("sim_info_hologram")
+		.values(info)
+		.returning(hologramColumns)
+		.executeTakeFirstOrThrow();
 }
 
-export function insertEmnifyInfo(db: Kysely<DB>, info: InsertSimInfoEmnifyRow): Promise<SimInfoEmnifyRow> {
-	return db.insertInto("sim_info_emnify").values(info).returning(emnifyColumns).executeTakeFirstOrThrow();
+export function insertEmnifyInfo(
+	db: Kysely<DB>,
+	info: InsertSimInfoEmnifyRow,
+): Promise<SimInfoEmnifyRow> {
+	return db
+		.insertInto("sim_info_emnify")
+		.values(info)
+		.returning(emnifyColumns)
+		.executeTakeFirstOrThrow();
 }
 
 export async function archiveCurrentSimInfo(db: Kysely<DB>, simId: number): Promise<void> {

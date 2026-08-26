@@ -2,7 +2,7 @@ import { Type } from "@sinclair/typebox";
 import { Nullable } from "@/schemas";
 
 export const DeviceTypeSchema = Type.Union([
-	Type.Literal("barrier"),
+	Type.Literal("barrier_arm"),
 	Type.Literal("camera"),
 	Type.Literal("datalogger"),
 	Type.Literal("flasher"),
@@ -14,7 +14,7 @@ export const DeviceSummarySchema = Type.Object({
 	id: Type.Integer(),
 	serialNumber: Type.String(),
 	type: DeviceTypeSchema,
-	gaugeStationId: Type.Integer(),
+	gaugeStationId: Nullable(Type.Integer()),
 	latitude: Nullable(Type.Number()),
 	longitude: Nullable(Type.Number()),
 	active: Nullable(Type.Boolean()),

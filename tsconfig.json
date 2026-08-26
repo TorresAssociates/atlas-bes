@@ -3,7 +3,7 @@
 		"target": "esnext",
 		"module": "esnext",
 		"moduleResolution": "bundler",
-		"types": ["bun-types"],
+		"types": ["bun-types", "node"],
 		"lib": ["esnext"],
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
@@ -15,5 +15,5 @@
 			"@/*": ["./src/*"]
 		}
 	},
-	"include": ["src", "test"]
+	"include": ["src", "test", "scripts"]
 }

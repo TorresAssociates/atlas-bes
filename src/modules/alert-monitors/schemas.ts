@@ -80,7 +80,7 @@ export const AlertMonitorStatusSchema = Type.Object({
 			max_value: Type.Number(),
 		}),
 	]),
-	latest_measurement_record: Type.Union([
+	measurement_record_latest: Type.Union([
 		Type.Null(),
 		Type.Object({
 			id: Type.String(),

@@ -127,7 +127,7 @@ export type MeasurementRecordRow = Awaited<ReturnType<typeof listMeasurementReco
 
 const convertedLatestValue = sql<
 	number | null
->`${sql.ref("latest_measurement_record.value")} * ${sql.ref("channel_config.scale")} + ${sql.ref("channel_config.offset")}`;
+>`${sql.ref("measurement_record_latest.value")} * ${sql.ref("channel_config.scale")} + ${sql.ref("channel_config.offset")}`;
 
 export function listLatestMeasurements(
 	db: Kysely<DB>,
@@ -135,8 +135,8 @@ export function listLatestMeasurements(
 	filters: ChannelListFilters = {},
 ) {
 	return applyChannelFilters(channelSelect(db), filters)
-		.leftJoin("latest_measurement_record", "latest_measurement_record.channel_id", "channel.id")
-		.select(["latest_measurement_record.date", convertedLatestValue.as("value")])
+		.leftJoin("measurement_record_latest", "measurement_record_latest.channel_id", "channel.id")
+		.select(["measurement_record_latest.date", convertedLatestValue.as("value")])
 		.where("channel.device_id", "=", deviceId)
 		.orderBy("channel_config_display.display_index")
 		.orderBy("channel.local_id")

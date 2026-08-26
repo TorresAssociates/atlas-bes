@@ -143,7 +143,7 @@ beforeAll(async () => {
 
 	// Camera aspect rows for the camera device.
 	await db.pool.query(
-		`INSERT INTO device_camera_info (device_id, trigger_override) VALUES ($1, NULL)`,
+		`INSERT INTO device_camera_trigger_override (device_id, trigger_override) VALUES ($1, NULL)`,
 		[cameraDeviceId],
 	);
 	await db.pool.query(
@@ -192,7 +192,7 @@ beforeAll(async () => {
 		[rangeMonitorId, gradientMonitorId],
 	);
 	await db.pool.query(
-		`INSERT INTO channel_risk_level_monitor (risk_level_monitor_id, channel_id) VALUES ($1, $2), ($3, $4)`,
+		`INSERT INTO risk_level_monitor_channel (risk_level_monitor_id, channel_id) VALUES ($1, $2), ($3, $4)`,
 		[rangeMonitorId, channelRangeId, gradientMonitorId, channelGradientId],
 	);
 	await db.pool.query(
@@ -206,7 +206,7 @@ beforeAll(async () => {
 		 VALUES ($1, 0, 100, 0, 5)`,
 		[gradientMonitorId],
 	);
-	// The insert trigger on measurement_record maintains latest_measurement_record.
+	// The insert trigger on measurement_record maintains measurement_record_latest.
 	await db.pool.query(
 		`INSERT INTO measurement_record (date, channel_id, value) VALUES (NOW(), $1, 15), (NOW(), $2, 50)`,
 		[channelRangeId, channelGradientId],
@@ -249,7 +249,7 @@ beforeAll(async () => {
 		[priorityMonitorId(0), priorityMonitorId(1), priorityMonitorId(2), priorityMonitorId(3)],
 	);
 	await db.pool.query(
-		`INSERT INTO channel_risk_level_monitor (risk_level_monitor_id, channel_id)
+		`INSERT INTO risk_level_monitor_channel (risk_level_monitor_id, channel_id)
 		 VALUES ($1, $2), ($3, $4), ($5, $6), ($7, $8)`,
 		[
 			priorityMonitorId(0),

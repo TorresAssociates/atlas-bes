@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS "user" (
     "salt" TEXT NOT NULL DEFAULT default_gen_salt(),
     "phone_number_verified" BOOLEAN NOT NULL,
     "client_id" INT NOT NULL,
-    "role_id" INT NOT NULL,
+    "role_id" INT,
     "deleted_at" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("client_id") REFERENCES "client"("id"),
@@ -232,25 +232,26 @@ CREATE TABLE IF NOT EXISTS "client_gauge_station" (
 CREATE TYPE ALERT_LEVEL AS ENUM ('gauge_station','device');
 CREATE TABLE IF NOT EXISTS "alert" (
 	"id" SERIAL NOT NULL UNIQUE,
-    "client_id" INT NOT NULL,
+    "client_id" INT,
     "type" VARCHAR(16) NOT NULL,
     "level" ALERT_LEVEL NOT NULL,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
-    PRIMARY KEY("id")
+    PRIMARY KEY("id"),
+    FOREIGN KEY("client_id") REFERENCES "client"("id")
 );
+CREATE TYPE NOTIFICATION_TYPE AS ENUM ('email', 'sms');
 CREATE TABLE IF NOT EXISTS "alert_info" (
     "id" SERIAL NOT NULL UNIQUE,
     "alert_id" INT NOT NULL,
-    "send_message" VARCHAR(1024) NOT NULL,
-    "retract_message" VARCHAR(1024) NOT NULL,
+    "notification_type" NOTIFICATION_TYPE NOT NULL,
+    "send_message" VARCHAR(1024),
+    "retract_message" VARCHAR(1024),
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("alert_id") REFERENCES "alert"("id")
 );
-
-CREATE TYPE NOTIFICATION_TYPE AS ENUM ('email', 'sms');
 CREATE TABLE IF NOT EXISTS "alert_subscription" (
     "id" SERIAL NOT NULL UNIQUE,
     "user_id" TEXT NOT NULL,
@@ -279,7 +280,7 @@ CREATE TABLE IF NOT EXISTS "universal_measurement_category" (
 
 CREATE TABLE IF NOT EXISTS "measurement_category" (
 	"id" SERIAL NOT NULL UNIQUE,
-    "category" VARCHAR(16) NOT NULL UNIQUE,
+    "category" VARCHAR(32) NOT NULL UNIQUE,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("category")
@@ -292,7 +293,7 @@ CREATE TABLE IF NOT EXISTS "measurement_category" (
 CREATE TABLE IF NOT EXISTS "sim" (
 	"id" SERIAL NOT NULL UNIQUE,
     "iccid" CHAR(20) NOT NULL UNIQUE,
-    "provider" VARCHAR(16) NOT NULL,
+    "provider" VARCHAR(64) NOT NULL,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("iccid")
@@ -300,7 +301,7 @@ CREATE TABLE IF NOT EXISTS "sim" (
 CREATE TABLE IF NOT EXISTS "sim_info" (
 	"id" SERIAL NOT NULL UNIQUE,
     "sim_id" INT NOT NULL,
-    "imei" CHAR(15) NOT NULL,
+    "imei" CHAR(15),
     "activated" BOOLEAN NOT NULL,
     "paused" BOOLEAN NOT NULL DEFAULT FALSE,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -311,7 +312,7 @@ CREATE TABLE IF NOT EXISTS "sim_info" (
 CREATE TABLE IF NOT EXISTS "sim_info_hologram" (
 	"id" SERIAL NOT NULL UNIQUE,
     "sim_id" INT NOT NULL,
-    "device_id" INT NOT NULL,
+    "device_id" INT,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
@@ -320,7 +321,7 @@ CREATE TABLE IF NOT EXISTS "sim_info_hologram" (
 CREATE TABLE IF NOT EXISTS "sim_info_emnify" (
 	"id" SERIAL NOT NULL UNIQUE,
     "sim_id" INT NOT NULL,
-    "bic" CHAR(16) NOT NULL,
+    "bic" VARCHAR(16) NOT NULL,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
@@ -331,7 +332,7 @@ CREATE TABLE IF NOT EXISTS "sim_info_emnify" (
 ---- Device ----
 ----------------
 
-CREATE TYPE DEVICE_TYPE AS ENUM ('datalogger','flasher','barrier','camera');
+CREATE TYPE DEVICE_TYPE AS ENUM ('datalogger','flasher','barrier_arm','camera');
 CREATE TABLE IF NOT EXISTS "device" (
 	"id" SERIAL NOT NULL UNIQUE,
     "serial_number" VARCHAR(32) NOT NULL UNIQUE,
@@ -342,7 +343,7 @@ CREATE TABLE IF NOT EXISTS "device" (
 CREATE TABLE IF NOT EXISTS "device_info" (
 	"id" SERIAL NOT NULL UNIQUE,
     "device_id" INT NOT NULL,
-    "gauge_station_id" INT NOT NULL,
+    "gauge_station_id" INT,
     "type" DEVICE_TYPE NOT NULL,
     "page_version" VARCHAR(16),
     "activation_date" TIMESTAMPTZ,
@@ -355,15 +356,6 @@ CREATE TABLE IF NOT EXISTS "device_info" (
     PRIMARY KEY("id"),
     FOREIGN KEY("device_id") REFERENCES "device"("id"),
     FOREIGN KEY("gauge_station_id") REFERENCES "gauge_station"("id")
-);
-CREATE TABLE IF NOT EXISTS "device_camera_info" (
-	"id" SERIAL NOT NULL UNIQUE,
-    "device_id" INT NOT NULL,
-    "trigger_override" BOOLEAN,
-    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "archived" TIMESTAMPTZ DEFAULT NULL,
-    PRIMARY KEY("id"),
-    FOREIGN KEY("device_id") REFERENCES "device"("id")
 );
 CREATE TYPE PROTOCOL_TYPE AS ENUM ('mqtt', 'coap');
 CREATE TABLE IF NOT EXISTS "device_networking" (
@@ -415,10 +407,21 @@ CREATE TABLE IF NOT EXISTS "device_connected" (
     PRIMARY KEY("id"),
     FOREIGN KEY("device_id") REFERENCES "device"("id")
 );
+CREATE TABLE IF NOT EXISTS "device_camera_trigger_override" (
+	"id" SERIAL NOT NULL UNIQUE,
+    "device_id" INT NOT NULL,
+    "trigger_override" BOOLEAN,
+    "source_id" INT,
+    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("device_id") REFERENCES "device"("id")
+);
 CREATE TABLE IF NOT EXISTS "device_camera_trigger" (
 	"id" SERIAL NOT NULL UNIQUE,
     "device_id" INT NOT NULL,
     "triggered" BOOLEAN NOT NULL,
+    "source_id" INT,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
@@ -482,14 +485,14 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS vmq_auth_acl
  (
     "id" SERIAL NOT NULL UNIQUE,
-    "device_id" INT NOT NULL,
+    "device_id" INT,
     "mountpoint" VARCHAR(10) NOT NULL,
     "client_id" VARCHAR(128) NOT NULL,
     "username" VARCHAR(128) NOT NULL,
     "password" VARCHAR(128),
     "publish_acl" JSON,
     "subscribe_acl" JSON,
-    CONSTRAINT vmq_auth_acl_primary_key PRIMARY KEY (mountpoint, client_id, username),
+    CONSTRAINT "vmq_auth_acl_primary_key" PRIMARY KEY ("mountpoint", "client_id", "username"),
     FOREIGN KEY("device_id") REFERENCES "device"("id")
 );
 
@@ -512,7 +515,7 @@ CREATE TABLE IF NOT EXISTS "channel_config" (
     "channel_id" INT NOT NULL,
     "name" VARCHAR(16) NOT NULL,
     "active" BOOLEAN NOT NULL,
-    "category" VARCHAR(16) NOT NULL,
+    "category" VARCHAR(32) NOT NULL,
     "units" VARCHAR(16) NOT NULL,
     "scale" REAL NOT NULL,
     "offset" REAL NOT NULL,
@@ -704,7 +707,7 @@ CREATE TABLE IF NOT EXISTS "camera_detection_data" (
 ---- Latest Tables ----
 -----------------------
 
-CREATE TABLE IF NOT EXISTS "latest_measurement_record" (
+CREATE TABLE IF NOT EXISTS "measurement_record_latest" (
 	"id" BIGSERIAL NOT NULL UNIQUE,
     "date" TIMESTAMPTZ NOT NULL,
     "channel_id" INT NOT NULL UNIQUE,
@@ -718,7 +721,7 @@ CREATE TABLE IF NOT EXISTS "latest_measurement_record" (
 --     RETURNS TRIGGER AS $$
 --         BEGIN
 --             IF (NEW."date" IS NULL)
---             INSERT INTO "latest_measurement_record" ("date", "channel_id", "value") VALUES
+--             INSERT INTO "measurement_record_latest" ("date", "channel_id", "value") VALUES
 --             (NEW."date", NEW."channel_id", NEW."value")
 --             ON CONFLICT ("channel_id") DO 
 --                 UPDATE SET
@@ -729,16 +732,16 @@ CREATE TABLE IF NOT EXISTS "latest_measurement_record" (
 --     $$ LANGUAGE plpgsql;
 
 -- Insert the latest record (BY DATE) to the latest records / replace the newest one
-CREATE OR REPLACE FUNCTION "f_insert_latest_measurement"()
+CREATE OR REPLACE FUNCTION "f_insert_measurement_record_latest"()
     RETURNS TRIGGER AS $$
         BEGIN
-            IF(NEW."date" > (SELECT date FROM "latest_measurement_record" WHERE "channel_id" = NEW."channel_id")) THEN
-                UPDATE "latest_measurement_record" SET 
+            IF(NEW."date" > (SELECT date FROM "measurement_record_latest" WHERE "channel_id" = NEW."channel_id")) THEN
+                UPDATE "measurement_record_latest" SET 
                     "date" = NEW."date",
                     "value" = NEW."value"
                 WHERE "channel_id" = NEW."channel_id";
             ELSE
-                INSERT INTO "latest_measurement_record" ("date", "channel_id", "value") VALUES
+                INSERT INTO "measurement_record_latest" ("date", "channel_id", "value") VALUES
                     (NEW."date", NEW."channel_id", NEW."value")
                 ON CONFLICT ("channel_id")
                 DO NOTHING;
@@ -747,10 +750,10 @@ CREATE OR REPLACE FUNCTION "f_insert_latest_measurement"()
         END;
     $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE TRIGGER "t_insert_latest_measurement" 
+CREATE OR REPLACE TRIGGER "t_insert_measurement_record_latest" 
     AFTER INSERT ON "measurement_record"
     FOR EACH ROW
-    EXECUTE FUNCTION "f_insert_latest_measurement"();
+    EXECUTE FUNCTION "f_insert_measurement_record_latest"();
 
 ---------------------------
 ---- Timestep Modifier ----
@@ -776,16 +779,16 @@ CREATE TABLE IF NOT EXISTS "timestep_modifier_config" (
     PRIMARY KEY("id"),
     FOREIGN KEY("timestep_modifier_id") REFERENCES "timestep_modifier"("id")
 );
-CREATE TABLE IF NOT EXISTS "timestep_modifier_config_activity" (
+CREATE TABLE IF NOT EXISTS "timestep_modifier_config_enabled" (
 	"id" SERIAL NOT NULL UNIQUE,
     "timestep_modifier_id" INT NOT NULL,
-    "active" BOOLEAN NOT NULL,
+    "enabled" BOOLEAN NOT NULL,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("timestep_modifier_id") REFERENCES "timestep_modifier"("id")
 );
-CREATE TABLE IF NOT EXISTS "channel_timestep_modifier" (
+CREATE TABLE IF NOT EXISTS "timestep_modifier_channel" (
 	"id" SERIAL NOT NULL UNIQUE,
     "timestep_modifier_id" INT NOT NULL,
     "channel_id" INT NOT NULL,
@@ -850,6 +853,15 @@ CREATE TABLE IF NOT EXISTS "alert_monitor_config" (
     FOREIGN KEY("alert_monitor_id") REFERENCES "alert_monitor"("id"),
     FOREIGN KEY("alert_id") REFERENCES "alert"("id")
 );
+CREATE TABLE IF NOT EXISTS "alert_monitor_config_enabled" (
+	"id" SERIAL NOT NULL UNIQUE,
+    "alert_monitor_id" INT NOT NULL,
+    "enabled" BOOLEAN NOT NULL,
+    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("alert_monitor_id") REFERENCES "alert_monitor"("id")
+);
 CREATE TABLE IF NOT EXISTS "alert_monitor_config_activity" (
 	"id" SERIAL NOT NULL UNIQUE,
     "alert_monitor_id" INT NOT NULL,
@@ -868,7 +880,7 @@ CREATE TABLE IF NOT EXISTS "alert_monitor_config_activity_override" (
     PRIMARY KEY("id"),
     FOREIGN KEY("alert_monitor_id") REFERENCES "alert_monitor"("id")
 );
-CREATE TABLE IF NOT EXISTS "channel_alert_monitor" (
+CREATE TABLE IF NOT EXISTS "alert_monitor_channel" (
 	"id" SERIAL NOT NULL UNIQUE,
     "alert_monitor_id" INT NOT NULL,
     "channel_id" INT NOT NULL,
@@ -921,7 +933,7 @@ CREATE TABLE IF NOT EXISTS "risk_level_monitor_config" (
 --     PRIMARY KEY("id"),
 --     FOREIGN KEY("risk_level_monitor_id") REFERENCES "risk_level_monitor"("id")
 -- );
-CREATE TABLE IF NOT EXISTS "channel_risk_level_monitor" (
+CREATE TABLE IF NOT EXISTS "risk_level_monitor_channel" (
 	"id" SERIAL NOT NULL UNIQUE,
     "risk_level_monitor_id" INT NOT NULL,
     "channel_id" INT NOT NULL,
@@ -954,7 +966,7 @@ CREATE TABLE IF NOT EXISTS "risk_level_monitor_config_gradient" (
     PRIMARY KEY("id"),
     FOREIGN KEY("risk_level_monitor_id") REFERENCES "risk_level_monitor"("id")
 );
-CREATE TABLE IF NOT EXISTS "risk_level_monitor_override" (
+CREATE TABLE IF NOT EXISTS "risk_level_monitor_config_override" (
 	"id" SERIAL NOT NULL UNIQUE,
     "device_id" INT NOT NULL,
     "risk_level" REAL NOT NULL,

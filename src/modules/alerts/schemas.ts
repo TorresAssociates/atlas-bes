@@ -27,11 +27,8 @@ export const AlertSubscriptionDetailSchema = Type.Intersect([
 	AlertSubscriptionSchema,
 	Type.Object({
 		alert_type: Type.String(),
-		alert_level: Type.Union([
-			Type.Literal("gauge_station"),
-			Type.Literal("device"),
-		]),
-		client_id: Type.Integer(),
+		alert_level: Type.Union([Type.Literal("gauge_station"), Type.Literal("device")]),
+		client_id: Nullable(Type.Integer()),
 		gauge_station_name: Type.String(),
 	}),
 ]);
@@ -49,18 +46,14 @@ export const GaugeAlertSubscriptionBodySchema = Type.Object({
 	gauge_station_id: Type.Optional(Type.Integer({ minimum: 1 })),
 	gauge_station_name: Type.Optional(Type.String({ minLength: 1 })),
 	alert_type: Type.String({ minLength: 1, maxLength: 16 }),
-	notification_type: Type.Optional(
-		Type.Union([Type.Literal("sms"), Type.Literal("email")]),
-	),
+	notification_type: Type.Optional(Type.Union([Type.Literal("sms"), Type.Literal("email")])),
 });
 
 export const DeviceAlertSubscriptionBodySchema = Type.Object({
 	device_id: Type.Optional(Type.Integer({ minimum: 1 })),
 	serial_number: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
 	alert_type: Type.String({ minLength: 1, maxLength: 16 }),
-	notification_type: Type.Optional(
-		Type.Union([Type.Literal("sms"), Type.Literal("email")]),
-	),
+	notification_type: Type.Optional(Type.Union([Type.Literal("sms"), Type.Literal("email")])),
 });
 
 export const SendTestAlertMessageResponseSchema = Type.Object({

@@ -6,7 +6,12 @@
 		"useIgnoreFile": true
 	},
 	"files": {
-		"includes": ["**", "!src/db/types.ts"]
+		"includes": [
+			"**",
+			"!src/db/types.ts",
+			"!src/db/util/DBClient.ts",
+			"!src/db/util/AwsSecretRetriever.ts"
+		]
 	},
 	"formatter": {
 		"enabled": true,

@@ -230,7 +230,7 @@ test("GET /v1/alert-monitors/status includes latest measurement records", async 
 			override: boolean | null;
 			channel_id: number;
 			range: { id: number; min_value: number; max_value: number } | null;
-			latest_measurement_record: { id: string; date: string; value: number | null } | null;
+			measurement_record_latest: { id: string; date: string; value: number | null } | null;
 			gauge_station: { id: number; name: string; location: string };
 		}>;
 	}>();
@@ -248,7 +248,7 @@ test("GET /v1/alert-monitors/status includes latest measurement records", async 
 		}),
 	);
 	expect(status.range).toEqual(expect.objectContaining({ min_value: 10.5, max_value: 20.25 }));
-	expect(status.latest_measurement_record).toEqual(
+	expect(status.measurement_record_latest).toEqual(
 		expect.objectContaining({ date: measuredAt.toISOString(), value: 15.75 }),
 	);
 	expect(status.gauge_station).toEqual(

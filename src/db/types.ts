@@ -7,7 +7,7 @@ import type { ColumnType } from "kysely";
 
 export type AlertLevel = "device" | "gauge_station";
 
-export type DeviceType = "barrier" | "camera" | "datalogger" | "flasher";
+export type DeviceType = "barrier_arm" | "camera" | "datalogger" | "flasher";
 
 export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
@@ -64,7 +64,7 @@ export interface Account {
 
 export interface Alert {
   archived: Timestamp | null;
-  client_id: number;
+  client_id: number | null;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
   level: AlertLevel;
@@ -76,8 +76,9 @@ export interface AlertInfo {
   archived: Timestamp | null;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
-  retract_message: string;
-  send_message: string;
+  notification_type: NotificationType;
+  retract_message: string | null;
+  send_message: string | null;
 }
 
 export interface AlertMonitor {
@@ -87,6 +88,14 @@ export interface AlertMonitor {
   introduced: Generated<Timestamp>;
   local_id: number;
   type_id: number;
+}
+
+export interface AlertMonitorChannel {
+  alert_monitor_id: number;
+  archived: Timestamp | null;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
 }
 
 export interface AlertMonitorConfig {
@@ -111,6 +120,14 @@ export interface AlertMonitorConfigActivityOverride {
   id: Generated<number>;
   introduced: Generated<Timestamp>;
   override: boolean | null;
+}
+
+export interface AlertMonitorConfigEnabled {
+  alert_monitor_id: number;
+  archived: Timestamp | null;
+  enabled: boolean;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
 }
 
 export interface AlertMonitorConfigRange {
@@ -232,14 +249,6 @@ export interface Channel {
   local_id: number;
 }
 
-export interface ChannelAlertMonitor {
-  alert_monitor_id: number;
-  archived: Timestamp | null;
-  channel_id: number;
-  id: Generated<number>;
-  introduced: Generated<Timestamp>;
-}
-
 export interface ChannelConfig {
   active: boolean;
   archived: Timestamp | null;
@@ -306,22 +315,6 @@ export interface ChannelError {
   introduced: Generated<Timestamp>;
 }
 
-export interface ChannelRiskLevelMonitor {
-  archived: Timestamp | null;
-  channel_id: number;
-  id: Generated<number>;
-  introduced: Generated<Timestamp>;
-  risk_level_monitor_id: number;
-}
-
-export interface ChannelTimestepModifier {
-  archived: Timestamp | null;
-  channel_id: number;
-  id: Generated<number>;
-  introduced: Generated<Timestamp>;
-  timestep_modifier_id: number;
-}
-
 export interface City {
   id: Generated<number>;
   name: string;
@@ -374,20 +367,22 @@ export interface DeviceCameraAccumulationTriggerActive {
   introduced: Generated<Timestamp>;
 }
 
-export interface DeviceCameraInfo {
-  archived: Timestamp | null;
-  device_id: number;
-  id: Generated<number>;
-  introduced: Generated<Timestamp>;
-  trigger_override: boolean | null;
-}
-
 export interface DeviceCameraTrigger {
   archived: Timestamp | null;
   device_id: number;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
+  source_id: number | null;
   triggered: boolean;
+}
+
+export interface DeviceCameraTriggerOverride {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  source_id: number | null;
+  trigger_override: boolean | null;
 }
 
 export interface DeviceConnected {
@@ -424,7 +419,7 @@ export interface DeviceInfo {
   active: boolean | null;
   archived: Timestamp | null;
   device_id: number;
-  gauge_station_id: number;
+  gauge_station_id: number | null;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
   latitude: number | null;
@@ -532,13 +527,6 @@ export interface Invite {
   token: string | null;
 }
 
-export interface LatestMeasurementRecord {
-  channel_id: number;
-  date: Timestamp;
-  id: Generated<Int8>;
-  value: number | null;
-}
-
 export interface MeasurementCategory {
   archived: Timestamp | null;
   category: string;
@@ -547,6 +535,13 @@ export interface MeasurementCategory {
 }
 
 export interface MeasurementRecord {
+  channel_id: number;
+  date: Timestamp;
+  id: Generated<Int8>;
+  value: number | null;
+}
+
+export interface MeasurementRecordLatest {
   channel_id: number;
   date: Timestamp;
   id: Generated<Int8>;
@@ -579,6 +574,14 @@ export interface RiskLevelMonitor {
   type_id: number;
 }
 
+export interface RiskLevelMonitorChannel {
+  archived: Timestamp | null;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  risk_level_monitor_id: number;
+}
+
 export interface RiskLevelMonitorConfig {
   archived: Timestamp | null;
   id: Generated<number>;
@@ -598,6 +601,14 @@ export interface RiskLevelMonitorConfigGradient {
   risk_level_monitor_id: number;
 }
 
+export interface RiskLevelMonitorConfigOverride {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  risk_level: number;
+}
+
 export interface RiskLevelMonitorConfigRange {
   archived: Timestamp | null;
   id: Generated<number>;
@@ -606,14 +617,6 @@ export interface RiskLevelMonitorConfigRange {
   min_value: number;
   risk_level: number;
   risk_level_monitor_id: number;
-}
-
-export interface RiskLevelMonitorOverride {
-  archived: Timestamp | null;
-  device_id: number;
-  id: Generated<number>;
-  introduced: Generated<Timestamp>;
-  risk_level: number;
 }
 
 export interface Role {
@@ -710,7 +713,7 @@ export interface SimInfo {
   activated: boolean;
   archived: Timestamp | null;
   id: Generated<number>;
-  imei: string;
+  imei: string | null;
   introduced: Generated<Timestamp>;
   paused: Generated<boolean>;
   sim_id: number;
@@ -726,7 +729,7 @@ export interface SimInfoEmnify {
 
 export interface SimInfoHologram {
   archived: Timestamp | null;
-  device_id: number;
+  device_id: number | null;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
   sim_id: number;
@@ -741,6 +744,14 @@ export interface TimestepModifier {
   type_id: number;
 }
 
+export interface TimestepModifierChannel {
+  archived: Timestamp | null;
+  channel_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  timestep_modifier_id: number;
+}
+
 export interface TimestepModifierConfig {
   archived: Timestamp | null;
   id: Generated<number>;
@@ -750,20 +761,20 @@ export interface TimestepModifierConfig {
   timestep_modifier_id: number;
 }
 
-export interface TimestepModifierConfigActivity {
-  active: boolean;
-  archived: Timestamp | null;
-  id: Generated<number>;
-  introduced: Generated<Timestamp>;
-  timestep_modifier_id: number;
-}
-
 export interface TimestepModifierConfigDeltaValue {
   archived: Timestamp | null;
   delta_value: number;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
   min_change: number;
+  timestep_modifier_id: number;
+}
+
+export interface TimestepModifierConfigEnabled {
+  archived: Timestamp | null;
+  enabled: boolean;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
   timestep_modifier_id: number;
 }
 
@@ -803,7 +814,7 @@ export interface User {
   name: string;
   phone_number: Buffer | null;
   phone_number_verified: boolean;
-  role_id: number;
+  role_id: number | null;
   salt: Generated<string>;
   updated_at: Timestamp;
 }
@@ -827,7 +838,7 @@ export interface Verification {
 
 export interface VmqAuthAcl {
   client_id: string;
-  device_id: number;
+  device_id: number | null;
   id: Generated<number>;
   mountpoint: string;
   password: string | null;
@@ -876,9 +887,11 @@ export interface DB {
   alert: Alert;
   alert_info: AlertInfo;
   alert_monitor: AlertMonitor;
+  alert_monitor_channel: AlertMonitorChannel;
   alert_monitor_config: AlertMonitorConfig;
   alert_monitor_config_activity: AlertMonitorConfigActivity;
   alert_monitor_config_activity_override: AlertMonitorConfigActivityOverride;
+  alert_monitor_config_enabled: AlertMonitorConfigEnabled;
   alert_monitor_config_range: AlertMonitorConfigRange;
   alert_subscription: AlertSubscription;
   asset: Asset;
@@ -892,7 +905,6 @@ export interface DB {
   camera_data_record: CameraDataRecord;
   camera_detection_data: CameraDetectionData;
   channel: Channel;
-  channel_alert_monitor: ChannelAlertMonitor;
   channel_config: ChannelConfig;
   channel_config_accumulation: ChannelConfigAccumulation;
   channel_config_display: ChannelConfigDisplay;
@@ -900,8 +912,6 @@ export interface DB {
   channel_config_sdi12: ChannelConfigSdi12;
   channel_config_tilt: ChannelConfigTilt;
   channel_error: ChannelError;
-  channel_risk_level_monitor: ChannelRiskLevelMonitor;
-  channel_timestep_modifier: ChannelTimestepModifier;
   city: City;
   client: Client;
   client_gauge_station: ClientGaugeStation;
@@ -909,8 +919,8 @@ export interface DB {
   device: Device;
   device_camera_accumulation_trigger: DeviceCameraAccumulationTrigger;
   device_camera_accumulation_trigger_active: DeviceCameraAccumulationTriggerActive;
-  device_camera_info: DeviceCameraInfo;
   device_camera_trigger: DeviceCameraTrigger;
+  device_camera_trigger_override: DeviceCameraTriggerOverride;
   device_connected: DeviceConnected;
   device_connection_quality: DeviceConnectionQuality;
   device_datalogging: DeviceDatalogging;
@@ -927,16 +937,17 @@ export interface DB {
   incident_category: IncidentCategory;
   incident_type: IncidentType;
   invite: Invite;
-  latest_measurement_record: LatestMeasurementRecord;
   measurement_category: MeasurementCategory;
   measurement_record: MeasurementRecord;
+  measurement_record_latest: MeasurementRecordLatest;
   permission: Permission;
   preference: Preference;
   risk_level_monitor: RiskLevelMonitor;
+  risk_level_monitor_channel: RiskLevelMonitorChannel;
   risk_level_monitor_config: RiskLevelMonitorConfig;
   risk_level_monitor_config_gradient: RiskLevelMonitorConfigGradient;
+  risk_level_monitor_config_override: RiskLevelMonitorConfigOverride;
   risk_level_monitor_config_range: RiskLevelMonitorConfigRange;
-  risk_level_monitor_override: RiskLevelMonitorOverride;
   role: Role;
   role_permission: RolePermission;
   role_permissions_audit_log: RolePermissionsAuditLog;
@@ -953,9 +964,10 @@ export interface DB {
   sim_info_emnify: SimInfoEmnify;
   sim_info_hologram: SimInfoHologram;
   timestep_modifier: TimestepModifier;
+  timestep_modifier_channel: TimestepModifierChannel;
   timestep_modifier_config: TimestepModifierConfig;
-  timestep_modifier_config_activity: TimestepModifierConfigActivity;
   timestep_modifier_config_delta_value: TimestepModifierConfigDeltaValue;
+  timestep_modifier_config_enabled: TimestepModifierConfigEnabled;
   timestep_modifier_config_gradient: TimestepModifierConfigGradient;
   timestep_modifier_config_range: TimestepModifierConfigRange;
   universal_measurement_category: UniversalMeasurementCategory;

@@ -3,16 +3,12 @@ import type { DB } from "@/db/types";
 
 export type AlertMonitorRow = Selectable<DB["alert_monitor"]>;
 export type AlertMonitorConfigRow = Selectable<DB["alert_monitor_config"]>;
-export type AlertMonitorConfigActivityRow = Selectable<
-	DB["alert_monitor_config_activity"]
->;
+export type AlertMonitorConfigActivityRow = Selectable<DB["alert_monitor_config_activity"]>;
 export type AlertMonitorConfigActivityOverrideRow = Selectable<
 	DB["alert_monitor_config_activity_override"]
 >;
-export type ChannelAlertMonitorRow = Selectable<DB["channel_alert_monitor"]>;
-export type AlertMonitorConfigRangeRow = Selectable<
-	DB["alert_monitor_config_range"]
->;
+export type ChannelAlertMonitorRow = Selectable<DB["alert_monitor_channel"]>;
+export type AlertMonitorConfigRangeRow = Selectable<DB["alert_monitor_config_range"]>;
 export interface AlertMonitorStatusRow {
 	alert_monitor_id: number;
 	device_id: number;
@@ -35,16 +31,12 @@ export interface AlertMonitorStatusRow {
 
 type InsertAlertMonitorRow = Insertable<DB["alert_monitor"]>;
 type InsertAlertMonitorConfigRow = Insertable<DB["alert_monitor_config"]>;
-type InsertAlertMonitorConfigActivityRow = Insertable<
-	DB["alert_monitor_config_activity"]
->;
+type InsertAlertMonitorConfigActivityRow = Insertable<DB["alert_monitor_config_activity"]>;
 type InsertAlertMonitorConfigActivityOverrideRow = Insertable<
 	DB["alert_monitor_config_activity_override"]
 >;
-type InsertChannelAlertMonitorRow = Insertable<DB["channel_alert_monitor"]>;
-type InsertAlertMonitorConfigRangeRow = Insertable<
-	DB["alert_monitor_config_range"]
->;
+type InsertChannelAlertMonitorRow = Insertable<DB["alert_monitor_channel"]>;
+type InsertAlertMonitorConfigRangeRow = Insertable<DB["alert_monitor_config_range"]>;
 
 const alertMonitorColumns = [
 	"id",
@@ -54,27 +46,9 @@ const alertMonitorColumns = [
 	"introduced",
 	"archived",
 ] as const;
-const configColumns = [
-	"id",
-	"alert_monitor_id",
-	"alert_id",
-	"introduced",
-	"archived",
-] as const;
-const activityColumns = [
-	"id",
-	"alert_monitor_id",
-	"active",
-	"introduced",
-	"archived",
-] as const;
-const overrideColumns = [
-	"id",
-	"alert_monitor_id",
-	"override",
-	"introduced",
-	"archived",
-] as const;
+const configColumns = ["id", "alert_monitor_id", "alert_id", "introduced", "archived"] as const;
+const activityColumns = ["id", "alert_monitor_id", "active", "introduced", "archived"] as const;
+const overrideColumns = ["id", "alert_monitor_id", "override", "introduced", "archived"] as const;
 const channelLinkColumns = [
 	"id",
 	"alert_monitor_id",
@@ -95,11 +69,7 @@ function scopedDeviceIds(db: Kysely<DB>, clientId: number) {
 	return db
 		.selectFrom("device")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"device_info.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.innerJoin(
 			"client_gauge_station",
 			"client_gauge_station.gauge_station_id",
@@ -151,30 +121,18 @@ function alertMonitorStatusQuery(db: Kysely<DB>) {
 		.selectFrom("alert_monitor")
 		.innerJoin("alert_monitor_config", (join) =>
 			join
-				.onRef(
-					"alert_monitor_config.alert_monitor_id",
-					"=",
-					"alert_monitor.id",
-				)
+				.onRef("alert_monitor_config.alert_monitor_id", "=", "alert_monitor.id")
 				.on("alert_monitor_config.archived", "is", null),
 		)
 		.innerJoin("alert_monitor_config_activity", (join) =>
 			join
-				.onRef(
-					"alert_monitor_config_activity.alert_monitor_id",
-					"=",
-					"alert_monitor.id",
-				)
+				.onRef("alert_monitor_config_activity.alert_monitor_id", "=", "alert_monitor.id")
 				.on("alert_monitor_config_activity.archived", "is", null),
 		)
-		.innerJoin("channel_alert_monitor", (join) =>
+		.innerJoin("alert_monitor_channel", (join) =>
 			join
-				.onRef(
-					"channel_alert_monitor.alert_monitor_id",
-					"=",
-					"alert_monitor.id",
-				)
-				.on("channel_alert_monitor.archived", "is", null),
+				.onRef("alert_monitor_channel.alert_monitor_id", "=", "alert_monitor.id")
+				.on("alert_monitor_channel.archived", "is", null),
 		)
 		.leftJoin("alert_monitor_config_activity_override", (join) =>
 			join
@@ -183,19 +141,11 @@ function alertMonitorStatusQuery(db: Kysely<DB>) {
 					"=",
 					"alert_monitor.id",
 				)
-				.on(
-					"alert_monitor_config_activity_override.archived",
-					"is",
-					null,
-				),
+				.on("alert_monitor_config_activity_override.archived", "is", null),
 		)
 		.leftJoin("alert_monitor_config_range", (join) =>
 			join
-				.onRef(
-					"alert_monitor_config_range.alert_monitor_id",
-					"=",
-					"alert_monitor.id",
-				)
+				.onRef("alert_monitor_config_range.alert_monitor_id", "=", "alert_monitor.id")
 				.on("alert_monitor_config_range.archived", "is", null),
 		)
 		.innerJoin("device", "device.id", "alert_monitor.device_id")
@@ -204,24 +154,16 @@ function alertMonitorStatusQuery(db: Kysely<DB>) {
 				.onRef("device_info.device_id", "=", "device.id")
 				.on("device_info.archived", "is", null),
 		)
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"device_info.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.innerJoin("gauge_station_info", (join) =>
 			join
-				.onRef(
-					"gauge_station_info.gauge_station_id",
-					"=",
-					"gauge_station.id",
-				)
+				.onRef("gauge_station_info.gauge_station_id", "=", "gauge_station.id")
 				.on("gauge_station_info.archived", "is", null),
 		)
 		.leftJoin(
-			"latest_measurement_record",
-			"latest_measurement_record.channel_id",
-			"channel_alert_monitor.channel_id",
+			"measurement_record_latest",
+			"measurement_record_latest.channel_id",
+			"alert_monitor_channel.channel_id",
 		)
 		.select([
 			"alert_monitor.id as alert_monitor_id",
@@ -231,13 +173,13 @@ function alertMonitorStatusQuery(db: Kysely<DB>) {
 			"alert_monitor_config.alert_id",
 			"alert_monitor_config_activity.active",
 			"alert_monitor_config_activity_override.override",
-			"channel_alert_monitor.channel_id",
+			"alert_monitor_channel.channel_id",
 			"alert_monitor_config_range.id as range_id",
 			"alert_monitor_config_range.min_value",
 			"alert_monitor_config_range.max_value",
-			"latest_measurement_record.id as latest_measurement_record_id",
-			"latest_measurement_record.date as latest_measurement_record_date",
-			"latest_measurement_record.value as latest_measurement_record_value",
+			"measurement_record_latest.id as latest_measurement_record_id",
+			"measurement_record_latest.date as latest_measurement_record_date",
+			"measurement_record_latest.value as latest_measurement_record_value",
 			"gauge_station.id as gauge_station_id",
 			"gauge_station.name as gauge_station_name",
 			"gauge_station_info.location as gauge_station_location",
@@ -247,13 +189,11 @@ function alertMonitorStatusQuery(db: Kysely<DB>) {
 		.where("gauge_station.archived", "is", null);
 }
 
-export function listAlertMonitorStatuses(
-	db: Kysely<DB>,
-): Promise<AlertMonitorStatusRow[]> {
+export function listAlertMonitorStatuses(db: Kysely<DB>): Promise<AlertMonitorStatusRow[]> {
 	return alertMonitorStatusQuery(db)
 		.orderBy("alert_monitor.device_id", "asc")
 		.orderBy("alert_monitor.local_id", "asc")
-		.orderBy("channel_alert_monitor.channel_id", "asc")
+		.orderBy("alert_monitor_channel.channel_id", "asc")
 		.orderBy("alert_monitor_config_range.id", "asc")
 		.execute();
 }
@@ -266,7 +206,7 @@ export function listAlertMonitorStatusesForClient(
 		.where("alert_monitor.device_id", "in", scopedDeviceIds(db, clientId))
 		.orderBy("alert_monitor.device_id", "asc")
 		.orderBy("alert_monitor.local_id", "asc")
-		.orderBy("channel_alert_monitor.channel_id", "asc")
+		.orderBy("alert_monitor_channel.channel_id", "asc")
 		.orderBy("alert_monitor_config_range.id", "asc")
 		.execute();
 }
@@ -297,10 +237,7 @@ export function findAlertMonitorByIdForClient(
 		.executeTakeFirst();
 }
 
-export function findDeviceById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<{ id: number } | undefined> {
+export function findDeviceById(db: Kysely<DB>, id: number): Promise<{ id: number } | undefined> {
 	return db
 		.selectFrom("device")
 		.select("id")
@@ -314,9 +251,7 @@ export function findDeviceByIdForClient(
 	id: number,
 	clientId: number,
 ): Promise<{ id: number } | undefined> {
-	return scopedDeviceIds(db, clientId)
-		.where("device.id", "=", id)
-		.executeTakeFirst();
+	return scopedDeviceIds(db, clientId).where("device.id", "=", id).executeTakeFirst();
 }
 
 export function findChannelById(
@@ -345,15 +280,8 @@ export function findChannelByIdForClient(
 		.executeTakeFirst();
 }
 
-export function findAlertById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<{ id: number } | undefined> {
-	return db
-		.selectFrom("alert")
-		.select("id")
-		.where("id", "=", id)
-		.executeTakeFirst();
+export function findAlertById(db: Kysely<DB>, id: number): Promise<{ id: number } | undefined> {
+	return db.selectFrom("alert").select("id").where("id", "=", id).executeTakeFirst();
 }
 
 export function listConfigs(db: Kysely<DB>): Promise<AlertMonitorConfigRow[]> {
@@ -380,9 +308,7 @@ export function listConfigsForClient(
 		.execute();
 }
 
-export function listActivities(
-	db: Kysely<DB>,
-): Promise<AlertMonitorConfigActivityRow[]> {
+export function listActivities(db: Kysely<DB>): Promise<AlertMonitorConfigActivityRow[]> {
 	return db
 		.selectFrom("alert_monitor_config_activity")
 		.select(activityColumns)
@@ -432,11 +358,9 @@ export function listActivityOverridesForClient(
 		.execute();
 }
 
-export function listChannelLinks(
-	db: Kysely<DB>,
-): Promise<ChannelAlertMonitorRow[]> {
+export function listChannelLinks(db: Kysely<DB>): Promise<ChannelAlertMonitorRow[]> {
 	return db
-		.selectFrom("channel_alert_monitor")
+		.selectFrom("alert_monitor_channel")
 		.select(channelLinkColumns)
 		.where("archived", "is", null)
 		.orderBy("alert_monitor_id")
@@ -450,7 +374,7 @@ export function listChannelLinksForClient(
 	clientId: number,
 ): Promise<ChannelAlertMonitorRow[]> {
 	return db
-		.selectFrom("channel_alert_monitor")
+		.selectFrom("alert_monitor_channel")
 		.select(channelLinkColumns)
 		.where("archived", "is", null)
 		.where("alert_monitor_id", "in", scopedMonitorIds(db, clientId))
@@ -460,9 +384,7 @@ export function listChannelLinksForClient(
 		.execute();
 }
 
-export function listRanges(
-	db: Kysely<DB>,
-): Promise<AlertMonitorConfigRangeRow[]> {
+export function listRanges(db: Kysely<DB>): Promise<AlertMonitorConfigRangeRow[]> {
 	return db
 		.selectFrom("alert_monitor_config_range")
 		.select(rangeColumns)
@@ -535,7 +457,7 @@ export function insertChannelLink(
 	row: InsertChannelAlertMonitorRow,
 ): Promise<ChannelAlertMonitorRow> {
 	return db
-		.insertInto("channel_alert_monitor")
+		.insertInto("alert_monitor_channel")
 		.values(row)
 		.returning(channelLinkColumns)
 		.executeTakeFirstOrThrow();

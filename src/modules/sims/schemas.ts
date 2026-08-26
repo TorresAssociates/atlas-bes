@@ -1,15 +1,12 @@
-import { Nullable } from "@/schemas";
 import { Type } from "@sinclair/typebox";
+import { Nullable } from "@/schemas";
 
-export const SimProviderSchema = Type.Union([
-	Type.Literal("hologram"),
-	Type.Literal("emnify"),
-]);
+export const SimProviderSchema = Type.Union([Type.Literal("hologram"), Type.Literal("emnify")]);
 
 export const DeviceTypeSchema = Type.Union([
 	Type.Literal("datalogger"),
 	Type.Literal("flasher"),
-	Type.Literal("barrier"),
+	Type.Literal("barrier_arm"),
 	Type.Literal("camera"),
 ]);
 
@@ -20,7 +17,9 @@ export const SimParamsSchema = Type.Object({
 export const CreateSimBodySchema = Type.Object({
 	simType: SimProviderSchema,
 	iccid: Type.String({ minLength: 1, maxLength: 20 }),
-	deviceId: Type.Optional(Type.Union([Type.Integer({ minimum: 1 }), Type.String({ minLength: 1 })])),
+	deviceId: Type.Optional(
+		Type.Union([Type.Integer({ minimum: 1 }), Type.String({ minLength: 1 })]),
+	),
 	bic: Type.Optional(Type.String({ minLength: 1, maxLength: 16 })),
 });
 

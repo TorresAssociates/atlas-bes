@@ -35,7 +35,11 @@ openssl rand -base64 32      # generate a value for BETTER_AUTH_SECRET
 
 | Variable | What it's for |
 |---|---|
-| `DATABASE_URL` | Postgres connection string. The default points at the compose `db` service. |
+| `DATABASE_URL` | Postgres connection string. Used for local fallback when `AWS_SECRET_ID_DB_CREDENTIALS` is unset. |
+| `AWS_SECRET_ID_DB_CREDENTIALS` | Optional AWS Secrets Manager secret id for migrated atlas-database credentials. When set, runtime DB connections and `db:codegen` use this instead of `DATABASE_URL`. |
+| `AWS_REGION_OVERRIDE` | Optional AWS region override for local Secrets Manager access. |
+| `AWS_ACCESS_KEY_ID_OVERRIDE` | Optional local AWS access key override. Prefer normal AWS profiles/task roles when possible. |
+| `AWS_SECRET_ACCESS_KEY_OVERRIDE` | Optional local AWS secret key override. Prefer normal AWS profiles/task roles when possible. |
 | `PORT` | HTTP port (default 8000). |
 | `LOG_LEVEL` | Pino level: `fatal`\|`error`\|`warn`\|`info`\|`debug`\|`trace`\|`silent` (default `info`). |
 | `AWS_REGION` | Local development only — Fargate injects it in production. |
@@ -69,7 +73,7 @@ DDL lives in a separate migrations repository. See
 ```bash
 bun run db:reset    # DROP schema public CASCADE + re-run db/local/schema.sql — destroys local data
 bun run db:seed     # apply db/local/seed.sql
-bun run db:codegen  # regenerate src/db/types.ts from the live local database
+bun run db:codegen  # regenerate src/db/types.ts from the configured database
 bun run db:sync     # all three, in that order
 ```
 
@@ -163,9 +167,9 @@ eventually).
 **Unresolved.** The database schema lives in an external migrations repository,
 and BES needs it in two places:
 
-1. **`db:codegen`** — a local database at the *current real schema* to generate
-   `src/db/types.ts` from (the `db/local/` scratchpad only covers
-   work-in-progress design, not the real schema).
+1. **`db:codegen`** — run against the migrated atlas-database instance by
+   setting `AWS_SECRET_ID_DB_CREDENTIALS`, or against local compose Postgres via
+   `DATABASE_URL` when the secret id is unset.
 2. **CI / integration tests** — testcontainers needs the same DDL to stand up a
    faithful database.
 
