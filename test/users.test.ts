@@ -77,6 +77,11 @@ interface UserListBody {
 	data: UserBody[];
 }
 
+interface UserMeBody {
+	user: UserBody;
+	permissions: string[];
+}
+
 async function latestUserAuditLog(targetUserId: string) {
 	const audit = await db.pool.query<{
 		action_id: string;
@@ -97,6 +102,25 @@ async function latestUserAuditLog(targetUserId: string) {
 
 test("GET /v1/users returns 401 without a session", async () => {
 	const res = await app.inject({ method: "GET", url: "/v1/users" });
+	expect(res.statusCode).toBe(401);
+});
+
+test("GET /v1/users/me returns current user and permissions", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/users/me",
+		headers: { cookie: cityManager.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<UserMeBody>();
+	expect(body.user).toEqual(expect.objectContaining({ id: cityManager.id, client_id: 2 }));
+	expect(body.permissions).toContain("R_CLIENT_USERS");
+	expect(body.permissions).not.toContain("R_EXTERNAL_USERS");
+});
+
+test("GET /v1/users/me returns 401 without a session", async () => {
+	const res = await app.inject({ method: "GET", url: "/v1/users/me" });
 	expect(res.statusCode).toBe(401);
 });
 
