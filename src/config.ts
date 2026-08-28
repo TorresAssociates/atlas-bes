@@ -45,6 +45,9 @@ const configSchema = Type.Object({
 	EMNIFY_SERVICE_PROFILE_ID: Type.Optional(Type.Number()),
 	EMNIFY_TARIFF_PROFILE_ID: Type.Optional(Type.Number()),
 	MQTX_HOSTNAME: Type.Optional(Type.String({ minLength: 1 })),
+	MICROSOFT_CLIENT_ID: Type.Optional(Type.String({ minLength: 1 })),
+	MICROSOFT_CLIENT_SECRET: Type.Optional(Type.String({ minLength: 1 })),
+	MICROSOFT_TENANT_ID: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export type AppConfig = Static<typeof configSchema>;

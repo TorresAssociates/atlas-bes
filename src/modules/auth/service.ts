@@ -23,6 +23,32 @@ export interface CreateInvitedEmailPasswordUserInput {
 	role_id: number;
 }
 
+interface ATLASAuthUser {
+	id: string;
+	client_id: number;
+	role_id: number;
+}
+
+interface ATLASAuthSession {
+	user: ATLASAuthUser;
+}
+
+interface ATLASSignUpEmailInput {
+	body: {
+		email: string;
+		name: string;
+		password: string;
+		client_id: number;
+		role_id: number;
+	};
+}
+
+interface ATLASSignUpEmailResult {
+	user: {
+		id: string;
+	};
+}
+
 let auth: Auth | null = null;
 
 /** Called once by routes.ts when the module is registered. */
@@ -39,7 +65,7 @@ export async function getSession(request: RequestLike): Promise<SessionSubject |
 		else if (Array.isArray(value)) for (const v of value) headers.append(name, v);
 	}
 
-	const session = await auth.api.getSession({ headers });
+	const session = (await auth.api.getSession({ headers })) as ATLASAuthSession | null;
 	if (!session) return null;
 
 	return {
@@ -54,7 +80,11 @@ export async function createInvitedEmailPasswordUser(
 ): Promise<string> {
 	if (!auth) throw new Error("auth is not initialized");
 
-	const result = await auth.api.signUpEmail({
+	const signUpEmail = auth.api.signUpEmail as (
+		input: ATLASSignUpEmailInput,
+	) => Promise<ATLASSignUpEmailResult>;
+
+	const result = await signUpEmail({
 		body: {
 			email: input.email,
 			name: input.name,

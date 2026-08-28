@@ -1,7 +1,10 @@
-import { betterAuth } from "better-auth";
+import { expo } from "@better-auth/expo";
+import { APIError, betterAuth } from "better-auth";
+import { createAuthMiddleware } from "better-auth/api";
 import type { Kysely } from "kysely";
 import type { AppConfig } from "@/config";
 import type { DB } from "@/db/types";
+import * as inviteQueries from "../invites/queries";
 import { sendEmail } from "./email";
 
 // INTERNAL to src/modules/auth — nothing outside this module may import
@@ -10,8 +13,152 @@ import { sendEmail } from "./email";
 
 export type AuthConfig = Pick<
 	AppConfig,
-	"BETTER_AUTH_SECRET" | "BETTER_AUTH_URL" | "FRONTEND_ORIGIN"
+	| "BETTER_AUTH_SECRET"
+	| "BETTER_AUTH_URL"
+	| "FRONTEND_ORIGIN"
+	| "MICROSOFT_CLIENT_ID"
+	| "MICROSOFT_CLIENT_SECRET"
+	| "MICROSOFT_TENANT_ID"
 >;
+
+interface AuthRequestContext {
+	body?: unknown;
+	query?: unknown;
+	context: {
+		returned?: unknown;
+	};
+}
+
+interface PendingInviteSignup {
+	id: number;
+	client_id: number;
+	role_id: number;
+	expires_at: number;
+}
+
+const OAUTH_INVITE_STATE_TTL_MS = 10 * 60 * 1000;
+const pendingInviteSignups = new Map<string, PendingInviteSignup>();
+const pendingInviteSignupByContext = new WeakMap<
+	AuthRequestContext,
+	PendingInviteSignup
+>();
+
+function hasInviteAssignedRole(user: Record<string, unknown>): boolean {
+	return (
+		typeof user.client_id === "number" && typeof user.role_id === "number"
+	);
+}
+
+function getOAuthStateFromContext(
+	context: AuthRequestContext | null,
+): string | null {
+	const query = context?.query as { state?: unknown } | undefined;
+	const body = context?.body as { state?: unknown } | undefined;
+	const state = query?.state ?? body?.state;
+
+	return typeof state === "string" && state.length > 0 ? state : null;
+}
+
+function getInviteTokenFromSocialSignInBody(body: unknown): string | null {
+	const value = body as
+		| { additionalData?: { inviteToken?: unknown } }
+		| undefined;
+	const inviteToken = value?.additionalData?.inviteToken;
+
+	return typeof inviteToken === "string" && inviteToken.length > 0
+		? inviteToken
+		: null;
+}
+
+function getOAuthStateFromAuthorizationURL(url: string): string | null {
+	const parsedUrl = new URL(url);
+	const authorizationUrl = parsedUrl.searchParams.get("authorizationURL");
+	const oauthUrl = authorizationUrl ? new URL(authorizationUrl) : parsedUrl;
+	const state = oauthUrl.searchParams.get("state");
+
+	return state && state.length > 0 ? state : null;
+}
+
+function cachePendingInviteSignup(
+	state: string,
+	invite: PendingInviteSignup,
+): void {
+	pendingInviteSignups.set(state, invite);
+	setTimeout(() => {
+		const cached = pendingInviteSignups.get(state);
+		if (cached?.expires_at === invite.expires_at)
+			pendingInviteSignups.delete(state);
+	}, OAUTH_INVITE_STATE_TTL_MS).unref();
+}
+
+function getPendingInviteSignup(
+	state: string | null,
+): PendingInviteSignup | null {
+	if (!state) return null;
+
+	const invite = pendingInviteSignups.get(state);
+	if (!invite) return null;
+
+	if (invite.expires_at <= Date.now()) {
+		return null;
+	}
+
+	return invite;
+}
+
+async function getValidInviteForMicrosoftSignup(
+	db: Kysely<DB>,
+	inviteToken: string,
+) {
+	const invite = await inviteQueries.findInviteByToken(db, inviteToken);
+	if (!invite || invite.client_id === null || invite.role_id === null) {
+		throw new APIError("BAD_REQUEST", {
+			code: "INVALID_INVITE_TOKEN",
+			message: "invite does not exist",
+		});
+	}
+
+	const clientId = invite.client_id;
+	const roleId = invite.role_id;
+
+	if (
+		invite.expires_at !== null &&
+		new Date(invite.expires_at).getTime() <= Date.now()
+	) {
+		throw new APIError("BAD_REQUEST", {
+			code: "INVITE_EXPIRED",
+			message: "invite has expired",
+		});
+	}
+
+	return {
+		...invite,
+		client_id: clientId,
+		role_id: roleId,
+	};
+}
+
+async function registerPendingInviteSignup(
+	db: Kysely<DB>,
+	context: AuthRequestContext,
+): Promise<void> {
+	const inviteToken = getInviteTokenFromSocialSignInBody(context.body);
+	if (!inviteToken) return;
+
+	const response = context.context.returned as { url?: unknown } | undefined;
+	if (typeof response?.url !== "string") return;
+
+	const state = getOAuthStateFromAuthorizationURL(response.url);
+	if (!state) return;
+
+	const invite = await getValidInviteForMicrosoftSignup(db, inviteToken);
+	cachePendingInviteSignup(state, {
+		id: invite.id,
+		client_id: invite.client_id,
+		role_id: invite.role_id,
+		expires_at: Date.now() + OAUTH_INVITE_STATE_TTL_MS,
+	});
+}
 
 export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 	// Cookie attributes are derived from config, not hardcoded: production is
@@ -19,6 +166,21 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 	// SameSite=None + Secure. Local dev is http://localhost↔localhost, where
 	// SameSite=Lax works and Secure cookies would be dropped.
 	const secure = new URL(config.BETTER_AUTH_URL).protocol === "https:";
+	const microsoftClientId = config.MICROSOFT_CLIENT_ID;
+	const microsoftClientSecret = config.MICROSOFT_CLIENT_SECRET;
+	const microsoftTenantId = config.MICROSOFT_TENANT_ID ?? "common";
+	const socialProviders =
+		microsoftClientId && microsoftClientSecret
+			? {
+					microsoft: {
+						clientId: microsoftClientId,
+						clientSecret: microsoftClientSecret,
+						tenantId: microsoftTenantId,
+						authority: "https://login.microsoftonline.com",
+						prompt: "select_account" as const,
+					},
+				}
+			: undefined;
 
 	return betterAuth({
 		// Shares our Kysely instance — and therefore the pg driver and pool —
@@ -28,7 +190,24 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 		// Must match where routes.ts mounts the handler.
 		basePath: "/v1/auth",
 		secret: config.BETTER_AUTH_SECRET,
-		trustedOrigins: [config.FRONTEND_ORIGIN],
+		trustedOrigins: [
+			config.FRONTEND_ORIGIN,
+			"atlas-mobile-app:///",
+			"atlas-mobile-app://",
+			"atlas-mobile-app://*",
+			...(process.env.NODE_ENV === "development"
+				? ["exp://", "exp://**", "exp://192.168.*.*:*/**"]
+				: []),
+		],
+		plugins: [expo()],
+
+		socialProviders,
+		hooks: {
+			after: createAuthMiddleware(async (context) => {
+				if (context.path !== "/sign-in/social") return;
+				await registerPendingInviteSignup(db, context);
+			}),
+		},
 
 		emailAndPassword: {
 			enabled: true,
@@ -57,9 +236,62 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 				updatedAt: "updated_at",
 			},
 			additionalFields: {
-				client_id: { type: "number", required: true },
-				role_id: { type: "number", required: true },
-				phone_number_verified: { type: "boolean", required: false, defaultValue: false },
+				client_id: { type: "number", required: false },
+				role_id: { type: "number", required: false },
+				phone_number_verified: {
+					type: "boolean",
+					required: false,
+					defaultValue: false,
+				},
+			},
+		},
+		databaseHooks: {
+			user: {
+				create: {
+					before: async (user, context) => {
+						if (hasInviteAssignedRole(user)) return;
+
+						const authContext =
+							context as AuthRequestContext | null;
+						const state = getOAuthStateFromContext(authContext);
+						const invite = getPendingInviteSignup(state);
+						if (!invite) {
+							throw new APIError("BAD_REQUEST", {
+								code: "INVITE_TOKEN_REQUIRED",
+								message: "invite token is required",
+							});
+						}
+
+						if (authContext)
+							pendingInviteSignupByContext.set(
+								authContext,
+								invite,
+							);
+
+						return {
+							data: {
+								client_id: invite.client_id,
+								role_id: invite.role_id,
+							},
+						};
+					},
+					after: async (user, context) => {
+						const authContext =
+							context as AuthRequestContext | null;
+						const invite = authContext
+							? pendingInviteSignupByContext.get(authContext)
+							: null;
+						if (!invite) return;
+
+						await inviteQueries.insertAcceptedInvite(
+							db,
+							invite.id,
+							user.id,
+						);
+						const state = getOAuthStateFromContext(authContext);
+						if (state) pendingInviteSignups.delete(state);
+					},
+				},
 			},
 		},
 		session: {
