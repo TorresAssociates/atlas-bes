@@ -100,6 +100,7 @@ function getPendingInviteSignup(
 	if (!invite) return null;
 
 	if (invite.expires_at <= Date.now()) {
+		pendingInviteSignups.delete(state);
 		return null;
 	}
 

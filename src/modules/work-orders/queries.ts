@@ -1,5 +1,5 @@
-import type { DB } from "@/db/types";
 import type { Insertable, Kysely, Selectable, Updateable } from "kysely";
+import type { DB } from "@/db/types";
 
 export type WorkOrderRow = Selectable<DB["work_order"]>;
 export type WorkOrderStatusRow = Selectable<DB["work_order_status"]>;
@@ -15,8 +15,10 @@ type InsertWorkOrderUpdateImageRow = Insertable<DB["work_order_update_image"]>;
 
 const workOrderColumns = [
 	"work_order.id",
+	"work_order.name",
 	"work_order.created_at",
 	"work_order.creator_user_id",
+	"work_order.assigned_user_id",
 	"work_order.device_id",
 	"work_order.incident_type_id",
 	"work_order.priority",
@@ -29,30 +31,21 @@ const incidentTypeColumns = ["id", "incident_category_id", "type"] as const;
 const workOrderUpdateColumns = [
 	"id",
 	"work_order_id",
-	"created_at",
+	"date",
 	"user_id",
 	"new_priority",
 	"new_state",
 	"new_work_order_status_id",
 	"description",
 ] as const;
-const workOrderUpdateImageColumns = [
-	"id",
-	"work_order_id",
-	"description",
-	"path",
-] as const;
+const workOrderUpdateImageColumns = ["id", "work_order_update_id", "description", "path"] as const;
 
 function scopedWorkOrderQuery(db: Kysely<DB>, clientId: number) {
 	return db
 		.selectFrom("work_order")
 		.innerJoin("device", "device.id", "work_order.device_id")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"device_info.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.innerJoin(
 			"client_gauge_station",
 			"client_gauge_station.gauge_station_id",
@@ -74,19 +67,11 @@ export function listWorkOrders(db: Kysely<DB>): Promise<WorkOrderRow[]> {
 		.execute();
 }
 
-export function listWorkOrdersForClient(
-	db: Kysely<DB>,
-	clientId: number,
-): Promise<WorkOrderRow[]> {
-	return scopedWorkOrderQuery(db, clientId)
-		.orderBy("work_order.id", "asc")
-		.execute();
+export function listWorkOrdersForClient(db: Kysely<DB>, clientId: number): Promise<WorkOrderRow[]> {
+	return scopedWorkOrderQuery(db, clientId).orderBy("work_order.id", "asc").execute();
 }
 
-export function findWorkOrderById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<WorkOrderRow | undefined> {
+export function findWorkOrderById(db: Kysely<DB>, id: number): Promise<WorkOrderRow | undefined> {
 	return db
 		.selectFrom("work_order")
 		.select(workOrderColumns)
@@ -99,15 +84,10 @@ export function findWorkOrderByIdForClient(
 	id: number,
 	clientId: number,
 ): Promise<WorkOrderRow | undefined> {
-	return scopedWorkOrderQuery(db, clientId)
-		.where("work_order.id", "=", id)
-		.executeTakeFirst();
+	return scopedWorkOrderQuery(db, clientId).where("work_order.id", "=", id).executeTakeFirst();
 }
 
-export function findDeviceById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<{ id: number } | undefined> {
+export function findDeviceById(db: Kysely<DB>, id: number): Promise<{ id: number } | undefined> {
 	return db
 		.selectFrom("device")
 		.select("id")
@@ -124,11 +104,7 @@ export function findDeviceByIdForClient(
 	return db
 		.selectFrom("device")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"device_info.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.innerJoin(
 			"client_gauge_station",
 			"client_gauge_station.gauge_station_id",
@@ -147,22 +123,14 @@ export function findIncidentTypeById(
 	db: Kysely<DB>,
 	id: number,
 ): Promise<{ id: number } | undefined> {
-	return db
-		.selectFrom("incident_type")
-		.select("id")
-		.where("id", "=", id)
-		.executeTakeFirst();
+	return db.selectFrom("incident_type").select("id").where("id", "=", id).executeTakeFirst();
 }
 
 export function findWorkOrderStatusById(
 	db: Kysely<DB>,
 	id: number,
 ): Promise<{ id: number } | undefined> {
-	return db
-		.selectFrom("work_order_status")
-		.select("id")
-		.where("id", "=", id)
-		.executeTakeFirst();
+	return db.selectFrom("work_order_status").select("id").where("id", "=", id).executeTakeFirst();
 }
 
 export function insertWorkOrder(
@@ -189,10 +157,7 @@ export function updateWorkOrder(
 		.executeTakeFirst();
 }
 
-export function deleteWorkOrder(
-	db: Kysely<DB>,
-	id: number,
-): Promise<WorkOrderRow | undefined> {
+export function deleteWorkOrder(db: Kysely<DB>, id: number): Promise<WorkOrderRow | undefined> {
 	return db
 		.deleteFrom("work_order")
 		.where("id", "=", id)
@@ -200,9 +165,7 @@ export function deleteWorkOrder(
 		.executeTakeFirst();
 }
 
-export function listWorkOrderStatuses(
-	db: Kysely<DB>,
-): Promise<WorkOrderStatusRow[]> {
+export function listWorkOrderStatuses(db: Kysely<DB>): Promise<WorkOrderStatusRow[]> {
 	return db
 		.selectFrom("work_order_status")
 		.select(workOrderStatusColumns)
@@ -210,9 +173,7 @@ export function listWorkOrderStatuses(
 		.execute();
 }
 
-export function listIncidentCategories(
-	db: Kysely<DB>,
-): Promise<IncidentCategoryRow[]> {
+export function listIncidentCategories(db: Kysely<DB>): Promise<IncidentCategoryRow[]> {
 	return db
 		.selectFrom("incident_category")
 		.select(incidentCategoryColumns)
@@ -236,9 +197,22 @@ export function listWorkOrderUpdates(
 		.selectFrom("work_order_update")
 		.select(workOrderUpdateColumns)
 		.where("work_order_id", "=", workOrderId)
-		.orderBy("created_at", "asc")
+		.orderBy("date", "asc")
 		.orderBy("id", "asc")
 		.execute();
+}
+
+export function findWorkOrderUpdateByIdForWorkOrder(
+	db: Kysely<DB>,
+	id: number,
+	workOrderId: number,
+): Promise<{ id: number } | undefined> {
+	return db
+		.selectFrom("work_order_update")
+		.select("id")
+		.where("id", "=", id)
+		.where("work_order_id", "=", workOrderId)
+		.executeTakeFirst();
 }
 
 export function insertWorkOrderUpdate(
@@ -258,9 +232,20 @@ export function listWorkOrderUpdateImages(
 ): Promise<WorkOrderUpdateImageRow[]> {
 	return db
 		.selectFrom("work_order_update_image")
-		.select(workOrderUpdateImageColumns)
-		.where("work_order_id", "=", workOrderId)
-		.orderBy("id", "asc")
+		.innerJoin(
+			"work_order_update",
+			"work_order_update.id",
+			"work_order_update_image.work_order_update_id",
+		)
+		.select([
+			"work_order_update_image.id",
+			"work_order_update_image.work_order_update_id",
+			"work_order_update_image.description",
+			"work_order_update_image.path",
+		])
+		.where("work_order_update.work_order_id", "=", workOrderId)
+		.orderBy("work_order_update.date", "asc")
+		.orderBy("work_order_update_image.id", "asc")
 		.execute();
 }
 

@@ -1,5 +1,5 @@
-import type { DB } from "@/db/types";
 import type { Insertable, Kysely, Selectable, Updateable } from "kysely";
+import type { DB } from "@/db/types";
 
 export type SeasonalReportRow = Selectable<DB["seasonal_report"]>;
 export type SeasonalReportAnswerRow = Selectable<DB["seasonal_report_answer"]>;
@@ -23,7 +23,12 @@ const seasonalReportColumns = [
 	"seasonal_report.passed",
 	"seasonal_report.note",
 ] as const;
-const answerColumns = ["id", "seasonal_report_id", "seasonal_report_question_id", "response"] as const;
+const answerColumns = [
+	"id",
+	"seasonal_report_id",
+	"seasonal_report_question_id",
+	"response",
+] as const;
 const imageColumns = ["id", "seasonal_report_id", "description", "path"] as const;
 const questionColumns = [
 	"id",
@@ -41,7 +46,11 @@ function scopedReportQuery(db: Kysely<DB>, clientId: number) {
 		.innerJoin("device", "device.id", "seasonal_report.device_id")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
 		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
-		.innerJoin("client_gauge_station", "client_gauge_station.gauge_station_id", "gauge_station.id")
+		.innerJoin(
+			"client_gauge_station",
+			"client_gauge_station.gauge_station_id",
+			"gauge_station.id",
+		)
 		.select(seasonalReportColumns)
 		.distinct()
 		.where("device.archived", "is", null)
@@ -51,14 +60,24 @@ function scopedReportQuery(db: Kysely<DB>, clientId: number) {
 }
 
 export function listSeasonalReports(db: Kysely<DB>): Promise<SeasonalReportRow[]> {
-	return db.selectFrom("seasonal_report").select(seasonalReportColumns).orderBy("seasonal_report.id", "asc").execute();
+	return db
+		.selectFrom("seasonal_report")
+		.select(seasonalReportColumns)
+		.orderBy("seasonal_report.id", "asc")
+		.execute();
 }
 
-export function listSeasonalReportsForClient(db: Kysely<DB>, clientId: number): Promise<SeasonalReportRow[]> {
+export function listSeasonalReportsForClient(
+	db: Kysely<DB>,
+	clientId: number,
+): Promise<SeasonalReportRow[]> {
 	return scopedReportQuery(db, clientId).orderBy("seasonal_report.id", "asc").execute();
 }
 
-export function findSeasonalReportById(db: Kysely<DB>, id: number): Promise<SeasonalReportRow | undefined> {
+export function findSeasonalReportById(
+	db: Kysely<DB>,
+	id: number,
+): Promise<SeasonalReportRow | undefined> {
 	return db
 		.selectFrom("seasonal_report")
 		.select(seasonalReportColumns)
@@ -75,7 +94,12 @@ export function findSeasonalReportByIdForClient(
 }
 
 export function findDeviceById(db: Kysely<DB>, id: number): Promise<{ id: number } | undefined> {
-	return db.selectFrom("device").select("id").where("id", "=", id).where("archived", "is", null).executeTakeFirst();
+	return db
+		.selectFrom("device")
+		.select("id")
+		.where("id", "=", id)
+		.where("archived", "is", null)
+		.executeTakeFirst();
 }
 
 export function findDeviceByIdForClient(
@@ -87,7 +111,11 @@ export function findDeviceByIdForClient(
 		.selectFrom("device")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
 		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
-		.innerJoin("client_gauge_station", "client_gauge_station.gauge_station_id", "gauge_station.id")
+		.innerJoin(
+			"client_gauge_station",
+			"client_gauge_station.gauge_station_id",
+			"gauge_station.id",
+		)
 		.select("device.id")
 		.where("device.id", "=", id)
 		.where("device.archived", "is", null)
@@ -97,12 +125,23 @@ export function findDeviceByIdForClient(
 		.executeTakeFirst();
 }
 
-export function findSeasonalReportTypeById(db: Kysely<DB>, id: number): Promise<{ id: number } | undefined> {
-	return db.selectFrom("seasonal_report_type").select("id").where("id", "=", id).executeTakeFirst();
+export function findSeasonalReportTypeById(
+	db: Kysely<DB>,
+	id: number,
+): Promise<{ id: number } | undefined> {
+	return db
+		.selectFrom("seasonal_report_type")
+		.select("id")
+		.where("id", "=", id)
+		.executeTakeFirst();
 }
 
 export function findQuestionById(db: Kysely<DB>, id: number): Promise<{ id: number } | undefined> {
-	return db.selectFrom("seasonal_report_question").select("id").where("id", "=", id).executeTakeFirst();
+	return db
+		.selectFrom("seasonal_report_question")
+		.select("id")
+		.where("id", "=", id)
+		.executeTakeFirst();
 }
 
 export function findTypeQuestion(
@@ -118,8 +157,15 @@ export function findTypeQuestion(
 		.executeTakeFirst();
 }
 
-export function insertSeasonalReport(db: Kysely<DB>, report: InsertSeasonalReportRow): Promise<SeasonalReportRow> {
-	return db.insertInto("seasonal_report").values(report).returning(seasonalReportColumns).executeTakeFirstOrThrow();
+export function insertSeasonalReport(
+	db: Kysely<DB>,
+	report: InsertSeasonalReportRow,
+): Promise<SeasonalReportRow> {
+	return db
+		.insertInto("seasonal_report")
+		.values(report)
+		.returning(seasonalReportColumns)
+		.executeTakeFirstOrThrow();
 }
 
 export function updateSeasonalReport(
@@ -127,29 +173,58 @@ export function updateSeasonalReport(
 	id: number,
 	report: UpdateSeasonalReportRow,
 ): Promise<SeasonalReportRow | undefined> {
-	return db.updateTable("seasonal_report").set(report).where("id", "=", id).returning(seasonalReportColumns).executeTakeFirst();
+	return db
+		.updateTable("seasonal_report")
+		.set(report)
+		.where("id", "=", id)
+		.returning(seasonalReportColumns)
+		.executeTakeFirst();
 }
 
-export function deleteSeasonalReport(db: Kysely<DB>, id: number): Promise<SeasonalReportRow | undefined> {
-	return db.deleteFrom("seasonal_report").where("id", "=", id).returning(seasonalReportColumns).executeTakeFirst();
+export function deleteSeasonalReport(
+	db: Kysely<DB>,
+	id: number,
+): Promise<SeasonalReportRow | undefined> {
+	return db
+		.deleteFrom("seasonal_report")
+		.where("id", "=", id)
+		.returning(seasonalReportColumns)
+		.executeTakeFirst();
 }
 
-export function listQuestionCategories(db: Kysely<DB>): Promise<SeasonalReportQuestionCategoryRow[]> {
-	return db.selectFrom("seasonal_report_question_category").select(categoryColumns).orderBy("id", "asc").execute();
+export function listQuestionCategories(
+	db: Kysely<DB>,
+): Promise<SeasonalReportQuestionCategoryRow[]> {
+	return db
+		.selectFrom("seasonal_report_question_category")
+		.select(categoryColumns)
+		.orderBy("id", "asc")
+		.execute();
 }
 
 export function listQuestions(db: Kysely<DB>): Promise<SeasonalReportQuestionRow[]> {
-	return db.selectFrom("seasonal_report_question").select(questionColumns).orderBy("id", "asc").execute();
+	return db
+		.selectFrom("seasonal_report_question")
+		.select(questionColumns)
+		.orderBy("id", "asc")
+		.execute();
 }
 
 export function listTypes(db: Kysely<DB>): Promise<SeasonalReportTypeRow[]> {
 	return db.selectFrom("seasonal_report_type").select(typeColumns).orderBy("id", "asc").execute();
 }
 
-export function listTypeQuestions(db: Kysely<DB>, typeId: number): Promise<SeasonalReportQuestionRow[]> {
+export function listTypeQuestions(
+	db: Kysely<DB>,
+	typeId: number,
+): Promise<SeasonalReportQuestionRow[]> {
 	return db
 		.selectFrom("seasonal_report_type_question")
-		.innerJoin("seasonal_report_question", "seasonal_report_question.id", "seasonal_report_type_question.seasonal_report_question_id")
+		.innerJoin(
+			"seasonal_report_question",
+			"seasonal_report_question.id",
+			"seasonal_report_type_question.seasonal_report_question_id",
+		)
 		.select(questionColumns.map((column) => `seasonal_report_question.${column}` as const))
 		.where("seasonal_report_type_question.seasonal_report_type_id", "=", typeId)
 		.orderBy("seasonal_report_question.id", "asc")
@@ -165,8 +240,15 @@ export function listAnswers(db: Kysely<DB>, reportId: number): Promise<SeasonalR
 		.execute();
 }
 
-export function insertAnswer(db: Kysely<DB>, answer: InsertSeasonalReportAnswerRow): Promise<SeasonalReportAnswerRow> {
-	return db.insertInto("seasonal_report_answer").values(answer).returning(answerColumns).executeTakeFirstOrThrow();
+export function insertAnswer(
+	db: Kysely<DB>,
+	answer: InsertSeasonalReportAnswerRow,
+): Promise<SeasonalReportAnswerRow> {
+	return db
+		.insertInto("seasonal_report_answer")
+		.values(answer)
+		.returning(answerColumns)
+		.executeTakeFirstOrThrow();
 }
 
 export function listImages(db: Kysely<DB>, reportId: number): Promise<SeasonalReportImageRow[]> {
@@ -178,7 +260,13 @@ export function listImages(db: Kysely<DB>, reportId: number): Promise<SeasonalRe
 		.execute();
 }
 
-export function insertImage(db: Kysely<DB>, image: InsertSeasonalReportImageRow): Promise<SeasonalReportImageRow> {
-	return db.insertInto("seasonal_report_image").values(image).returning(imageColumns).executeTakeFirstOrThrow();
+export function insertImage(
+	db: Kysely<DB>,
+	image: InsertSeasonalReportImageRow,
+): Promise<SeasonalReportImageRow> {
+	return db
+		.insertInto("seasonal_report_image")
+		.values(image)
+		.returning(imageColumns)
+		.executeTakeFirstOrThrow();
 }
-

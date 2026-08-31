@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { Nullable } from "@/schemas";
 
 export const SeasonalReportQuestionResponseSchema = Type.Union([
 	Type.Literal("no"),
@@ -61,7 +62,7 @@ export const SeasonalReportSchema = Type.Object({
 	user_id: Type.String(),
 	device_id: Type.Integer(),
 	passed: Type.Boolean(),
-	note: Type.String(),
+	note: Nullable(Type.String()),
 });
 
 export const SeasonalReportListSchema = Type.Object({
@@ -73,7 +74,7 @@ export const CreateSeasonalReportBodySchema = Type.Object({
 	date: Type.Optional(Type.String({ format: "date-time" })),
 	device_id: Type.Integer({ minimum: 1 }),
 	passed: Type.Boolean(),
-	note: Type.String({ minLength: 1, maxLength: 1024 }),
+	note: Type.Optional(Nullable(Type.String({ maxLength: 1024 }))),
 });
 
 export const UpdateSeasonalReportBodySchema = Type.Partial(
@@ -82,7 +83,7 @@ export const UpdateSeasonalReportBodySchema = Type.Partial(
 		date: Type.String({ format: "date-time" }),
 		device_id: Type.Integer({ minimum: 1 }),
 		passed: Type.Boolean(),
-		note: Type.String({ minLength: 1, maxLength: 1024 }),
+		note: Nullable(Type.String({ maxLength: 1024 })),
 	}),
 );
 
@@ -105,7 +106,7 @@ export const CreateSeasonalReportAnswerBodySchema = Type.Object({
 export const SeasonalReportImageSchema = Type.Object({
 	id: Type.Integer(),
 	seasonal_report_id: Type.Integer(),
-	description: Type.String(),
+	description: Nullable(Type.String()),
 	path: Type.String(),
 });
 
@@ -114,6 +115,6 @@ export const SeasonalReportImageListSchema = Type.Object({
 });
 
 export const CreateSeasonalReportImageBodySchema = Type.Object({
-	description: Type.String({ minLength: 1, maxLength: 1024 }),
+	description: Type.Optional(Nullable(Type.String({ maxLength: 1024 }))),
 	path: Type.String({ minLength: 1, maxLength: 255 }),
 });

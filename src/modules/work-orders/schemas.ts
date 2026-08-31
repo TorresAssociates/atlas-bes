@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { Nullable } from "@/schemas";
 
 export const WorkOrderStateSchema = Type.Union([
 	Type.Literal("not_started"),
@@ -41,8 +42,10 @@ export const IncidentTypeListSchema = Type.Object({
 
 export const WorkOrderSchema = Type.Object({
 	id: Type.Integer(),
+	name: Type.String(),
 	created_at: Type.String({ format: "date-time" }),
 	creator_user_id: Type.String(),
+	assigned_user_id: Nullable(Type.String()),
 	device_id: Type.Integer(),
 	incident_type_id: Type.Integer(),
 	priority: Type.Integer(),
@@ -55,7 +58,9 @@ export const WorkOrderListSchema = Type.Object({
 });
 
 export const CreateWorkOrderBodySchema = Type.Object({
+	name: Type.String({ minLength: 1, maxLength: 64 }),
 	created_at: Type.Optional(Type.String({ format: "date-time" })),
+	assigned_user_id: Type.Optional(Nullable(Type.String())),
 	device_id: Type.Integer({ minimum: 1 }),
 	incident_type_id: Type.Integer({ minimum: 1 }),
 	priority: Type.Integer(),
@@ -65,6 +70,8 @@ export const CreateWorkOrderBodySchema = Type.Object({
 
 export const UpdateWorkOrderBodySchema = Type.Partial(
 	Type.Object({
+		name: Type.String({ minLength: 1, maxLength: 64 }),
+		assigned_user_id: Nullable(Type.String()),
 		device_id: Type.Integer({ minimum: 1 }),
 		incident_type_id: Type.Integer({ minimum: 1 }),
 		priority: Type.Integer(),
@@ -76,12 +83,12 @@ export const UpdateWorkOrderBodySchema = Type.Partial(
 export const WorkOrderUpdateSchema = Type.Object({
 	id: Type.Integer(),
 	work_order_id: Type.Integer(),
-	created_at: Type.String({ format: "date-time" }),
+	date: Type.String({ format: "date-time" }),
 	user_id: Type.String(),
 	new_priority: Type.Integer(),
 	new_state: WorkOrderStateSchema,
 	new_work_order_status_id: Type.Integer(),
-	description: Type.String(),
+	description: Nullable(Type.String()),
 });
 
 export const WorkOrderUpdateListSchema = Type.Object({
@@ -92,13 +99,13 @@ export const CreateWorkOrderUpdateBodySchema = Type.Object({
 	new_priority: Type.Integer(),
 	new_state: WorkOrderStateSchema,
 	new_work_order_status_id: Type.Integer({ minimum: 1 }),
-	description: Type.String({ minLength: 1, maxLength: 1024 }),
+	description: Type.Optional(Nullable(Type.String({ maxLength: 1024 }))),
 });
 
 export const WorkOrderUpdateImageSchema = Type.Object({
 	id: Type.Integer(),
-	work_order_id: Type.Integer(),
-	description: Type.String(),
+	work_order_update_id: Type.Integer(),
+	description: Nullable(Type.String()),
 	path: Type.String(),
 });
 
@@ -107,6 +114,7 @@ export const WorkOrderUpdateImageListSchema = Type.Object({
 });
 
 export const CreateWorkOrderUpdateImageBodySchema = Type.Object({
-	description: Type.String({ minLength: 1, maxLength: 1024 }),
+	work_order_update_id: Type.Integer({ minimum: 1 }),
+	description: Type.Optional(Nullable(Type.String({ maxLength: 1024 }))),
 	path: Type.String({ minLength: 1, maxLength: 255 }),
 });

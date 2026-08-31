@@ -17,7 +17,7 @@ export interface CreateSeasonalReportInput {
 	date?: string | Date;
 	device_id: number;
 	passed: boolean;
-	note: string;
+	note?: string | null;
 }
 
 export interface UpdateSeasonalReportInput {
@@ -25,7 +25,7 @@ export interface UpdateSeasonalReportInput {
 	date?: string | Date;
 	device_id?: number;
 	passed?: boolean;
-	note?: string;
+	note?: string | null;
 }
 
 export interface CreateSeasonalReportAnswerInput {
@@ -34,7 +34,7 @@ export interface CreateSeasonalReportAnswerInput {
 }
 
 export interface CreateSeasonalReportImageInput {
-	description: string;
+	description?: string | null;
 	path: string;
 }
 
@@ -45,7 +45,7 @@ export interface SeasonalReportResponse {
 	user_id: string;
 	device_id: number;
 	passed: boolean;
-	note: string;
+	note: string | null;
 }
 
 export type SeasonalReportAnswerResponse = SeasonalReportAnswerRow;
@@ -93,7 +93,11 @@ export class SeasonalReportInUseError extends Error {
 }
 
 function isForeignKeyViolation(error: unknown): boolean {
-	return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "23503";
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		(error as { code?: unknown }).code === "23503"
+	);
 }
 
 function toIso(value: Date | string): string {
@@ -110,7 +114,8 @@ async function findVisibleReport(
 	session: SessionSubject,
 	access: SeasonalReportReadAccess | SeasonalReportWriteAccess,
 ): Promise<SeasonalReportRow> {
-	const canAccessExternal = "canReadExternal" in access ? access.canReadExternal : access.canWriteExternal;
+	const canAccessExternal =
+		"canReadExternal" in access ? access.canReadExternal : access.canWriteExternal;
 	const report = canAccessExternal
 		? await queries.findSeasonalReportById(db, id)
 		: await queries.findSeasonalReportByIdForClient(db, id, session.client_id);
@@ -182,7 +187,7 @@ export async function createSeasonalReport(
 			user_id: session.user_id,
 			device_id: input.device_id,
 			passed: input.passed,
-			note: input.note,
+			note: input.note ?? null,
 		}),
 	);
 }
@@ -195,8 +200,10 @@ export async function updateSeasonalReport(
 	input: UpdateSeasonalReportInput,
 ): Promise<SeasonalReportResponse> {
 	await findVisibleReport(db, id, session, access);
-	if (input.seasonal_report_type_id !== undefined) await ensureTypeExists(db, input.seasonal_report_type_id);
-	if (input.device_id !== undefined) await ensureDeviceAccess(db, session, access, input.device_id);
+	if (input.seasonal_report_type_id !== undefined)
+		await ensureTypeExists(db, input.seasonal_report_type_id);
+	if (input.device_id !== undefined)
+		await ensureDeviceAccess(db, session, access, input.device_id);
 
 	const updated = await queries.updateSeasonalReport(db, id, input);
 	if (!updated) throw new SeasonalReportNotFoundError(id);
@@ -254,7 +261,11 @@ export async function createAnswer(
 	input: CreateSeasonalReportAnswerInput,
 ): Promise<SeasonalReportAnswerResponse> {
 	const report = await findVisibleReport(db, id, session, access);
-	await ensureQuestionBelongsToType(db, input.seasonal_report_question_id, report.seasonal_report_type_id);
+	await ensureQuestionBelongsToType(
+		db,
+		input.seasonal_report_question_id,
+		report.seasonal_report_type_id,
+	);
 	return queries.insertAnswer(db, {
 		seasonal_report_id: id,
 		seasonal_report_question_id: input.seasonal_report_question_id,
@@ -282,7 +293,7 @@ export async function createImage(
 	await findVisibleReport(db, id, session, access);
 	return queries.insertImage(db, {
 		seasonal_report_id: id,
-		description: input.description,
+		description: input.description ?? null,
 		path: input.path,
 	});
 }

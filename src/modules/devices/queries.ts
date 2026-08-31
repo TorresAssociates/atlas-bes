@@ -194,6 +194,7 @@ function deviceSummarySelect(db: Kysely<DB>, at?: Date) {
 			"device_info.active",
 			"device_connected.connected",
 			deviceRiskLevel(at).as("risk_level"),
+			"device_info.display_name",
 		]);
 }
 
@@ -286,6 +287,7 @@ function deviceDetailSelect(db: Kysely<DB>, at?: Date) {
 			"device_info.latitude",
 			"device_info.longitude",
 			"device_info.active",
+			"device_info.display_name",
 			"device_connected.connected",
 			"device_networking.protocol",
 			"device_networking.api_version",
@@ -406,6 +408,7 @@ export interface InsertDeviceInfoInput {
 	latitude: number | null;
 	longitude: number | null;
 	active: boolean | null;
+	display_name: string | null;
 }
 
 export function insertDeviceInfo(

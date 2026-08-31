@@ -20,6 +20,7 @@ export const DeviceSummarySchema = Type.Object({
 	active: Nullable(Type.Boolean()),
 	connected: Nullable(Type.Boolean()),
 	riskLevel: Nullable(Type.Number()),
+	displayName: Nullable(Type.String()),
 });
 
 export const DeviceNetworkingSchema = Type.Object({
@@ -128,6 +129,7 @@ export const UpdateDeviceInfoSchema = Type.Partial(
 		latitude: Type.Number({ minimum: -90, maximum: 90 }),
 		longitude: Type.Number({ minimum: -180, maximum: 180 }),
 		active: Type.Boolean(),
+		displayName: Type.Union([Type.Null(), Type.String({ maxLength: 32 })]),
 	}),
 );
 

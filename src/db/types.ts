@@ -419,6 +419,7 @@ export interface DeviceInfo {
   active: boolean | null;
   archived: Timestamp | null;
   device_id: number;
+  display_name: string | null;
   gauge_station_id: number | null;
   id: Generated<number>;
   introduced: Generated<Timestamp>;
@@ -646,7 +647,7 @@ export interface SeasonalReport {
   date: Timestamp;
   device_id: number;
   id: Generated<number>;
-  note: string;
+  note: string | null;
   passed: boolean;
   seasonal_report_type_id: number;
   user_id: string;
@@ -660,7 +661,7 @@ export interface SeasonalReportAnswer {
 }
 
 export interface SeasonalReportImage {
-  description: string;
+  description: string | null;
   id: Generated<number>;
   path: string;
   seasonal_report_id: number;
@@ -848,11 +849,13 @@ export interface VmqAuthAcl {
 }
 
 export interface WorkOrder {
+  assigned_user_id: string | null;
   created_at: Timestamp;
   creator_user_id: string;
   device_id: number;
   id: Generated<number>;
   incident_type_id: number;
+  name: string;
   priority: number;
   state: WorkOrderState;
   work_order_status_id: number;
@@ -864,8 +867,8 @@ export interface WorkOrderStatus {
 }
 
 export interface WorkOrderUpdate {
-  created_at: Timestamp;
-  description: string;
+  date: Timestamp;
+  description: string | null;
   id: Generated<number>;
   new_priority: number;
   new_state: WorkOrderState;
@@ -875,10 +878,10 @@ export interface WorkOrderUpdate {
 }
 
 export interface WorkOrderUpdateImage {
-  description: string;
+  description: string | null;
   id: Generated<number>;
   path: string;
-  work_order_id: number;
+  work_order_update_id: number;
 }
 
 export interface DB {

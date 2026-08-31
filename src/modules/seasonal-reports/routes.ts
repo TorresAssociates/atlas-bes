@@ -1,14 +1,30 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
+import { Type } from "@sinclair/typebox";
 import type { FastifyRequest } from "fastify";
 import { hasPermission, requirePermission } from "@/plugins/authorization";
+import { HttpErrorSchema } from "@/schemas";
 import { getSession } from "../auth/service";
 import {
-	SeasonalReportDeviceNotFoundError,
-	SeasonalReportInUseError,
-	SeasonalReportNotFoundError,
-	SeasonalReportQuestionMismatchError,
-	SeasonalReportQuestionNotFoundError,
-	SeasonalReportTypeNotFoundError,
+	CreateSeasonalReportAnswerBodySchema,
+	CreateSeasonalReportBodySchema,
+	CreateSeasonalReportImageBodySchema,
+	SeasonalReportAnswerListSchema,
+	SeasonalReportAnswerSchema,
+	SeasonalReportIdParamsSchema,
+	SeasonalReportImageListSchema,
+	SeasonalReportImageSchema,
+	SeasonalReportListSchema,
+	SeasonalReportQuestionCategoryListSchema,
+	SeasonalReportQuestionListSchema,
+	SeasonalReportSchema,
+	SeasonalReportTypeIdParamsSchema,
+	SeasonalReportTypeListSchema,
+	UpdateSeasonalReportBodySchema,
+} from "./schemas";
+import {
+	type CreateSeasonalReportAnswerInput,
+	type CreateSeasonalReportImageInput,
+	type CreateSeasonalReportInput,
 	createAnswer,
 	createImage,
 	createSeasonalReport,
@@ -21,11 +37,14 @@ import {
 	listSeasonalReports,
 	listTypeQuestions,
 	listTypes,
-	updateSeasonalReport,
-	type CreateSeasonalReportAnswerInput,
-	type CreateSeasonalReportImageInput,
-	type CreateSeasonalReportInput,
+	SeasonalReportDeviceNotFoundError,
+	SeasonalReportInUseError,
+	SeasonalReportNotFoundError,
+	SeasonalReportQuestionMismatchError,
+	SeasonalReportQuestionNotFoundError,
+	SeasonalReportTypeNotFoundError,
 	type UpdateSeasonalReportInput,
+	updateSeasonalReport,
 } from "./service";
 
 const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
@@ -38,8 +57,10 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		if (err instanceof SeasonalReportNotFoundError) return reply.notFound(err.message);
 		if (err instanceof SeasonalReportDeviceNotFoundError) return reply.badRequest(err.message);
 		if (err instanceof SeasonalReportTypeNotFoundError) return reply.badRequest(err.message);
-		if (err instanceof SeasonalReportQuestionNotFoundError) return reply.badRequest(err.message);
-		if (err instanceof SeasonalReportQuestionMismatchError) return reply.badRequest(err.message);
+		if (err instanceof SeasonalReportQuestionNotFoundError)
+			return reply.badRequest(err.message);
+		if (err instanceof SeasonalReportQuestionMismatchError)
+			return reply.badRequest(err.message);
 		if (err instanceof SeasonalReportInUseError) return reply.conflict(err.message);
 		return reply.send(err);
 	});
@@ -55,7 +76,14 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/types",
 		{
 			preHandler: requirePermission("R_CLIENT_REPORTS", "R_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				response: {
+					200: SeasonalReportTypeListSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+				},
+			},
 		},
 		async () => ({ data: await listTypes(getDb()) }),
 	);
@@ -65,10 +93,19 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/types/:id/questions",
 		{
 			preHandler: requirePermission("R_CLIENT_REPORTS", "R_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				params: SeasonalReportTypeIdParamsSchema,
+				response: {
+					200: SeasonalReportQuestionListSchema,
+					400: HttpErrorSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+				},
+			},
 		},
 		async (request) => {
-			const params = request.params as { id: number | string };
+			const params = request.params;
 			return { data: await listTypeQuestions(getDb(), Number(params.id)) };
 		},
 	);
@@ -78,7 +115,14 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/question-categories",
 		{
 			preHandler: requirePermission("R_CLIENT_REPORTS", "R_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				response: {
+					200: SeasonalReportQuestionCategoryListSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+				},
+			},
 		},
 		async () => ({ data: await listQuestionCategories(getDb()) }),
 	);
@@ -88,7 +132,14 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/questions",
 		{
 			preHandler: requirePermission("R_CLIENT_REPORTS", "R_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				response: {
+					200: SeasonalReportQuestionListSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+				},
+			},
 		},
 		async () => ({ data: await listQuestions(getDb()) }),
 	);
@@ -98,7 +149,14 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/",
 		{
 			preHandler: requirePermission("R_CLIENT_REPORTS", "R_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				response: {
+					200: SeasonalReportListSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+				},
+			},
 		},
 		async (request) => {
 			const session = await sessionFor(request);
@@ -112,7 +170,16 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/",
 		{
 			preHandler: requirePermission("W_CLIENT_REPORTS", "W_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				body: CreateSeasonalReportBodySchema,
+				response: {
+					201: SeasonalReportSchema,
+					400: HttpErrorSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+				},
+			},
 		},
 		async (request, reply) => {
 			const session = await sessionFor(request);
@@ -132,13 +199,24 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/:id/answers",
 		{
 			preHandler: requirePermission("R_CLIENT_REPORTS", "R_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				params: SeasonalReportIdParamsSchema,
+				response: {
+					200: SeasonalReportAnswerListSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+				},
+			},
 		},
 		async (request) => {
 			const session = await sessionFor(request);
-			const params = request.params as { id: number | string };
+			const params = request.params;
 			const canReadExternal = await hasPermission(request, "R_EXTERNAL_REPORTS");
-			return { data: await listAnswers(getDb(), Number(params.id), session, { canReadExternal }) };
+			return {
+				data: await listAnswers(getDb(), Number(params.id), session, { canReadExternal }),
+			};
 		},
 	);
 
@@ -147,11 +225,22 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/:id/answers",
 		{
 			preHandler: requirePermission("W_CLIENT_REPORTS", "W_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				params: SeasonalReportIdParamsSchema,
+				body: CreateSeasonalReportAnswerBodySchema,
+				response: {
+					201: SeasonalReportAnswerSchema,
+					400: HttpErrorSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+				},
+			},
 		},
 		async (request, reply) => {
 			const session = await sessionFor(request);
-			const params = request.params as { id: number | string };
+			const params = request.params;
 			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_REPORTS");
 			const answer = await createAnswer(
 				getDb(),
@@ -169,13 +258,24 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/:id/images",
 		{
 			preHandler: requirePermission("R_CLIENT_REPORTS", "R_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				params: SeasonalReportIdParamsSchema,
+				response: {
+					200: SeasonalReportImageListSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+				},
+			},
 		},
 		async (request) => {
 			const session = await sessionFor(request);
-			const params = request.params as { id: number | string };
+			const params = request.params;
 			const canReadExternal = await hasPermission(request, "R_EXTERNAL_REPORTS");
-			return { data: await listImages(getDb(), Number(params.id), session, { canReadExternal }) };
+			return {
+				data: await listImages(getDb(), Number(params.id), session, { canReadExternal }),
+			};
 		},
 	);
 
@@ -184,11 +284,22 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/:id/images",
 		{
 			preHandler: requirePermission("W_CLIENT_REPORTS", "W_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				params: SeasonalReportIdParamsSchema,
+				body: CreateSeasonalReportImageBodySchema,
+				response: {
+					201: SeasonalReportImageSchema,
+					400: HttpErrorSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+				},
+			},
 		},
 		async (request, reply) => {
 			const session = await sessionFor(request);
-			const params = request.params as { id: number | string };
+			const params = request.params;
 			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_REPORTS");
 			const image = await createImage(
 				getDb(),
@@ -206,11 +317,20 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/:id",
 		{
 			preHandler: requirePermission("R_CLIENT_REPORTS", "R_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				params: SeasonalReportIdParamsSchema,
+				response: {
+					200: SeasonalReportSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+				},
+			},
 		},
 		async (request) => {
 			const session = await sessionFor(request);
-			const params = request.params as { id: number | string };
+			const params = request.params;
 			const canReadExternal = await hasPermission(request, "R_EXTERNAL_REPORTS");
 			return getSeasonalReport(getDb(), Number(params.id), session, { canReadExternal });
 		},
@@ -221,11 +341,22 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/:id",
 		{
 			preHandler: requirePermission("W_CLIENT_REPORTS", "W_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				params: SeasonalReportIdParamsSchema,
+				body: UpdateSeasonalReportBodySchema,
+				response: {
+					200: SeasonalReportSchema,
+					400: HttpErrorSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+				},
+			},
 		},
 		async (request) => {
 			const session = await sessionFor(request);
-			const params = request.params as { id: number | string };
+			const params = request.params;
 			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_REPORTS");
 			return updateSeasonalReport(
 				getDb(),
@@ -242,11 +373,21 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		"/:id",
 		{
 			preHandler: requirePermission("W_CLIENT_REPORTS", "W_EXTERNAL_REPORTS"),
-			schema: { tags: ["seasonal-reports"] },
+			schema: {
+				tags: ["seasonal-reports"],
+				params: SeasonalReportIdParamsSchema,
+				response: {
+					204: Type.Null(),
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+					409: HttpErrorSchema,
+				},
+			},
 		},
 		async (request, reply) => {
 			const session = await sessionFor(request);
-			const params = request.params as { id: number | string };
+			const params = request.params;
 			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_REPORTS");
 			await deleteSeasonalReport(getDb(), Number(params.id), session, { canWriteExternal });
 			return reply.code(204).send(null);

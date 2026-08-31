@@ -351,6 +351,7 @@ CREATE TABLE IF NOT EXISTS "device_info" (
     "latitude" FLOAT8,
     "longitude" FLOAT8,
     "active" BOOLEAN,
+    "display_name" VARCHAR(32),
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("id"),
@@ -1055,8 +1056,10 @@ CREATE TABLE IF NOT EXISTS "incident_type" (
 CREATE TYPE WORK_ORDER_STATE AS ENUM ('not_started','in_progress', 'completed', 'cancelled');
 CREATE TABLE IF NOT EXISTS "work_order" (
     "id" SERIAL NOT NULL UNIQUE,
+    "name" VARCHAR(64) NOT NULL,
     "created_at" TIMESTAMPTZ NOT NULL,
     "creator_user_id" TEXT NOT NULL,
+    "assigned_user_id" TEXT,
     "device_id" INT NOT NULL,
     "incident_type_id" INT NOT NULL,
     "priority" INT NOT NULL,
@@ -1064,6 +1067,7 @@ CREATE TABLE IF NOT EXISTS "work_order" (
     "work_order_status_id" INT NOT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("creator_user_id") REFERENCES "user"("id"),
+    FOREIGN KEY("assigned_user_id") REFERENCES "user"("id"),
     FOREIGN KEY("device_id") REFERENCES "device"("id"),
     FOREIGN KEY("incident_type_id") REFERENCES "incident_type"("id"),
     FOREIGN KEY("work_order_status_id") REFERENCES "work_order_status"("id")
@@ -1072,12 +1076,12 @@ CREATE TABLE IF NOT EXISTS "work_order" (
 CREATE TABLE IF NOT EXISTS "work_order_update" (
     "id" SERIAL NOT NULL UNIQUE,
     "work_order_id" INT NOT NULL,
-    "created_at" TIMESTAMPTZ NOT NULL,
+    "date" TIMESTAMPTZ NOT NULL,
     "user_id" TEXT NOT NULL,
     "new_priority" INT NOT NULL,
     "new_state" WORK_ORDER_STATE NOT NULL,
     "new_work_order_status_id" INT NOT NULL,
-    "description" VARCHAR(1024) NOT NULL,
+    "description" VARCHAR(1024),
     PRIMARY KEY("id"),
     FOREIGN KEY("work_order_id") REFERENCES "work_order"("id"),
     FOREIGN KEY("user_id") REFERENCES "user"("id"),
@@ -1086,11 +1090,11 @@ CREATE TABLE IF NOT EXISTS "work_order_update" (
 
 CREATE TABLE IF NOT EXISTS "work_order_update_image" (
     "id" SERIAL NOT NULL UNIQUE,
-    "work_order_id" INT NOT NULL,
-    "description" VARCHAR(1024) NOT NULL,
+    "work_order_update_id" INT NOT NULL,
+    "description" VARCHAR(1024),
     "path" VARCHAR(255) NOT NULL,
     PRIMARY KEY("id"),
-    FOREIGN KEY("work_order_id") REFERENCES "work_order"("id")
+    FOREIGN KEY("work_order_update_id") REFERENCES "work_order_update"("id")
 );
 
 -------------------------
@@ -1137,7 +1141,7 @@ CREATE TABLE IF NOT EXISTS "seasonal_report" (
     "user_id" TEXT NOT NULL,
     "device_id" INT NOT NULL,
     "passed" BOOLEAN NOT NULL,
-    "note" VARCHAR(1024) NOT NULL,
+    "note" VARCHAR(1024),
     PRIMARY KEY("id"),
     FOREIGN KEY("seasonal_report_type_id") REFERENCES "seasonal_report_type"("id"),
     FOREIGN KEY("user_id") REFERENCES "user"("id"),
@@ -1157,7 +1161,7 @@ CREATE TABLE IF NOT EXISTS "seasonal_report_answer" (
 CREATE TABLE IF NOT EXISTS "seasonal_report_image" (
     "id" SERIAL NOT NULL UNIQUE,
     "seasonal_report_id" INT NOT NULL,
-    "description" VARCHAR(1024) NOT NULL,
+    "description" VARCHAR(1024),
     "path" VARCHAR(255) NOT NULL,
     PRIMARY KEY("id"),
     FOREIGN KEY("seasonal_report_id") REFERENCES "seasonal_report"("id")

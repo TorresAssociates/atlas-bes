@@ -30,6 +30,7 @@ export interface UpdateDeviceInfoInput {
 	latitude?: number;
 	longitude?: number;
 	active?: boolean;
+	displayName?: string | null;
 }
 
 export interface UpdateDeviceInput {
@@ -47,6 +48,7 @@ export interface DeviceSummaryResponse {
 	active: boolean | null;
 	connected: boolean | null;
 	riskLevel: number | null;
+	displayName: string | null;
 }
 
 export interface DeviceRiskLevelResponse {
@@ -131,6 +133,7 @@ function toSummaryResponse(row: DeviceSummaryRow): DeviceSummaryResponse {
 		active: row.active,
 		connected: row.connected,
 		riskLevel: row.risk_level,
+		displayName: row.display_name,
 	};
 }
 
@@ -265,6 +268,8 @@ export async function updateDevice(
 				latitude: info.latitude ?? current.latitude,
 				longitude: info.longitude ?? current.longitude,
 				active: info.active ?? current.active,
+				display_name:
+					info.displayName !== undefined ? info.displayName : current.display_name,
 			});
 		}
 

@@ -13,7 +13,9 @@ export interface WorkOrderWriteAccess {
 }
 
 export interface CreateWorkOrderInput {
+	name: string;
 	created_at?: string | Date;
+	assigned_user_id?: string | null;
 	device_id: number;
 	incident_type_id: number;
 	priority: number;
@@ -22,6 +24,8 @@ export interface CreateWorkOrderInput {
 }
 
 export interface UpdateWorkOrderInput {
+	name?: string;
+	assigned_user_id?: string | null;
 	device_id?: number;
 	incident_type_id?: number;
 	priority?: number;
@@ -33,18 +37,21 @@ export interface CreateWorkOrderUpdateInput {
 	new_priority: number;
 	new_state: WorkOrderState;
 	new_work_order_status_id: number;
-	description: string;
+	description?: string | null;
 }
 
 export interface CreateWorkOrderUpdateImageInput {
-	description: string;
+	work_order_update_id: number;
+	description?: string | null;
 	path: string;
 }
 
 export interface WorkOrderResponse {
 	id: number;
+	name: string;
 	created_at: string;
 	creator_user_id: string;
+	assigned_user_id: string | null;
 	device_id: number;
 	incident_type_id: number;
 	priority: number;
@@ -55,12 +62,12 @@ export interface WorkOrderResponse {
 export interface WorkOrderUpdateResponse {
 	id: number;
 	work_order_id: number;
-	created_at: string;
+	date: string;
 	user_id: string;
 	new_priority: number;
 	new_state: WorkOrderState;
 	new_work_order_status_id: number;
-	description: string;
+	description: string | null;
 }
 
 export class WorkOrderNotFoundError extends Error {
@@ -70,11 +77,16 @@ export class WorkOrderNotFoundError extends Error {
 	}
 }
 
+export class WorkOrderUpdateNotFoundError extends Error {
+	constructor(updateId: number) {
+		super(`work order update ${updateId} does not exist for this work order`);
+		this.name = "WorkOrderUpdateNotFoundError";
+	}
+}
+
 export class WorkOrderDeviceNotFoundError extends Error {
 	constructor(deviceId: number) {
-		super(
-			`device ${deviceId} does not exist or is not available to your client`,
-		);
+		super(`device ${deviceId} does not exist or is not available to your client`);
 		this.name = "WorkOrderDeviceNotFoundError";
 	}
 }
@@ -109,19 +121,15 @@ function isForeignKeyViolation(error: unknown): boolean {
 }
 
 function toIso(value: Date | string): string {
-	return value instanceof Date
-		? value.toISOString()
-		: new Date(value).toISOString();
+	return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 function toWorkOrderResponse(row: WorkOrderRow): WorkOrderResponse {
 	return { ...row, created_at: toIso(row.created_at) };
 }
 
-function toWorkOrderUpdateResponse(
-	row: WorkOrderUpdateRow,
-): WorkOrderUpdateResponse {
-	return { ...row, created_at: toIso(row.created_at) };
+function toWorkOrderUpdateResponse(row: WorkOrderUpdateRow): WorkOrderUpdateResponse {
+	return { ...row, date: toIso(row.date) };
 }
 
 async function findVisibleWorkOrder(
@@ -131,9 +139,7 @@ async function findVisibleWorkOrder(
 	access: WorkOrderReadAccess | WorkOrderWriteAccess,
 ): Promise<WorkOrderRow> {
 	const canAccessExternal =
-		"canReadExternal" in access
-			? access.canReadExternal
-			: access.canWriteExternal;
+		"canReadExternal" in access ? access.canReadExternal : access.canWriteExternal;
 	const workOrder = canAccessExternal
 		? await queries.findWorkOrderById(db, id)
 		: await queries.findWorkOrderByIdForClient(db, id, session.client_id);
@@ -149,27 +155,16 @@ async function ensureDeviceAccess(
 ): Promise<void> {
 	const device = access.canWriteExternal
 		? await queries.findDeviceById(db, deviceId)
-		: await queries.findDeviceByIdForClient(
-				db,
-				deviceId,
-				session.client_id,
-			);
+		: await queries.findDeviceByIdForClient(db, deviceId, session.client_id);
 	if (!device) throw new WorkOrderDeviceNotFoundError(deviceId);
 }
 
-async function ensureIncidentTypeExists(
-	db: Kysely<DB>,
-	incidentTypeId: number,
-): Promise<void> {
+async function ensureIncidentTypeExists(db: Kysely<DB>, incidentTypeId: number): Promise<void> {
 	const incidentType = await queries.findIncidentTypeById(db, incidentTypeId);
-	if (!incidentType)
-		throw new WorkOrderIncidentTypeNotFoundError(incidentTypeId);
+	if (!incidentType) throw new WorkOrderIncidentTypeNotFoundError(incidentTypeId);
 }
 
-async function ensureStatusExists(
-	db: Kysely<DB>,
-	statusId: number,
-): Promise<void> {
+async function ensureStatusExists(db: Kysely<DB>, statusId: number): Promise<void> {
 	const status = await queries.findWorkOrderStatusById(db, statusId);
 	if (!status) throw new WorkOrderStatusNotFoundError(statusId);
 }
@@ -191,9 +186,7 @@ export async function getWorkOrder(
 	session: SessionSubject,
 	access: WorkOrderReadAccess,
 ): Promise<WorkOrderResponse> {
-	return toWorkOrderResponse(
-		await findVisibleWorkOrder(db, id, session, access),
-	);
+	return toWorkOrderResponse(await findVisibleWorkOrder(db, id, session, access));
 }
 
 export async function createWorkOrder(
@@ -208,8 +201,10 @@ export async function createWorkOrder(
 
 	return toWorkOrderResponse(
 		await queries.insertWorkOrder(db, {
+			name: input.name,
 			created_at: input.created_at ?? new Date(),
 			creator_user_id: session.user_id,
+			assigned_user_id: input.assigned_user_id ?? null,
 			device_id: input.device_id,
 			incident_type_id: input.incident_type_id,
 			priority: input.priority,
@@ -274,9 +269,7 @@ export async function listWorkOrderUpdates(
 	access: WorkOrderReadAccess,
 ): Promise<WorkOrderUpdateResponse[]> {
 	await findVisibleWorkOrder(db, id, session, access);
-	return (await queries.listWorkOrderUpdates(db, id)).map(
-		toWorkOrderUpdateResponse,
-	);
+	return (await queries.listWorkOrderUpdates(db, id)).map(toWorkOrderUpdateResponse);
 }
 
 export async function createWorkOrderUpdate(
@@ -292,12 +285,12 @@ export async function createWorkOrderUpdate(
 	return db.transaction().execute(async (trx) => {
 		const update = await queries.insertWorkOrderUpdate(trx, {
 			work_order_id: id,
-			created_at: new Date(),
+			date: new Date(),
 			user_id: session.user_id,
 			new_priority: input.new_priority,
 			new_state: input.new_state,
 			new_work_order_status_id: input.new_work_order_status_id,
-			description: input.description,
+			description: input.description ?? null,
 		});
 		await queries.updateWorkOrder(trx, id, {
 			priority: input.new_priority,
@@ -326,9 +319,15 @@ export async function createWorkOrderUpdateImage(
 	input: CreateWorkOrderUpdateImageInput,
 ) {
 	await findVisibleWorkOrder(db, id, session, access);
+	const update = await queries.findWorkOrderUpdateByIdForWorkOrder(
+		db,
+		input.work_order_update_id,
+		id,
+	);
+	if (!update) throw new WorkOrderUpdateNotFoundError(input.work_order_update_id);
 	return queries.insertWorkOrderUpdateImage(db, {
-		work_order_id: id,
-		description: input.description,
+		work_order_update_id: input.work_order_update_id,
+		description: input.description ?? null,
 		path: input.path,
 	});
 }

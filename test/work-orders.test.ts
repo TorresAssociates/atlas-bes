@@ -13,11 +13,14 @@ let cityManager: TestUserSession;
 let clientWorkOrderId: number;
 let externalWorkOrderId: number;
 let createdWorkOrderId: number;
+let createdWorkOrderUpdateId: number;
 
 interface WorkOrderBody {
 	id: number;
+	name: string;
 	created_at: string;
 	creator_user_id: string;
+	assigned_user_id: string | null;
 	device_id: number;
 	incident_type_id: number;
 	priority: number;
@@ -32,11 +35,12 @@ interface WorkOrderListBody {
 interface WorkOrderUpdateBody {
 	id: number;
 	work_order_id: number;
+	date: string;
 	user_id: string;
 	new_priority: number;
 	new_state: WorkOrderBody["state"];
 	new_work_order_status_id: number;
-	description: string;
+	description: string | null;
 }
 
 interface WorkOrderUpdateListBody {
@@ -45,8 +49,8 @@ interface WorkOrderUpdateListBody {
 
 interface WorkOrderImageBody {
 	id: number;
-	work_order_id: number;
-	description: string;
+	work_order_update_id: number;
+	description: string | null;
 	path: string;
 }
 
@@ -74,15 +78,19 @@ beforeAll(async () => {
 
 	const seeded = await db.pool.query<{ id: number; device_id: number }>(
 		`INSERT INTO work_order
-			(created_at, creator_user_id, device_id, incident_type_id, priority, state, work_order_status_id)
+			(name, created_at, creator_user_id, device_id, incident_type_id, priority, state, work_order_status_id)
 		 VALUES
-			(now(), $1, 1, 1, 1, 'not_started', 1),
-			(now(), $2, 2, 2, 2, 'in_progress', 2)
+			('Client work order', now(), $1, 1, 1, 1, 'not_started', 1),
+			('External work order', now(), $2, 2, 2, 2, 'in_progress', 2)
 		 RETURNING id, device_id`,
 		[cityManager.id, admin.id],
 	);
-	clientWorkOrderId = seeded.rows.find((row) => row.device_id === 1)!.id;
-	externalWorkOrderId = seeded.rows.find((row) => row.device_id === 2)!.id;
+	const clientWorkOrder = seeded.rows.find((row) => row.device_id === 1);
+	const externalWorkOrder = seeded.rows.find((row) => row.device_id === 2);
+	if (!clientWorkOrder) throw new Error("client work order fixture was not seeded");
+	if (!externalWorkOrder) throw new Error("external work order fixture was not seeded");
+	clientWorkOrderId = clientWorkOrder.id;
+	externalWorkOrderId = externalWorkOrder.id;
 });
 
 afterAll(async () => {
@@ -163,6 +171,7 @@ test("POST /v1/work-orders creates a same-client work order", async () => {
 		url: "/v1/work-orders",
 		headers: { cookie: cityManager.cookie },
 		body: {
+			name: "Same-client repair",
 			device_id: 1,
 			incident_type_id: 3,
 			priority: 4,
@@ -174,7 +183,9 @@ test("POST /v1/work-orders creates a same-client work order", async () => {
 	expect(res.statusCode).toBe(201);
 	expect(res.json<WorkOrderBody>()).toEqual(
 		expect.objectContaining({
+			name: "Same-client repair",
 			creator_user_id: cityManager.id,
+			assigned_user_id: null,
 			device_id: 1,
 			incident_type_id: 3,
 			priority: 4,
@@ -191,6 +202,7 @@ test("POST /v1/work-orders rejects client writers creating for another client's 
 		url: "/v1/work-orders",
 		headers: { cookie: cityManager.cookie },
 		body: {
+			name: "Wrong-client repair",
 			device_id: 2,
 			incident_type_id: 1,
 			priority: 1,
@@ -208,6 +220,7 @@ test("POST /v1/work-orders lets admins create for another client's device", asyn
 		url: "/v1/work-orders",
 		headers: { cookie: admin.cookie },
 		body: {
+			name: "Admin repair",
 			device_id: 1,
 			incident_type_id: 1,
 			priority: 2,
@@ -230,7 +243,12 @@ test("PATCH /v1/work-orders/:id updates a same-client work order", async () => {
 
 	expect(res.statusCode).toBe(200);
 	expect(res.json<WorkOrderBody>()).toEqual(
-		expect.objectContaining({ id: createdWorkOrderId, priority: 5, state: "in_progress", work_order_status_id: 2 }),
+		expect.objectContaining({
+			id: createdWorkOrderId,
+			priority: 5,
+			state: "in_progress",
+			work_order_status_id: 2,
+		}),
 	);
 });
 
@@ -248,7 +266,9 @@ test("POST /v1/work-orders/:id/updates creates a history entry and moves current
 	});
 
 	expect(res.statusCode).toBe(201);
-	expect(res.json<WorkOrderUpdateBody>()).toEqual(
+	const update = res.json<WorkOrderUpdateBody>();
+	createdWorkOrderUpdateId = update.id;
+	expect(update).toEqual(
 		expect.objectContaining({
 			work_order_id: createdWorkOrderId,
 			user_id: cityManager.id,
@@ -278,7 +298,12 @@ test("GET /v1/work-orders/:id/updates lists visible work order updates", async (
 
 	expect(res.statusCode).toBe(200);
 	expect(res.json<WorkOrderUpdateListBody>().data).toEqual(
-		expect.arrayContaining([expect.objectContaining({ work_order_id: createdWorkOrderId, description: "Marked complete" })]),
+		expect.arrayContaining([
+			expect.objectContaining({
+				work_order_id: createdWorkOrderId,
+				description: "Marked complete",
+			}),
+		]),
 	);
 });
 
@@ -287,13 +312,17 @@ test("POST /v1/work-orders/:id/images creates an image row", async () => {
 		method: "POST",
 		url: `/v1/work-orders/${createdWorkOrderId}/images`,
 		headers: { cookie: cityManager.cookie },
-		body: { description: "Finished panel", path: "work-orders/finished-panel.jpg" },
+		body: {
+			work_order_update_id: createdWorkOrderUpdateId,
+			description: "Finished panel",
+			path: "work-orders/finished-panel.jpg",
+		},
 	});
 
 	expect(res.statusCode).toBe(201);
 	expect(res.json<WorkOrderImageBody>()).toEqual(
 		expect.objectContaining({
-			work_order_id: createdWorkOrderId,
+			work_order_update_id: createdWorkOrderUpdateId,
 			description: "Finished panel",
 			path: "work-orders/finished-panel.jpg",
 		}),
@@ -309,7 +338,9 @@ test("GET /v1/work-orders/:id/images lists image rows", async () => {
 
 	expect(res.statusCode).toBe(200);
 	expect(res.json<WorkOrderImageListBody>().data).toEqual(
-		expect.arrayContaining([expect.objectContaining({ path: "work-orders/finished-panel.jpg" })]),
+		expect.arrayContaining([
+			expect.objectContaining({ path: "work-orders/finished-panel.jpg" }),
+		]),
 	);
 });
 
@@ -326,12 +357,14 @@ test("DELETE /v1/work-orders/:id returns 409 while updates or images reference i
 test("DELETE /v1/work-orders/:id deletes an unreferenced same-client work order", async () => {
 	const created = await db.pool.query<{ id: number }>(
 		`INSERT INTO work_order
-			(created_at, creator_user_id, device_id, incident_type_id, priority, state, work_order_status_id)
-		 VALUES (now(), $1, 1, 1, 1, 'not_started', 1)
+			(name, created_at, creator_user_id, device_id, incident_type_id, priority, state, work_order_status_id)
+		 VALUES ('Unreferenced work order', now(), $1, 1, 1, 1, 'not_started', 1)
 		 RETURNING id`,
 		[cityManager.id],
 	);
-	const workOrderId = created.rows[0]!.id;
+	const createdWorkOrder = created.rows[0];
+	if (!createdWorkOrder) throw new Error("work order fixture was not seeded");
+	const workOrderId = createdWorkOrder.id;
 
 	const res = await app.inject({
 		method: "DELETE",
@@ -340,6 +373,8 @@ test("DELETE /v1/work-orders/:id deletes an unreferenced same-client work order"
 	});
 
 	expect(res.statusCode).toBe(204);
-	const deleted = await db.pool.query<{ id: number }>(`SELECT id FROM work_order WHERE id = $1`, [workOrderId]);
+	const deleted = await db.pool.query<{ id: number }>(`SELECT id FROM work_order WHERE id = $1`, [
+		workOrderId,
+	]);
 	expect(deleted.rows).toEqual([]);
 });
