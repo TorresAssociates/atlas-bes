@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS "role_permission" (
     PRIMARY KEY("id"),
     FOREIGN KEY("role_id") REFERENCES "role"("id"),
     FOREIGN KEY("permission_id") REFERENCES "permission"("id"),
-    CONSTRAINT "unique_role_id_permission_id" UNIQUE("role_id", "permission_id")
+    UNIQUE("role_id", "permission_id")
 );
 
 CREATE TABLE IF NOT EXISTS "granted_permission" (
@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS "granted_permission" (
     PRIMARY KEY("id"),
     FOREIGN KEY("user_id") REFERENCES "user"("id"),
     FOREIGN KEY("permission_id") REFERENCES "permission"("id"),
-    CONSTRAINT "unique_user_id_permission_id" UNIQUE("user_id", "permission_id")
+    UNIQUE("user_id", "permission_id")
 );
 
 --------------
@@ -328,17 +328,100 @@ CREATE TABLE IF NOT EXISTS "sim_info_emnify" (
     FOREIGN KEY("sim_id") REFERENCES "sim"("id")
 );
 
+-----------------------
+---- Product/Model ----
+-----------------------
+
+CREATE TABLE IF NOT EXISTS "product" (
+	"id" SERIAL NOT NULL UNIQUE,
+    "hardware_string" VARCHAR(32) NOT NULL UNIQUE,
+    "name" TEXT NOT NULL UNIQUE,
+    "description" TEXT NOT NULL,
+    -- "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id")
+);
+
+CREATE TABLE IF NOT EXISTS "model" (
+	"id" SERIAL NOT NULL UNIQUE,
+    "product_id" INT NOT NULL,
+    "number" VARCHAR(32) NOT NULL,
+    "description" TEXT NOT NULL,
+    -- "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("product_id") REFERENCES "product"("id"),
+    UNIQUE("product_id", "number")
+);
+
+CREATE TABLE IF NOT EXISTS "hardware_version" (
+	"id" SERIAL NOT NULL UNIQUE,
+    "model_id" INT NOT NULL,
+    "version" VARCHAR(32) NOT NULL,
+    "date" TIMESTAMPTZ NOT NULL,
+    "note" TEXT NOT NULL,
+    "source" TEXT NOT NULL,
+    -- "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("model_id") REFERENCES "model"("id"),
+    UNIQUE("model_id", "version")
+);
+
+CREATE TABLE IF NOT EXISTS "firmware_version" (
+	"id" SERIAL NOT NULL UNIQUE,
+    "model_id" INT NOT NULL,
+    "version" TEXT NOT NULL,
+    "date" TIMESTAMPTZ NOT NULL,
+    "note" TEXT NOT NULL,
+    "source" TEXT NOT NULL,
+    -- "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("model_id") REFERENCES "model"("id"),
+    UNIQUE("model_id", "version")
+);
+
 ----------------
 ---- Device ----
 ----------------
 
-CREATE TYPE DEVICE_TYPE AS ENUM ('datalogger','flasher','barrier_arm','camera');
+CREATE TYPE DEVICE_TYPE AS ENUM ('gauge','flasher','barrier_arm','camera');
 CREATE TABLE IF NOT EXISTS "device" (
 	"id" SERIAL NOT NULL UNIQUE,
     "serial_number" VARCHAR(32) NOT NULL UNIQUE,
     "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "archived" TIMESTAMPTZ DEFAULT NULL,
     PRIMARY KEY("serial_number")
+);
+CREATE TABLE IF NOT EXISTS "device_hardware" (
+    "id" SERIAL NOT NULL UNIQUE,
+    "device_id" INT NOT NULL,
+    "hardware_string" VARCHAR(32) NOT NULL,
+    "model_number" VARCHAR(32) NOT NULL,
+    "hardware_version" VARCHAR(32) NOT NULL,
+    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("device_id") REFERENCES "device"("id")
+);
+CREATE TABLE IF NOT EXISTS "device_firmware" (
+    "id" SERIAL NOT NULL UNIQUE,
+    "device_id" INT NOT NULL,
+    "firmware_version" VARCHAR(32) NOT NULL,
+    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("device_id") REFERENCES "device"("id")
+);
+CREATE TABLE IF NOT EXISTS "device_storage" (
+    "id" SERIAL NOT NULL UNIQUE,
+    "device_id" INT NOT NULL,
+    "storage_capacity" BIGINT NOT NULL,
+    "introduced" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "archived" TIMESTAMPTZ DEFAULT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("device_id") REFERENCES "device"("id")
 );
 CREATE TABLE IF NOT EXISTS "device_info" (
 	"id" SERIAL NOT NULL UNIQUE,
@@ -1131,7 +1214,7 @@ CREATE TABLE IF NOT EXISTS "seasonal_report_type_question" (
     PRIMARY KEY("id"),
     FOREIGN KEY("seasonal_report_type_id") REFERENCES "seasonal_report_type"("id"),
     FOREIGN KEY("seasonal_report_question_id") REFERENCES "seasonal_report_question"("id"),
-    CONSTRAINT "unique_seasonal_report_type_id_seasonal_report_question_id" UNIQUE("seasonal_report_type_id", "seasonal_report_question_id")
+    UNIQUE("seasonal_report_type_id", "seasonal_report_question_id")
 );
 
 CREATE TABLE IF NOT EXISTS "seasonal_report" (
@@ -1195,5 +1278,5 @@ CREATE TABLE IF NOT EXISTS "asset" (
     PRIMARY KEY("id"),
     FOREIGN KEY("asset_type_id") REFERENCES "asset_type"("id"),
     FOREIGN KEY("gauge_station_id") REFERENCES "gauge_station"("id"),
-    CONSTRAINT "unique_asset_type_id_serial_number" UNIQUE("asset_type_id", "serial_number")
+    UNIQUE("asset_type_id", "serial_number")
 );

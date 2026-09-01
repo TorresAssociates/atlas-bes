@@ -4,7 +4,7 @@ import { Nullable } from "@/schemas";
 export const DeviceTypeSchema = Type.Union([
 	Type.Literal("barrier_arm"),
 	Type.Literal("camera"),
-	Type.Literal("datalogger"),
+	Type.Literal("gauge"),
 	Type.Literal("flasher"),
 ]);
 

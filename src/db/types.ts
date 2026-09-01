@@ -7,7 +7,7 @@ import type { ColumnType } from "kysely";
 
 export type AlertLevel = "device" | "gauge_station";
 
-export type DeviceType = "barrier_arm" | "camera" | "datalogger" | "flasher";
+export type DeviceType = "barrier_arm" | "camera" | "flasher" | "gauge";
 
 export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
@@ -414,6 +414,24 @@ export interface DeviceDatalogging {
   timestep: number;
 }
 
+export interface DeviceFirmware {
+  archived: Timestamp | null;
+  device_id: number;
+  firmware_version: string;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+}
+
+export interface DeviceHardware {
+  archived: Timestamp | null;
+  device_id: number;
+  hardware_string: string;
+  hardware_version: string;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  model_number: string;
+}
+
 export interface DeviceInfo {
   activation_date: Timestamp | null;
   active: boolean | null;
@@ -465,6 +483,14 @@ export interface DeviceSimActive {
   introduced: Generated<Timestamp>;
 }
 
+export interface DeviceStorage {
+  archived: Timestamp | null;
+  device_id: number;
+  id: Generated<number>;
+  introduced: Generated<Timestamp>;
+  storage_capacity: Int8;
+}
+
 export interface DeviceWifiInterfaceActive {
   archived: Timestamp | null;
   device_id: number;
@@ -480,6 +506,15 @@ export interface DeviceWifiInterfaceConfig {
   introduced: Generated<Timestamp>;
   password: Buffer;
   salt: Generated<string>;
+}
+
+export interface FirmwareVersion {
+  date: Timestamp;
+  id: Generated<number>;
+  model_id: number;
+  note: string;
+  source: string;
+  version: string;
 }
 
 export interface GaugeStation {
@@ -506,6 +541,15 @@ export interface GrantedPermission {
   id: Generated<number>;
   permission_id: number;
   user_id: string;
+}
+
+export interface HardwareVersion {
+  date: Timestamp;
+  id: Generated<number>;
+  model_id: number;
+  note: string;
+  source: string;
+  version: string;
 }
 
 export interface IncidentCategory {
@@ -549,6 +593,13 @@ export interface MeasurementRecordLatest {
   value: number | null;
 }
 
+export interface Model {
+  description: string;
+  id: Generated<number>;
+  number: string;
+  product_id: number;
+}
+
 export interface Permission {
   assign_role: boolean;
   description: string;
@@ -564,6 +615,13 @@ export interface Preference {
   map_style: string | null;
   theme: string | null;
   user_id: string;
+}
+
+export interface Product {
+  description: string;
+  hardware_string: string;
+  id: Generated<number>;
+  name: string;
 }
 
 export interface RiskLevelMonitor {
@@ -927,24 +985,31 @@ export interface DB {
   device_connected: DeviceConnected;
   device_connection_quality: DeviceConnectionQuality;
   device_datalogging: DeviceDatalogging;
+  device_firmware: DeviceFirmware;
+  device_hardware: DeviceHardware;
   device_info: DeviceInfo;
   device_networking: DeviceNetworking;
   device_power: DevicePower;
   device_sim: DeviceSim;
   device_sim_active: DeviceSimActive;
+  device_storage: DeviceStorage;
   device_wifi_interface_active: DeviceWifiInterfaceActive;
   device_wifi_interface_config: DeviceWifiInterfaceConfig;
+  firmware_version: FirmwareVersion;
   gauge_station: GaugeStation;
   gauge_station_info: GaugeStationInfo;
   granted_permission: GrantedPermission;
+  hardware_version: HardwareVersion;
   incident_category: IncidentCategory;
   incident_type: IncidentType;
   invite: Invite;
   measurement_category: MeasurementCategory;
   measurement_record: MeasurementRecord;
   measurement_record_latest: MeasurementRecordLatest;
+  model: Model;
   permission: Permission;
   preference: Preference;
+  product: Product;
   risk_level_monitor: RiskLevelMonitor;
   risk_level_monitor_channel: RiskLevelMonitorChannel;
   risk_level_monitor_config: RiskLevelMonitorConfig;
