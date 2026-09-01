@@ -90,8 +90,10 @@ beforeAll(async () => {
 		[dataDeviceId, bryanStationId, torresDeviceId, torresStationId, inactiveDeviceId],
 	);
 
-	// Channels: water (scale 2, offset 1) and battery are displayed, stage has
-	// no display row, and one water channel is inactive.
+	// Channels: water and battery are displayed, stage has no display row, and
+	// one water channel is inactive. The water channels carry scale 2 / offset 1
+	// to prove config scale/offset is NOT applied — stored values are already
+	// converted.
 	const channels = await db.pool.query<{ id: number; local_id: number }>(
 		`INSERT INTO channel (device_id, local_id, channel_type_id)
 		 VALUES ($1, 0, 1), ($1, 1, 1), ($1, 2, 1), ($1, 3, 1)
@@ -175,7 +177,7 @@ test("GET /v1/devices/:id/data returns 401 without a session", async () => {
 	expect(res.statusCode).toBe(401);
 });
 
-test("GET /v1/devices/:id/data returns converted measurements grouped by channel", async () => {
+test("GET /v1/devices/:id/data returns measurements grouped by channel", async () => {
 	const res = await app.inject({
 		method: "GET",
 		url: `/v1/devices/${dataDeviceId}/data`,
@@ -208,12 +210,12 @@ test("GET /v1/devices/:id/data returns converted measurements grouped by channel
 		active: true,
 		displayIndex: 0,
 	});
-	// Converted (raw * 2 + 1), ordered by date; the 30h-old record is
-	// excluded. A null raw value stays null.
+	// Stored values as-is (scale/offset never applied), ordered by date; the
+	// 30h-old record is excluded. A null value stays null.
 	expect(water.measurements).toEqual([
 		{ date: twoHoursAgo.toISOString(), value: null },
-		{ date: ninetyMinutesAgo.toISOString(), value: 199 },
-		{ date: hourAgo.toISOString(), value: 21 },
+		{ date: ninetyMinutesAgo.toISOString(), value: 99 },
+		{ date: hourAgo.toISOString(), value: 10 },
 	]);
 
 	expect(body.data[1]!.measurements).toEqual([{ date: hourAgo.toISOString(), value: 12.5 }]);
@@ -234,7 +236,7 @@ test("GET /v1/devices/:id/data honors a custom from/to window", async () => {
 	const body = res.json<DeviceDataBody>();
 	expect(body.from).toBe(from);
 	expect(body.to).toBe(to);
-	expect(body.data[0]!.measurements).toEqual([{ date: thirtyHoursAgo.toISOString(), value: 11 }]);
+	expect(body.data[0]!.measurements).toEqual([{ date: thirtyHoursAgo.toISOString(), value: 5 }]);
 	expect(body.data[1]!.measurements).toEqual([]);
 });
 
@@ -285,7 +287,7 @@ test("GET /v1/devices/:id/data?includeInactiveChannels=true includes inactive ch
 	expect(body.data).toHaveLength(4);
 	const inactive = body.data.find((entry) => entry.channel.id === inactiveChannelId)!;
 	expect(inactive.channel.active).toBe(false);
-	expect(inactive.measurements).toEqual([{ date: hourAgo.toISOString(), value: 15 }]);
+	expect(inactive.measurements).toEqual([{ date: hourAgo.toISOString(), value: 7 }]);
 });
 
 test("GET /v1/devices/:id/data/latest serves current values per channel", async () => {
@@ -305,7 +307,7 @@ test("GET /v1/devices/:id/data/latest serves current values per channel", async 
 	]);
 	// The older record inserted later must not have displaced the latest value.
 	expect(body.data[0]!.date).toBe(hourAgo.toISOString());
-	expect(body.data[0]!.value).toBe(21);
+	expect(body.data[0]!.value).toBe(10);
 	expect(body.data[1]!.value).toBe(12.5);
 	// Never-reported channel: nulls, not fabricated values.
 	expect(body.data[2]!.date).toBeNull();
@@ -322,7 +324,7 @@ test("GET /v1/devices/:id/data/latest?includeInactive=true includes inactive cha
 	expect(res.statusCode).toBe(200);
 	const body = res.json<DeviceLatestDataBody>();
 	const inactive = body.data.find((entry) => entry.channel.id === inactiveChannelId)!;
-	expect(inactive.value).toBe(15);
+	expect(inactive.value).toBe(7);
 });
 
 test("GET /v1/devices/:id/data hides another client's device from session users", async () => {

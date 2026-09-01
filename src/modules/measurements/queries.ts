@@ -1,4 +1,4 @@
-import { expressionBuilder, type Kysely, sql } from "kysely";
+import { expressionBuilder, type Kysely } from "kysely";
 import type { DB } from "@/db/types";
 
 export interface ChannelListFilters {
@@ -98,22 +98,15 @@ export function listChannels(
 		.execute();
 }
 
-const convertedValue = sql<
-	number | null
->`${sql.ref("measurement_record.value")} * ${sql.ref("channel_config.scale")} + ${sql.ref("channel_config.offset")}`;
-
+// measurement_record.value is stored already scaled/offset — never apply
+// channel_config.scale/offset to it.
 export function listMeasurementRecords(db: Kysely<DB>, channelIds: number[], from: Date, to: Date) {
 	return db
 		.selectFrom("measurement_record")
-		.innerJoin("channel_config", (join) =>
-			join
-				.onRef("channel_config.channel_id", "=", "measurement_record.channel_id")
-				.on("channel_config.archived", "is", null),
-		)
 		.select([
 			"measurement_record.channel_id",
 			"measurement_record.date",
-			convertedValue.as("value"),
+			"measurement_record.value",
 		])
 		.where("measurement_record.channel_id", "in", channelIds)
 		.where("measurement_record.date", ">=", from)
@@ -125,10 +118,6 @@ export function listMeasurementRecords(db: Kysely<DB>, channelIds: number[], fro
 
 export type MeasurementRecordRow = Awaited<ReturnType<typeof listMeasurementRecords>>[number];
 
-const convertedLatestValue = sql<
-	number | null
->`${sql.ref("measurement_record_latest.value")} * ${sql.ref("channel_config.scale")} + ${sql.ref("channel_config.offset")}`;
-
 export function listLatestMeasurements(
 	db: Kysely<DB>,
 	deviceId: number,
@@ -136,7 +125,7 @@ export function listLatestMeasurements(
 ) {
 	return applyChannelFilters(channelSelect(db), filters)
 		.leftJoin("measurement_record_latest", "measurement_record_latest.channel_id", "channel.id")
-		.select(["measurement_record_latest.date", convertedLatestValue.as("value")])
+		.select(["measurement_record_latest.date", "measurement_record_latest.value"])
 		.where("channel.device_id", "=", deviceId)
 		.orderBy("channel_config_display.display_index")
 		.orderBy("channel.local_id")

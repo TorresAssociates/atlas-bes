@@ -233,15 +233,8 @@ export type GaugeStationRiskRow = Awaited<ReturnType<typeof listGaugeStationsWit
 const CHANNEL_CATEGORY_WATER_LEVEL = "water_level";
 const CHANNEL_CATEGORY_RAINFALL = "precipitation_increment";
 
-// Raw values convert via the channel's config, mirroring
-// src/modules/measurements/queries.ts (value * scale + offset).
-const latestConvertedValue = sql<
-	number | null
->`${sql.ref("measurement_record_latest.value")} * ${sql.ref("channel_config.scale")} + ${sql.ref("channel_config.offset")}`;
-
-const recordConvertedValue = sql<
-	number | null
->`${sql.ref("measurement_record.value")} * ${sql.ref("channel_config.scale")} + ${sql.ref("channel_config.offset")}`;
+// measurement_record values are stored already scaled/offset — never apply
+// channel_config.scale/offset to them.
 
 // The gauge's preferred channel of a category, restricted to channels that
 // have a latest reading; selects one row, ordered per the note above.
@@ -276,7 +269,7 @@ function latestReadingRow(category: string) {
 }
 
 function latestReadingValue(category: string) {
-	return latestReadingRow(category).select(latestConvertedValue.as("value"));
+	return latestReadingRow(category).select("measurement_record_latest.value");
 }
 
 function latestReadingDate(category: string) {
@@ -309,18 +302,13 @@ function gaugeChannelExists(category: string) {
 }
 
 // SUM of incremental rainfall over the trailing window on the preferred rain
-// channel. Negative increments (sensor resets) clamp to 0 after conversion,
+// channel. Negative increments (sensor resets) clamp to 0,
 // matching legacy accumulation behavior. Relies on the
 // measurement_record (channel_id, date) index.
 function rainfallWindowSum(windowHours: number) {
 	const eb = expressionBuilder<DB, "gauge_station">();
 	return eb
 		.selectFrom("measurement_record")
-		.innerJoin("channel_config", (join) =>
-			join
-				.onRef("channel_config.channel_id", "=", "measurement_record.channel_id")
-				.on(currentRow("channel_config")),
-		)
 		.where(
 			"measurement_record.channel_id",
 			"=",
@@ -329,7 +317,11 @@ function rainfallWindowSum(windowHours: number) {
 		.where(
 			sql<boolean>`${sql.ref("measurement_record.date")} >= NOW() - (${windowHours} * INTERVAL '1 hour')`,
 		)
-		.select(sql<number | null>`SUM(GREATEST(${recordConvertedValue}, 0))`.as("total"));
+		.select(
+			sql<number | null>`SUM(GREATEST(${sql.ref("measurement_record.value")}, 0))`.as(
+				"total",
+			),
+		);
 }
 
 function gaugeRainfallAccumulation(windowHours: number) {

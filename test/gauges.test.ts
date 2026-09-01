@@ -165,8 +165,9 @@ beforeAll(async () => {
 
 	// Live-status fixtures for GET /v1/gauges/status. Categories match the live
 	// schema ('water_level' / 'precipitation_increment').
-	//   bryan — device A: a water channel (scale 2, offset 0.5, raw 1.5 → 3.5 ft
-	//     converted) and a rain channel whose records exercise the window sum:
+	//   bryan — device A: a water channel (stored value 1.5 ft; its scale 2 /
+	//     offset 0.5 config must NOT be applied — values are stored pre-scaled)
+	//     and a rain channel whose records exercise the window sum:
 	//     +5 two hours ago (inside the default 3h window, outside 1h), then
 	//     +0.5 / -0.75 / +0.25 in the last half hour (the negative clamps to 0).
 	//     Device A reports connected → the gauge is connected.
@@ -378,14 +379,15 @@ test("GET /v1/gauges/status returns live status with the default 3h rainfall win
 	const body = res.json<GaugeStatusListBody>();
 
 	// bryan: risk 2 (override-before-max, mirroring the geojson test), device A
-	// connected, water 1.5 * scale 2 + offset 0.5 = 3.5, latest rain increment
-	// 0.25, 3h accumulation 5 + 0.5 + 0 (clamped -0.75) + 0.25 = 5.75.
+	// connected, water 1.5 ft as stored (config scale/offset not applied),
+	// latest rain increment 0.25, 3h accumulation
+	// 5 + 0.5 + 0 (clamped -0.75) + 0.25 = 5.75.
 	const bryan = body.data.find((status) => status.id === bryanStationId)!;
 	expect(bryan).toEqual({
 		id: bryanStationId,
 		riskLevel: 2,
 		connected: true,
-		waterLevel: 3.5,
+		waterLevel: 1.5,
 		waterLevelDate: expect.any(String),
 		rainfall: 0.25,
 		rainfallAccumulation: 5.75,
