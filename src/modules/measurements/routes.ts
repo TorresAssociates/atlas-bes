@@ -41,6 +41,10 @@ const measurementRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	});
 
 	// GET /v1/devices/:id/data
+	// total: 720 ms
+	// preHandler: 575 ms
+	// getSession: 650 ms
+	// readAccess: 430 ms
 	app.get(
 		"/:id/data",
 		{
