@@ -3,11 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { MqtxClient } from "@/lib/mqtx/MqtxClient";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
-import {
-	startTestDatabase,
-	stubConfigEnv,
-	type TestDatabase,
-} from "./helpers/database";
+import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
 
 setDefaultTimeout(120_000);
 
@@ -28,19 +24,11 @@ const mqtxCalls: Array<{
 }> = [];
 
 const fakeMqtx = {
-	async sendConfigUpdate(
-		deviceId: string,
-		version: string,
-		payload: unknown,
-	) {
+	async sendConfigUpdate(deviceId: string, version: string, payload: unknown) {
 		mqtxCalls.push({ method: "config", deviceId, version, payload });
 		return { status: 200, success: true, body: "OK" };
 	},
-	async sendCameraCaptureGet(
-		deviceId: string,
-		version: string,
-		payload: unknown,
-	) {
+	async sendCameraCaptureGet(deviceId: string, version: string, payload: unknown) {
 		mqtxCalls.push({
 			method: "camera-capture",
 			deviceId,
@@ -236,9 +224,7 @@ test("GET /v1/cameras lets admins list cameras across clients", async () => {
 	});
 
 	expect(res.statusCode).toBe(200);
-	const ids = res
-		.json<{ data: CameraBody[] }>()
-		.data.map((row) => row.camera.id);
+	const ids = res.json<{ data: CameraBody[] }>().data.map((row) => row.camera.id);
 	expect(ids).toContain(bryanCameraId);
 	expect(ids).toContain(collegeStationCameraId);
 });
@@ -300,9 +286,7 @@ test("GET /v1/cameras/:deviceId/data returns data records with captures and dete
 	}>();
 	expect(body.data).toHaveLength(1);
 	expect(body.data[0]!.captures).toEqual(
-		expect.arrayContaining([
-			expect.objectContaining({ path: "1/bryan-image.jpg" }),
-		]),
+		expect.arrayContaining([expect.objectContaining({ path: "1/bryan-image.jpg" })]),
 	);
 	expect(body.data[0]!.detections).toEqual(
 		expect.arrayContaining([
@@ -323,13 +307,8 @@ test("GET /v1/cameras/:deviceId/data allows device readers without control panel
 	});
 
 	expect(res.statusCode).toBe(200);
-	expect(
-		res.json<{ data: Array<{ captures: CaptureBody[] }> }>().data[0]!
-			.captures,
-	).toEqual(
-		expect.arrayContaining([
-			expect.objectContaining({ path: "1/bryan-image.jpg" }),
-		]),
+	expect(res.json<{ data: Array<{ captures: CaptureBody[] }> }>().data[0]!.captures).toEqual(
+		expect.arrayContaining([expect.objectContaining({ path: "1/bryan-image.jpg" })]),
 	);
 });
 
@@ -346,8 +325,7 @@ test("GET /v1/cameras/:deviceId/3.1/images returns DB image metadata without S3 
 	expect(body.data[0]).toEqual(
 		expect.objectContaining({
 			path: "1/bryan-image.jpg",
-			file_type:
-				"atlas/3.1/bryan-camera-device/capture/responseT/bryan-image.jpg",
+			file_type: "atlas/3.1/bryan-camera-device/capture/responseT/bryan-image.jpg",
 			is_tagged: true,
 		}),
 	);
@@ -376,9 +354,7 @@ test("GET /v1/cameras/:deviceId/3.1/images/signed looks up metadata by stored pa
 	});
 
 	expect(res.statusCode).toBe(200);
-	expect(res.json<CaptureBody>()).toEqual(
-		expect.objectContaining({ path: "1/bryan-image.jpg" }),
-	);
+	expect(res.json<CaptureBody>()).toEqual(expect.objectContaining({ path: "1/bryan-image.jpg" }));
 });
 
 test("GET /v1/cameras/:deviceId/images/signed rejects paths for another camera", async () => {

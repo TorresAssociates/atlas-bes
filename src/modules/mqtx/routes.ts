@@ -1,48 +1,47 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyRequest } from "fastify";
-import { hasPermission, type PermissionName, requirePermission } from "@/plugins/authorization";
-import { getSession } from "../auth/service";
+import {
+	getRequestSession,
+	hasPermission,
+	type PermissionName,
+	requirePermission,
+} from "@/plugins/authorization";
 import {
 	AlertsSettingsBodySchema,
-	MqtxParamsSchema,
-	MqtxSuccessResponseSchema,
 	ControlBodySchema,
 	ControlResponseSchema,
 	DataSettingsBodySchema,
 	GeneralSettingsBodySchema,
+	MqtxParamsSchema,
+	MqtxSuccessResponseSchema,
 	PowerSettingsBodySchema,
 } from "./schemas";
 import {
+	type AlertsSettingsInput,
+	type ControlInput,
+	type DataSettingsInput,
+	type GeneralSettingsInput,
 	MqtxBadRequestError,
 	MqtxDeviceNotFoundError,
-	MqtxUnsupportedOperationError,
 	MqtxRequestFailedError,
+	MqtxUnsupportedOperationError,
+	type PowerSettingsInput,
 	sendMqtxControl,
 	updateAlertSettings,
 	updateDataSettings,
 	updateGeneralSettings,
 	updatePowerSettings,
-	type AlertsSettingsInput,
-	type ControlInput,
-	type DataSettingsInput,
-	type GeneralSettingsInput,
-	type PowerSettingsInput,
 } from "./service";
 
 const mqtxRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
-		if (!app.db)
-			throw app.httpErrors.serviceUnavailable(
-				"database is not configured",
-			);
+		if (!app.db) throw app.httpErrors.serviceUnavailable("database is not configured");
 		return app.db;
 	};
 
 	app.setErrorHandler((err, _request, reply) => {
-		if (err instanceof MqtxDeviceNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof MqtxBadRequestError)
-			return reply.badRequest(err.message);
+		if (err instanceof MqtxDeviceNotFoundError) return reply.notFound(err.message);
+		if (err instanceof MqtxBadRequestError) return reply.badRequest(err.message);
 		if (err instanceof MqtxUnsupportedOperationError)
 			return reply.code(501).send({
 				statusCode: 501,
@@ -59,16 +58,12 @@ const mqtxRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	});
 
 	async function contextFor(request: FastifyRequest, externalWritePermission: PermissionName) {
-		const session = await getSession(request);
-		if (!session)
-			throw app.httpErrors.unauthorized("authentication required");
+		const session = await getRequestSession(request);
+		if (!session) throw app.httpErrors.unauthorized("authentication required");
 		return {
 			session,
 			access: {
-				canWriteExternal: await hasPermission(
-					request,
-					externalWritePermission,
-				),
+				canWriteExternal: await hasPermission(request, externalWritePermission),
 			},
 		};
 	}
@@ -77,10 +72,7 @@ const mqtxRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/:deviceId/control",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_CONTROL_PANEL",
-				"W_EXTERNAL_CONTROL_PANEL",
-			),
+			preHandler: requirePermission("W_CLIENT_CONTROL_PANEL", "W_EXTERNAL_CONTROL_PANEL"),
 			schema: {
 				tags: ["mqtx"],
 				params: MqtxParamsSchema,
@@ -106,10 +98,7 @@ const mqtxRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.put(
 		"/:deviceId/settings/alerts",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["mqtx"],
 				params: MqtxParamsSchema,
@@ -135,10 +124,7 @@ const mqtxRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/:deviceId/settings/data",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["mqtx"],
 				params: MqtxParamsSchema,
@@ -164,10 +150,7 @@ const mqtxRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/:deviceId/settings/general",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["mqtx"],
 				params: MqtxParamsSchema,
@@ -194,10 +177,7 @@ const mqtxRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/:deviceId/settings/power",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["mqtx"],
 				params: MqtxParamsSchema,

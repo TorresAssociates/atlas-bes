@@ -81,18 +81,11 @@ export class MqtxClient {
 		return this.#post(`/${version}/${deviceId}/config/update/in`, payload);
 	}
 
-	async sendDataGet(
-		deviceId: string,
-		version: string,
-		codes: string[],
-	): Promise<MqtxResponse> {
+	async sendDataGet(deviceId: string, version: string, codes: string[]): Promise<MqtxResponse> {
 		return this.#post(`/${version}/${deviceId}/data/get/in`, { codes });
 	}
 
-	async sendV1LightsCommand(
-		deviceId: string,
-		command: "ON" | "OFF",
-	): Promise<MqtxResponse> {
+	async sendV1LightsCommand(deviceId: string, command: "ON" | "OFF"): Promise<MqtxResponse> {
 		return this.#post(`/v1/lights/${deviceId}`, {
 			command,
 			source: "frontend",
@@ -116,8 +109,7 @@ export class MqtxClient {
 	}
 
 	async #post(path: string, payload?: unknown): Promise<MqtxResponse> {
-		const body =
-			payload === undefined ? undefined : JSON.stringify(payload);
+		const body = payload === undefined ? undefined : JSON.stringify(payload);
 		const request: HttpRequest = {
 			method: "POST",
 			protocol: "https:",
@@ -125,9 +117,7 @@ export class MqtxClient {
 			path,
 			headers: {
 				host: this.#hostname,
-				...(body === undefined
-					? {}
-					: { "content-type": "application/json" }),
+				...(body === undefined ? {} : { "content-type": "application/json" }),
 			},
 			body,
 		};
@@ -154,7 +144,6 @@ export function createMqtxClient(config: MqtxClientConfig = {}): MqtxClient {
 
 function toBuffer(data: SourceData): Buffer {
 	if (typeof data === "string") return Buffer.from(data);
-	if (ArrayBuffer.isView(data))
-		return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+	if (ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 	return Buffer.from(data);
 }

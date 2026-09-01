@@ -1,31 +1,30 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { hasPermission, requirePermission } from "@/plugins/authorization";
-import { getSession } from "../auth/service";
+import { getRequestSession, hasPermission, requirePermission } from "@/plugins/authorization";
 import {
 	ActivateSimsBodySchema,
 	ActivateSimsResponseSchema,
 	CreateSimBodySchema,
 	CreateSimResponseSchema,
+	SimListResponseSchema,
 	SimParamsSchema,
 	SimResponseSchema,
-	SimListResponseSchema,
 	UpdateSimImeiBodySchema,
 } from "./schemas";
 import {
+	type ActivateSimsInput,
+	activateSims,
+	type CreateSimInput,
+	createSim,
+	getSim,
+	listSims,
 	SimAccessDeniedError,
 	SimBadRequestError,
 	SimConflictError,
 	SimDeviceNotFoundError,
 	SimGaugeNotFoundError,
 	SimNotFoundError,
-	activateSims,
-	createSim,
-	getSim,
-	listSims,
-	updateSimImei,
-	type ActivateSimsInput,
-	type CreateSimInput,
 	type UpdateSimImeiInput,
+	updateSimImei,
 } from "./service";
 
 const simsRoutes: FastifyPluginAsyncTypebox = async (app) => {
@@ -57,7 +56,7 @@ const simsRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const canReadExternal = await hasPermission(request, "R_EXTERNAL_DEVICES");
@@ -77,7 +76,7 @@ const simsRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const params = request.params as { iccid: string };
@@ -129,7 +128,7 @@ const simsRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_DEVICES");

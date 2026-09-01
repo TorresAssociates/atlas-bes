@@ -38,20 +38,13 @@ interface PendingInviteSignup {
 
 const OAUTH_INVITE_STATE_TTL_MS = 10 * 60 * 1000;
 const pendingInviteSignups = new Map<string, PendingInviteSignup>();
-const pendingInviteSignupByContext = new WeakMap<
-	AuthRequestContext,
-	PendingInviteSignup
->();
+const pendingInviteSignupByContext = new WeakMap<AuthRequestContext, PendingInviteSignup>();
 
 function hasInviteAssignedRole(user: Record<string, unknown>): boolean {
-	return (
-		typeof user.client_id === "number" && typeof user.role_id === "number"
-	);
+	return typeof user.client_id === "number" && typeof user.role_id === "number";
 }
 
-function getOAuthStateFromContext(
-	context: AuthRequestContext | null,
-): string | null {
+function getOAuthStateFromContext(context: AuthRequestContext | null): string | null {
 	const query = context?.query as { state?: unknown } | undefined;
 	const body = context?.body as { state?: unknown } | undefined;
 	const state = query?.state ?? body?.state;
@@ -60,14 +53,10 @@ function getOAuthStateFromContext(
 }
 
 function getInviteTokenFromSocialSignInBody(body: unknown): string | null {
-	const value = body as
-		| { additionalData?: { inviteToken?: unknown } }
-		| undefined;
+	const value = body as { additionalData?: { inviteToken?: unknown } } | undefined;
 	const inviteToken = value?.additionalData?.inviteToken;
 
-	return typeof inviteToken === "string" && inviteToken.length > 0
-		? inviteToken
-		: null;
+	return typeof inviteToken === "string" && inviteToken.length > 0 ? inviteToken : null;
 }
 
 function getOAuthStateFromAuthorizationURL(url: string): string | null {
@@ -79,21 +68,15 @@ function getOAuthStateFromAuthorizationURL(url: string): string | null {
 	return state && state.length > 0 ? state : null;
 }
 
-function cachePendingInviteSignup(
-	state: string,
-	invite: PendingInviteSignup,
-): void {
+function cachePendingInviteSignup(state: string, invite: PendingInviteSignup): void {
 	pendingInviteSignups.set(state, invite);
 	setTimeout(() => {
 		const cached = pendingInviteSignups.get(state);
-		if (cached?.expires_at === invite.expires_at)
-			pendingInviteSignups.delete(state);
+		if (cached?.expires_at === invite.expires_at) pendingInviteSignups.delete(state);
 	}, OAUTH_INVITE_STATE_TTL_MS).unref();
 }
 
-function getPendingInviteSignup(
-	state: string | null,
-): PendingInviteSignup | null {
+function getPendingInviteSignup(state: string | null): PendingInviteSignup | null {
 	if (!state) return null;
 
 	const invite = pendingInviteSignups.get(state);
@@ -107,10 +90,7 @@ function getPendingInviteSignup(
 	return invite;
 }
 
-async function getValidInviteForMicrosoftSignup(
-	db: Kysely<DB>,
-	inviteToken: string,
-) {
+async function getValidInviteForMicrosoftSignup(db: Kysely<DB>, inviteToken: string) {
 	const invite = await inviteQueries.findInviteByToken(db, inviteToken);
 	if (!invite || invite.client_id === null || invite.role_id === null) {
 		throw new APIError("BAD_REQUEST", {
@@ -122,10 +102,7 @@ async function getValidInviteForMicrosoftSignup(
 	const clientId = invite.client_id;
 	const roleId = invite.role_id;
 
-	if (
-		invite.expires_at !== null &&
-		new Date(invite.expires_at).getTime() <= Date.now()
-	) {
+	if (invite.expires_at !== null && new Date(invite.expires_at).getTime() <= Date.now()) {
 		throw new APIError("BAD_REQUEST", {
 			code: "INVITE_EXPIRED",
 			message: "invite has expired",
@@ -252,8 +229,7 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 					before: async (user, context) => {
 						if (hasInviteAssignedRole(user)) return;
 
-						const authContext =
-							context as AuthRequestContext | null;
+						const authContext = context as AuthRequestContext | null;
 						const state = getOAuthStateFromContext(authContext);
 						const invite = getPendingInviteSignup(state);
 						if (!invite) {
@@ -263,11 +239,7 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 							});
 						}
 
-						if (authContext)
-							pendingInviteSignupByContext.set(
-								authContext,
-								invite,
-							);
+						if (authContext) pendingInviteSignupByContext.set(authContext, invite);
 
 						return {
 							data: {
@@ -277,18 +249,13 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 						};
 					},
 					after: async (user, context) => {
-						const authContext =
-							context as AuthRequestContext | null;
+						const authContext = context as AuthRequestContext | null;
 						const invite = authContext
 							? pendingInviteSignupByContext.get(authContext)
 							: null;
 						if (!invite) return;
 
-						await inviteQueries.insertAcceptedInvite(
-							db,
-							invite.id,
-							user.id,
-						);
+						await inviteQueries.insertAcceptedInvite(db, invite.id, user.id);
 						const state = getOAuthStateFromContext(authContext);
 						if (state) pendingInviteSignups.delete(state);
 					},

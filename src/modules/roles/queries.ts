@@ -1,10 +1,4 @@
-import {
-	sql,
-	type Insertable,
-	type Kysely,
-	type Selectable,
-	type Updateable,
-} from "kysely";
+import { type Insertable, type Kysely, type Selectable, sql, type Updateable } from "kysely";
 import type { DB } from "@/db/types";
 
 export type RoleRow = Selectable<DB["role"]>;
@@ -24,10 +18,7 @@ export function listRoles(db: Kysely<DB>): Promise<RoleRow[]> {
 		.execute();
 }
 
-export function listRolesForClient(
-	db: Kysely<DB>,
-	clientId: number,
-): Promise<RoleRow[]> {
+export function listRolesForClient(db: Kysely<DB>, clientId: number): Promise<RoleRow[]> {
 	return db
 		.selectFrom("role")
 		.select(roleColumns)
@@ -37,10 +28,7 @@ export function listRolesForClient(
 		.execute();
 }
 
-export function findRoleById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<RoleRow | undefined> {
+export function findRoleById(db: Kysely<DB>, id: number): Promise<RoleRow | undefined> {
 	return db
 		.selectFrom("role")
 		.select(roleColumns)
@@ -63,15 +51,8 @@ export function findRoleByIdForClient(
 		.executeTakeFirst();
 }
 
-export function insertRole(
-	db: Kysely<DB>,
-	role: InsertRoleRow,
-): Promise<RoleRow> {
-	return db
-		.insertInto("role")
-		.values(role)
-		.returning(roleColumns)
-		.executeTakeFirstOrThrow();
+export function insertRole(db: Kysely<DB>, role: InsertRoleRow): Promise<RoleRow> {
+	return db.insertInto("role").values(role).returning(roleColumns).executeTakeFirstOrThrow();
 }
 
 export function updateRoleById(
@@ -104,10 +85,7 @@ export function updateRoleByIdForClient(
 		.executeTakeFirst();
 }
 
-export async function softDeleteRoleById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<RoleRow | undefined> {
+export async function softDeleteRoleById(db: Kysely<DB>, id: number): Promise<RoleRow | undefined> {
 	return db.transaction().execute(async (trx) => {
 		const deleted = await trx
 			.updateTable("role")
@@ -119,16 +97,9 @@ export async function softDeleteRoleById(
 
 		if (!deleted) return undefined;
 
-		await trx
-			.updateTable("invite")
-			.set({ role_id: null })
-			.where("role_id", "=", id)
-			.execute();
+		await trx.updateTable("invite").set({ role_id: null }).where("role_id", "=", id).execute();
 
-		await trx
-			.deleteFrom("role_permission")
-			.where("role_id", "=", id)
-			.execute();
+		await trx.deleteFrom("role_permission").where("role_id", "=", id).execute();
 
 		return deleted;
 	});
@@ -151,37 +122,20 @@ export async function softDeleteRoleByIdForClient(
 
 		if (!deleted) return undefined;
 
-		await trx
-			.updateTable("invite")
-			.set({ role_id: null })
-			.where("role_id", "=", id)
-			.execute();
+		await trx.updateTable("invite").set({ role_id: null }).where("role_id", "=", id).execute();
 
-		await trx
-			.deleteFrom("role_permission")
-			.where("role_id", "=", id)
-			.execute();
+		await trx.deleteFrom("role_permission").where("role_id", "=", id).execute();
 
 		return deleted;
 	});
 }
 
-export async function deleteRolePermissions(
-	db: Kysely<DB>,
-	roleId: number,
-): Promise<void> {
-	await db
-		.deleteFrom("role_permission")
-		.where("role_id", "=", roleId)
-		.execute();
+export async function deleteRolePermissions(db: Kysely<DB>, roleId: number): Promise<void> {
+	await db.deleteFrom("role_permission").where("role_id", "=", roleId).execute();
 }
 
 export function listPermissions(db: Kysely<DB>): Promise<PermissionRow[]> {
-	return db
-		.selectFrom("permission")
-		.select(permissionColumns)
-		.orderBy("id")
-		.execute();
+	return db.selectFrom("permission").select(permissionColumns).orderBy("id").execute();
 }
 
 export function listAssignablePermissionsByIds(
@@ -199,20 +153,11 @@ export function listAssignablePermissionsByIds(
 		.execute();
 }
 
-export function listRolePermissions(
-	db: Kysely<DB>,
-	roleId: number,
-): Promise<PermissionRow[]> {
+export function listRolePermissions(db: Kysely<DB>, roleId: number): Promise<PermissionRow[]> {
 	return db
 		.selectFrom("role_permission")
-		.innerJoin(
-			"permission",
-			"permission.id",
-			"role_permission.permission_id",
-		)
-		.select(
-			permissionColumns.map((column) => `permission.${column}` as const),
-		)
+		.innerJoin("permission", "permission.id", "role_permission.permission_id")
+		.select(permissionColumns.map((column) => `permission.${column}` as const))
 		.where("role_permission.role_id", "=", roleId)
 		.orderBy("permission.id")
 		.execute();
@@ -224,10 +169,7 @@ export async function replaceRolePermissions(
 	permissionIds: readonly number[],
 ): Promise<void> {
 	await db.transaction().execute(async (trx) => {
-		await trx
-			.deleteFrom("role_permission")
-			.where("role_id", "=", roleId)
-			.execute();
+		await trx.deleteFrom("role_permission").where("role_id", "=", roleId).execute();
 
 		const uniquePermissionIds = [...new Set(permissionIds)];
 		if (uniquePermissionIds.length === 0) return;
@@ -244,10 +186,7 @@ export async function replaceRolePermissions(
 	});
 }
 
-export async function countRoleUsers(
-	db: Kysely<DB>,
-	roleId: number,
-): Promise<number> {
+export async function countRoleUsers(db: Kysely<DB>, roleId: number): Promise<number> {
 	const row = await db
 		.selectFrom("user")
 		.select(sql<number>`count(*)::int`.as("user_count"))
@@ -256,10 +195,7 @@ export async function countRoleUsers(
 	return row.user_count;
 }
 
-export async function countRoleInvites(
-	db: Kysely<DB>,
-	roleId: number,
-): Promise<number> {
+export async function countRoleInvites(db: Kysely<DB>, roleId: number): Promise<number> {
 	const row = await db
 		.selectFrom("invite")
 		.select(sql<number>`count(*)::int`.as("invite_count"))

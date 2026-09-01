@@ -100,10 +100,7 @@ export async function findClientName(
 	return client?.name;
 }
 
-export async function findRoleName(
-	db: Kysely<DB>,
-	roleId: number,
-): Promise<string | undefined> {
+export async function findRoleName(db: Kysely<DB>, roleId: number): Promise<string | undefined> {
 	const role = await db
 		.selectFrom("role")
 		.select("name")
@@ -113,10 +110,7 @@ export async function findRoleName(
 	return role?.name;
 }
 
-export async function userEmailExists(
-	db: Kysely<DB>,
-	email: string,
-): Promise<boolean> {
+export async function userEmailExists(db: Kysely<DB>, email: string): Promise<boolean> {
 	const user = await db
 		.selectFrom("user")
 		.select("id")

@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
-import type { PermissionName } from "@/plugins/authorization";
+import { invalidateRolePermissions, type PermissionName } from "@/plugins/authorization";
 import {
 	isProperPermissionSuperset,
 	listRolePermissionNames,
@@ -31,7 +31,10 @@ export interface ReplaceRolePermissionsInput {
 }
 
 export type PermissionResponse = PermissionRow;
-export type RoleResponse = Omit<RoleRow, "deleted_at"> & { deleted_at: string | null; permissions: PermissionResponse[] };
+export type RoleResponse = Omit<RoleRow, "deleted_at"> & {
+	deleted_at: string | null;
+	permissions: PermissionResponse[];
+};
 
 export class RoleNotFoundError extends Error {
 	constructor(roleId: number) {
@@ -56,7 +59,9 @@ export class RolePermissionAccessDeniedError extends Error {
 
 export class RolePermissionNotAssignableError extends Error {
 	constructor(permissionIds: readonly number[]) {
-		super(`permission id(s) ${permissionIds.join(", ")} do not exist or cannot be assigned to a role`);
+		super(
+			`permission id(s) ${permissionIds.join(", ")} do not exist or cannot be assigned to a role`,
+		);
 		this.name = "RolePermissionNotAssignableError";
 	}
 }
@@ -266,7 +271,14 @@ export async function replaceRolePermissions(
 	const nextPermissionIds = [...new Set(input.permission_ids)];
 
 	await queries.replaceRolePermissions(db, id, nextPermissionIds);
-	await recordRolePermissionDiff(db, session, role.name, previousPermissionIds, nextPermissionIds);
+	invalidateRolePermissions(id);
+	await recordRolePermissionDiff(
+		db,
+		session,
+		role.name,
+		previousPermissionIds,
+		nextPermissionIds,
+	);
 	return toRoleResponse(db, role);
 }
 
@@ -288,10 +300,7 @@ export async function deleteRole(
 		? await queries.softDeleteRoleById(db, id)
 		: await queries.softDeleteRoleByIdForClient(db, id, session.client_id);
 	if (!deleted) throw new RoleNotFoundError(id);
+	invalidateRolePermissions(id);
 
 	await recordRolePermissionsAuditLog(db, session.user_id, "DELETE_ROLE", role.name, null, false);
 }
-
-
-
-

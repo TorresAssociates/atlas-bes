@@ -35,7 +35,9 @@ interface ChannelRecordBody {
 		archived: string | null;
 	} | null;
 	channel_config_display: { display_index: number } | null;
-	channel_config_internal_power_sensor: { measurement_type: "voltage" | "current" | "power" } | null;
+	channel_config_internal_power_sensor: {
+		measurement_type: "voltage" | "current" | "power";
+	} | null;
 	channel_config_sdi12: unknown | null;
 	channel_config_accumulation: unknown | null;
 	channel_config_tilt: unknown | null;
@@ -203,8 +205,10 @@ test("GET /v1/channels/:id returns one visible channel with channel_config", asy
 	});
 
 	expect(res.statusCode).toBe(200);
-	expect(res.json<ChannelRecordBody>()).toEqual(expect.objectContaining({
-		channel: expect.objectContaining({ id: bryanChannelId, device_id: 1 }),
-		channel_config: expect.objectContaining({ name: "Stage" }),
-	}));
+	expect(res.json<ChannelRecordBody>()).toEqual(
+		expect.objectContaining({
+			channel: expect.objectContaining({ id: bryanChannelId, device_id: 1 }),
+			channel_config: expect.objectContaining({ name: "Stage" }),
+		}),
+	);
 });

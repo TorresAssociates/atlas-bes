@@ -1,5 +1,5 @@
-import { Nullable } from "@/schemas";
 import { Type } from "@sinclair/typebox";
+import { Nullable } from "@/schemas";
 
 const TimestampSchema = Type.String({ format: "date-time" });
 const ArchivedTimestampSchema = Nullable(TimestampSchema);
@@ -126,10 +126,7 @@ export const CameraCaptureRequestBodySchema = Type.Object({
 	format: CaptureFormatSchema,
 });
 
-export const CameraConfigBodySchema = Type.Record(
-	Type.String(),
-	Type.Unknown(),
-);
+export const CameraConfigBodySchema = Type.Record(Type.String(), Type.Unknown());
 
 export const MqtxStatusResponseSchema = Type.Object({
 	message: Type.String(),

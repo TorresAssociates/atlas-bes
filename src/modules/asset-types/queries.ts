@@ -1,5 +1,5 @@
-import type { DB } from "@/db/types";
 import type { Insertable, Kysely, Selectable, Updateable } from "kysely";
+import type { DB } from "@/db/types";
 
 export type AssetTypeRow = Selectable<DB["asset_type"]>;
 type InsertAssetTypeRow = Insertable<DB["asset_type"]>;
@@ -16,17 +16,10 @@ const assetTypeColumns = [
 ] as const;
 
 export function listAssetTypes(db: Kysely<DB>): Promise<AssetTypeRow[]> {
-	return db
-		.selectFrom("asset_type")
-		.select(assetTypeColumns)
-		.orderBy("id", "asc")
-		.execute();
+	return db.selectFrom("asset_type").select(assetTypeColumns).orderBy("id", "asc").execute();
 }
 
-export function listAssetTypesForClient(
-	db: Kysely<DB>,
-	clientId: number,
-): Promise<AssetTypeRow[]> {
+export function listAssetTypesForClient(db: Kysely<DB>, clientId: number): Promise<AssetTypeRow[]> {
 	return db
 		.selectFrom("asset_type")
 		.select(assetTypeColumns)
@@ -35,10 +28,7 @@ export function listAssetTypesForClient(
 		.execute();
 }
 
-export function findAssetTypeById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<AssetTypeRow | undefined> {
+export function findAssetTypeById(db: Kysely<DB>, id: number): Promise<AssetTypeRow | undefined> {
 	return db
 		.selectFrom("asset_type")
 		.select(assetTypeColumns)
@@ -59,15 +49,8 @@ export function findAssetTypeByIdForClient(
 		.executeTakeFirst();
 }
 
-export function findClientById(
-	db: Kysely<DB>,
-	id: number,
-): Promise<{ id: number } | undefined> {
-	return db
-		.selectFrom("client")
-		.select("id")
-		.where("id", "=", id)
-		.executeTakeFirst();
+export function findClientById(db: Kysely<DB>, id: number): Promise<{ id: number } | undefined> {
+	return db.selectFrom("client").select("id").where("id", "=", id).executeTakeFirst();
 }
 
 export function countAssetsForAssetType(
@@ -105,10 +88,7 @@ export function updateAssetType(
 		.executeTakeFirst();
 }
 
-export function deleteAssetType(
-	db: Kysely<DB>,
-	id: number,
-): Promise<AssetTypeRow | undefined> {
+export function deleteAssetType(db: Kysely<DB>, id: number): Promise<AssetTypeRow | undefined> {
 	return db
 		.deleteFrom("asset_type")
 		.where("id", "=", id)

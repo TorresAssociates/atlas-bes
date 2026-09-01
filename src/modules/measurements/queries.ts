@@ -46,6 +46,21 @@ export function findDeviceForClient(
 		.executeTakeFirst();
 }
 
+export function listDevices(db: Kysely<DB>, ids: readonly number[]): Promise<DeviceRow[]> {
+	return deviceSelect(db).where("device.id", "in", ids).execute();
+}
+
+export function listDevicesForClient(
+	db: Kysely<DB>,
+	ids: readonly number[],
+	clientId: number,
+): Promise<DeviceRow[]> {
+	return deviceSelect(db)
+		.where("device.id", "in", ids)
+		.where(deviceLinkedToClient(clientId))
+		.execute();
+}
+
 function channelSelect(db: Kysely<DB>) {
 	return db
 		.selectFrom("channel")
@@ -98,25 +113,66 @@ export function listChannels(
 		.execute();
 }
 
+export function listChannelsForDevices(
+	db: Kysely<DB>,
+	deviceIds: readonly number[],
+	filters: ChannelListFilters = {},
+): Promise<ChannelRow[]> {
+	return applyChannelFilters(channelSelect(db), filters)
+		.where("channel.device_id", "in", deviceIds)
+		.orderBy("channel.device_id")
+		.orderBy("channel_config_display.display_index")
+		.orderBy("channel.local_id")
+		.execute();
+}
+
 // measurement_record.value is stored already scaled/offset — never apply
 // channel_config.scale/offset to it.
-export function listMeasurementRecords(db: Kysely<DB>, channelIds: number[], from: Date, to: Date) {
-	return db
+//
+// Resolves channels from device ids itself (mirroring applyChannelFilters)
+// instead of taking channel ids, so it can run concurrently with the channel
+// listing rather than waiting on it — one wall-clock DB stage instead of two.
+export function listMeasurementRecordsForDevices(
+	db: Kysely<DB>,
+	deviceIds: readonly number[],
+	filters: ChannelListFilters,
+	from: Date,
+	to: Date,
+	limit: number,
+) {
+	let query = db
 		.selectFrom("measurement_record")
+		.innerJoin("channel", "channel.id", "measurement_record.channel_id")
+		.innerJoin("channel_config", (join) =>
+			join
+				.onRef("channel_config.channel_id", "=", "channel.id")
+				.on("channel_config.archived", "is", null),
+		)
 		.select([
 			"measurement_record.channel_id",
 			"measurement_record.date",
 			"measurement_record.value",
 		])
-		.where("measurement_record.channel_id", "in", channelIds)
+		.where("channel.device_id", "in", deviceIds)
+		.where("channel.archived", "is", null)
 		.where("measurement_record.date", ">=", from)
-		.where("measurement_record.date", "<=", to)
+		.where("measurement_record.date", "<=", to);
+
+	if (filters.channelId !== undefined) query = query.where("channel.id", "=", filters.channelId);
+	if (filters.category !== undefined)
+		query = query.where("channel_config.category", "=", filters.category);
+	if (!filters.includeInactive) query = query.where("channel_config.active", "=", true);
+
+	return query
 		.orderBy("measurement_record.channel_id")
 		.orderBy("measurement_record.date")
+		.limit(limit)
 		.execute();
 }
 
-export type MeasurementRecordRow = Awaited<ReturnType<typeof listMeasurementRecords>>[number];
+export type MeasurementRecordRow = Awaited<
+	ReturnType<typeof listMeasurementRecordsForDevices>
+>[number];
 
 export function listLatestMeasurements(
 	db: Kysely<DB>,
@@ -133,3 +189,18 @@ export function listLatestMeasurements(
 }
 
 export type ChannelLatestRow = Awaited<ReturnType<typeof listLatestMeasurements>>[number];
+
+export function listLatestMeasurementsForDevices(
+	db: Kysely<DB>,
+	deviceIds: readonly number[],
+	filters: ChannelListFilters = {},
+) {
+	return applyChannelFilters(channelSelect(db), filters)
+		.leftJoin("measurement_record_latest", "measurement_record_latest.channel_id", "channel.id")
+		.select(["measurement_record_latest.date", "measurement_record_latest.value"])
+		.where("channel.device_id", "in", deviceIds)
+		.orderBy("channel.device_id")
+		.orderBy("channel_config_display.display_index")
+		.orderBy("channel.local_id")
+		.execute();
+}

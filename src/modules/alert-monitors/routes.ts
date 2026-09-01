@@ -1,8 +1,7 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyRequest } from "fastify";
-import { hasPermission, requirePermission } from "@/plugins/authorization";
+import { getRequestSession, hasPermission, requirePermission } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	AlertMonitorConfigActivityListSchema,
 	AlertMonitorConfigActivityOverrideListSchema,
@@ -47,24 +46,16 @@ import {
 
 const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
-		if (!app.db)
-			throw app.httpErrors.serviceUnavailable(
-				"database is not configured",
-			);
+		if (!app.db) throw app.httpErrors.serviceUnavailable("database is not configured");
 		return app.db;
 	};
 
 	app.setErrorHandler((err, _request, reply) => {
-		if (err instanceof AlertMonitorNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof AlertMonitorDeviceNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof AlertMonitorChannelNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof AlertMonitorAlertNotFoundError)
-			return reply.badRequest(err.message);
-		if (err instanceof AlertMonitorRelationshipError)
-			return reply.badRequest(err.message);
+		if (err instanceof AlertMonitorNotFoundError) return reply.notFound(err.message);
+		if (err instanceof AlertMonitorDeviceNotFoundError) return reply.notFound(err.message);
+		if (err instanceof AlertMonitorChannelNotFoundError) return reply.notFound(err.message);
+		if (err instanceof AlertMonitorAlertNotFoundError) return reply.badRequest(err.message);
+		if (err instanceof AlertMonitorRelationshipError) return reply.badRequest(err.message);
 		return reply.send(err);
 	});
 
@@ -72,9 +63,8 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		request: FastifyRequest,
 		externalPermission: "R_EXTERNAL_DEVICES" | "W_EXTERNAL_DEVICES",
 	) {
-		const session = await getSession(request);
-		if (!session)
-			throw app.httpErrors.unauthorized("authentication required");
+		const session = await getRequestSession(request);
+		if (!session) throw app.httpErrors.unauthorized("authentication required");
 		return {
 			session,
 			canAccessExternal: await hasPermission(request, externalPermission),
@@ -85,10 +75,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				response: {
@@ -99,10 +86,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"R_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "R_EXTERNAL_DEVICES");
 			return {
 				data: await listAlertMonitors(getDb(), session, {
 					canReadExternal: canAccessExternal,
@@ -115,10 +99,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/status",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				response: {
@@ -129,10 +110,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"R_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "R_EXTERNAL_DEVICES");
 			return {
 				data: await listAlertMonitorStatuses(getDb(), session, {
 					canReadExternal: canAccessExternal,
@@ -140,15 +118,12 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			};
 		},
 	);
-	
+
 	// POST /v1/alert-monitors
 	app.post(
 		"/",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				body: CreateAlertMonitorBodySchema,
@@ -162,10 +137,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"W_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "W_EXTERNAL_DEVICES");
 			const created = await createAlertMonitor(
 				getDb(),
 				session,
@@ -180,10 +152,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/configs",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				response: {
@@ -194,10 +163,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"R_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "R_EXTERNAL_DEVICES");
 			return {
 				data: await listConfigs(getDb(), session, {
 					canReadExternal: canAccessExternal,
@@ -210,10 +176,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/configs",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				body: CreateAlertMonitorConfigBodySchema,
@@ -227,10 +190,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"W_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "W_EXTERNAL_DEVICES");
 			const created = await createConfig(
 				getDb(),
 				session,
@@ -245,10 +205,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/activities",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				response: {
@@ -259,10 +216,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"R_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "R_EXTERNAL_DEVICES");
 			return {
 				data: await listActivities(getDb(), session, {
 					canReadExternal: canAccessExternal,
@@ -275,10 +229,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/activities",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				body: CreateAlertMonitorConfigActivityBodySchema,
@@ -292,10 +243,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"W_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "W_EXTERNAL_DEVICES");
 			const created = await createActivity(
 				getDb(),
 				session,
@@ -310,10 +258,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/activity-overrides",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				response: {
@@ -324,10 +269,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"R_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "R_EXTERNAL_DEVICES");
 			return {
 				data: await listActivityOverrides(getDb(), session, {
 					canReadExternal: canAccessExternal,
@@ -340,10 +282,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/activity-overrides",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				body: CreateAlertMonitorConfigActivityOverrideBodySchema,
@@ -357,10 +296,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"W_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "W_EXTERNAL_DEVICES");
 			const created = await createActivityOverride(
 				getDb(),
 				session,
@@ -375,10 +311,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/channel-links",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				response: {
@@ -389,10 +322,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"R_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "R_EXTERNAL_DEVICES");
 			return {
 				data: await listChannelLinks(getDb(), session, {
 					canReadExternal: canAccessExternal,
@@ -405,10 +335,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/channel-links",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				body: CreateChannelAlertMonitorBodySchema,
@@ -422,10 +349,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"W_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "W_EXTERNAL_DEVICES");
 			const created = await createChannelLink(
 				getDb(),
 				session,
@@ -440,10 +364,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/ranges",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				response: {
@@ -454,10 +375,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"R_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "R_EXTERNAL_DEVICES");
 			return {
 				data: await listRanges(getDb(), session, {
 					canReadExternal: canAccessExternal,
@@ -470,10 +388,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/ranges",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_DEVICES",
-				"W_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("W_CLIENT_DEVICES", "W_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["alert-monitors"],
 				body: CreateAlertMonitorConfigRangeBodySchema,
@@ -487,10 +402,7 @@ const alertMonitorRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const { session, canAccessExternal } = await contextFor(
-				request,
-				"W_EXTERNAL_DEVICES",
-			);
+			const { session, canAccessExternal } = await contextFor(request, "W_EXTERNAL_DEVICES");
 			const created = await createRange(
 				getDb(),
 				session,

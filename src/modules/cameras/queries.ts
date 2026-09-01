@@ -1,5 +1,5 @@
-import type { DB } from "@/db/types";
 import type { Kysely, Selectable } from "kysely";
+import type { DB } from "@/db/types";
 
 export type CameraRow = Selectable<DB["camera"]>;
 export type CameraConfigRow = Selectable<DB["camera_config"]>;
@@ -73,21 +73,9 @@ const presetColumns = [
 	"introduced",
 	"archived",
 ] as const;
-const rotationColumns = [
-	"id",
-	"camera_id",
-	"rotation",
-	"introduced",
-	"archived",
-] as const;
+const rotationColumns = ["id", "camera_id", "rotation", "introduced", "archived"] as const;
 const dataRecordColumns = ["id", "date", "camera_id"] as const;
-const captureColumns = [
-	"id",
-	"camera_data_record_id",
-	"path",
-	"file_type",
-	"is_tagged",
-] as const;
+const captureColumns = ["id", "camera_data_record_id", "path", "file_type", "is_tagged"] as const;
 const detectionColumns = [
 	"id",
 	"camera_data_record_id",
@@ -103,18 +91,10 @@ function cameraDeviceBase(db: Kysely<DB>) {
 		.selectFrom("camera")
 		.innerJoin("device", "device.id", "camera.device_id")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"device_info.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.leftJoin("gauge_station_info", (join) =>
 			join
-				.onRef(
-					"gauge_station_info.gauge_station_id",
-					"=",
-					"gauge_station.id",
-				)
+				.onRef("gauge_station_info.gauge_station_id", "=", "gauge_station.id")
 				.on("gauge_station_info.archived", "is", null),
 		)
 		.leftJoin("city", "city.id", "gauge_station_info.city_id")
@@ -143,11 +123,7 @@ export function listCameras(
 ): Promise<CameraDeviceRow[]> {
 	let query = cameraDeviceBase(db);
 	if (filters.gaugeId !== undefined)
-		query = query.where(
-			"device_info.gauge_station_id",
-			"=",
-			filters.gaugeId,
-		);
+		query = query.where("device_info.gauge_station_id", "=", filters.gaugeId);
 	if (filters.clientId !== undefined) {
 		query = query
 			.innerJoin(
@@ -170,11 +146,7 @@ export function listCamerasForClient(
 ): Promise<CameraDeviceRow[]> {
 	let query = scopedCameraDeviceBase(db, clientId);
 	if (filters.gaugeId !== undefined)
-		query = query.where(
-			"device_info.gauge_station_id",
-			"=",
-			filters.gaugeId,
-		);
+		query = query.where("device_info.gauge_station_id", "=", filters.gaugeId);
 	return query
 		.orderBy("device.serial_number", "asc")
 		.orderBy("camera.local_id", "asc")
@@ -249,11 +221,7 @@ export interface CameraRecordFilters {
 	taggedOnly?: boolean;
 }
 
-function cameraDataRecordBase(
-	db: Kysely<DB>,
-	cameraId: number,
-	filters: CameraRecordFilters = {},
-) {
+function cameraDataRecordBase(db: Kysely<DB>, cameraId: number, filters: CameraRecordFilters = {}) {
 	let query = db
 		.selectFrom("camera_data_record")
 		.select(dataRecordColumns)
@@ -284,9 +252,7 @@ export function listCameraDataRecords(
 ): Promise<CameraDataRecordRow[]> {
 	let query = cameraDataRecordBase(db, cameraId, filters);
 	if (filters.limit !== undefined) {
-		query = query
-			.limit(filters.limit)
-			.offset(((filters.page ?? 1) - 1) * filters.limit);
+		query = query.limit(filters.limit).offset(((filters.page ?? 1) - 1) * filters.limit);
 	}
 	return query.execute();
 }
@@ -330,9 +296,7 @@ export function listCameraCaptureEntries(
 		.innerJoin("camera", "camera.id", "camera_data_record.camera_id")
 		.innerJoin("device", "device.id", "camera.device_id")
 		.select([
-			...captureColumns.map(
-				(column) => `camera_capture_data.${column}` as const,
-			),
+			...captureColumns.map((column) => `camera_capture_data.${column}` as const),
 			"camera_data_record.date",
 			"camera_data_record.camera_id",
 			"camera.device_id",
@@ -341,19 +305,14 @@ export function listCameraCaptureEntries(
 		.where("camera_data_record.camera_id", "=", cameraId)
 		.where("camera.archived", "is", null)
 		.where("device.archived", "is", null);
-	if (filters.from)
-		query = query.where("camera_data_record.date", ">=", filters.from);
-	if (filters.to)
-		query = query.where("camera_data_record.date", "<=", filters.to);
-	if (filters.taggedOnly)
-		query = query.where("camera_capture_data.is_tagged", "=", true);
+	if (filters.from) query = query.where("camera_data_record.date", ">=", filters.from);
+	if (filters.to) query = query.where("camera_data_record.date", "<=", filters.to);
+	if (filters.taggedOnly) query = query.where("camera_capture_data.is_tagged", "=", true);
 	query = query
 		.orderBy("camera_data_record.date", "desc")
 		.orderBy("camera_capture_data.id", "desc");
 	if (filters.limit !== undefined)
-		query = query
-			.limit(filters.limit)
-			.offset(((filters.page ?? 1) - 1) * filters.limit);
+		query = query.limit(filters.limit).offset(((filters.page ?? 1) - 1) * filters.limit);
 	return query.execute();
 }
 
@@ -372,9 +331,7 @@ export function findCaptureEntryByPath(
 		.innerJoin("camera", "camera.id", "camera_data_record.camera_id")
 		.innerJoin("device", "device.id", "camera.device_id")
 		.select([
-			...captureColumns.map(
-				(column) => `camera_capture_data.${column}` as const,
-			),
+			...captureColumns.map((column) => `camera_capture_data.${column}` as const),
 			"camera_data_record.date",
 			"camera_data_record.camera_id",
 			"camera.device_id",

@@ -265,7 +265,12 @@ test("POST /v1/invites/accept creates a user from an invite", async () => {
 
 	expect(res.statusCode).toBe(201);
 	expect(
-		res.json<{ email: string; client_id: number | null; role_id: number | null; phone_number: string }>(),
+		res.json<{
+			email: string;
+			client_id: number | null;
+			role_id: number | null;
+			phone_number: string;
+		}>(),
 	).toEqual(
 		expect.objectContaining({
 			email: "accepted-invite-user@example.com",
@@ -289,7 +294,7 @@ test("POST /v1/invites/accept rejects an email that already exists", async () =>
 		},
 	});
 
-    expect(res.statusCode).toBe(409);
+	expect(res.statusCode).toBe(409);
 });
 
 test("GET /v1/invites/accepted lets admins see accepted invites for all clients", async () => {
@@ -353,8 +358,10 @@ test("DELETE /v1/invites/:id soft-deletes an accepted invite", async () => {
 		headers: { cookie: cityManager.cookie },
 	});
 
-    expect(res.statusCode).toBe(200);
-    expect(res.json<InviteBody>()).toEqual(expect.objectContaining({ id: cityInviteId, token: null, client_id: 2 }));
+	expect(res.statusCode).toBe(200);
+	expect(res.json<InviteBody>()).toEqual(
+		expect.objectContaining({ id: cityInviteId, token: null, client_id: 2 }),
+	);
 });
 
 test("DELETE /v1/invites/:id hides another client's invite from a client manager", async () => {

@@ -15,6 +15,8 @@ const configSchema = Type.Object({
 	AWS_REGION_OVERRIDE: Type.Optional(Type.String({ minLength: 1 })),
 	AWS_ACCESS_KEY_ID_OVERRIDE: Type.Optional(Type.String({ minLength: 1 })),
 	AWS_SECRET_ACCESS_KEY_OVERRIDE: Type.Optional(Type.String({ minLength: 1 })),
+	DB_POOL_MAX: Type.Number({ default: 10, minimum: 1, maximum: 100 }),
+	DB_POOL_IDLE_TIMEOUT_MS: Type.Number({ default: 30_000, minimum: 1_000 }),
 	PORT: Type.Number({ default: 8000 }),
 	LOG_LEVEL: Type.Union(
 		[
@@ -48,7 +50,7 @@ const configSchema = Type.Object({
 	MICROSOFT_CLIENT_ID: Type.Optional(Type.String({ minLength: 1 })),
 	MICROSOFT_CLIENT_SECRET: Type.Optional(Type.String({ minLength: 1 })),
 	MICROSOFT_TENANT_ID: Type.Optional(Type.String({ minLength: 1 })),
-    RAINBOW_API_TOKEN: Type.Optional(Type.String({ minLength: 1 })),
+	RAINBOW_API_TOKEN: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export type AppConfig = Static<typeof configSchema>;

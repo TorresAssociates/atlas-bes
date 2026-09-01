@@ -208,7 +208,11 @@ test("PATCH /v1/assets/:id updates a same-client asset", async () => {
 
 	expect(res.statusCode).toBe(200);
 	expect(res.json<AssetBody>()).toEqual(
-		expect.objectContaining({ id: createdAssetId, serial_number: "client-created-updated", cost: null }),
+		expect.objectContaining({
+			id: createdAssetId,
+			serial_number: "client-created-updated",
+			cost: null,
+		}),
 	);
 });
 
@@ -231,6 +235,8 @@ test("DELETE /v1/assets/:id removes a same-client asset", async () => {
 	});
 
 	expect(res.statusCode).toBe(204);
-	const deleted = await db.pool.query<{ id: number }>(`SELECT id FROM asset WHERE id = $1`, [createdAssetId]);
+	const deleted = await db.pool.query<{ id: number }>(`SELECT id FROM asset WHERE id = $1`, [
+		createdAssetId,
+	]);
 	expect(deleted.rows).toEqual([]);
 });

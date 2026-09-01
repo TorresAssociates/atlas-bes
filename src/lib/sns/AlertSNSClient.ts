@@ -6,15 +6,11 @@ import {
 	PublishCommand,
 	SNSClient,
 	SubscribeCommand,
-	UnsubscribeCommand,
 	type Subscription,
 	type Topic,
+	UnsubscribeCommand,
 } from "@aws-sdk/client-sns";
-import {
-	SNSSubscriptionNotFoundError,
-	SNSTopicNotFoundError,
-	SNSUnknownError,
-} from "./errors";
+import { SNSSubscriptionNotFoundError, SNSTopicNotFoundError, SNSUnknownError } from "./errors";
 
 export interface AlertSNSClientOptions {
 	client: SNSClient;
@@ -36,9 +32,7 @@ export class AlertSNSClient {
 	}
 
 	getManualAlertTopicName(clientId?: string | number): string {
-		return clientId === undefined
-			? "manual_alert"
-			: `${clientId}_manual_alert`;
+		return clientId === undefined ? "manual_alert" : `${clientId}_manual_alert`;
 	}
 
 	getAlertMessage(
@@ -46,8 +40,7 @@ export class AlertSNSClient {
 		deviceSerialNumber: string | null,
 		warningDescription: string,
 	): string {
-		const alertTarget =
-			deviceSerialNumber === null ? "" : `(${deviceSerialNumber}) `;
+		const alertTarget = deviceSerialNumber === null ? "" : `(${deviceSerialNumber}) `;
 		return `Alert - ${warningDescription} ${alertTarget}at Gauge ${gaugeName}!`;
 	}
 
@@ -85,13 +78,9 @@ export class AlertSNSClient {
 	}
 
 	async createTopic(topicName: string): Promise<string> {
-		const response = await this.#client.send(
-			new CreateTopicCommand({ Name: topicName }),
-		);
+		const response = await this.#client.send(new CreateTopicCommand({ Name: topicName }));
 		if (!response.TopicArn)
-			throw new SNSUnknownError(
-				new Error("SNS CreateTopic returned no TopicArn"),
-			);
+			throw new SNSUnknownError(new Error("SNS CreateTopic returned no TopicArn"));
 		return response.TopicArn;
 	}
 
@@ -99,16 +88,12 @@ export class AlertSNSClient {
 		try {
 			return await this.getTopicArn(topicName);
 		} catch (err) {
-			if (err instanceof SNSTopicNotFoundError)
-				return this.createTopic(topicName);
+			if (err instanceof SNSTopicNotFoundError) return this.createTopic(topicName);
 			throw err;
 		}
 	}
 
-	async subscribeSms(
-		phoneNumber: string,
-		topic: string,
-	): Promise<string | null> {
+	async subscribeSms(phoneNumber: string, topic: string): Promise<string | null> {
 		const topicArn = await this.getOrCreateTopicArn(topic);
 		const response = await this.#client.send(
 			new SubscribeCommand({
@@ -125,18 +110,14 @@ export class AlertSNSClient {
 	async unsubscribeSms(phoneNumber: string, topic: string): Promise<void> {
 		const endpoint = formatSmsPhoneNumber(phoneNumber);
 		const subscriptions = await this.getSubscriptionsToTopic(topic);
-		const subscription = subscriptions.find(
-			(candidate) => candidate.Endpoint === endpoint,
-		);
+		const subscription = subscriptions.find((candidate) => candidate.Endpoint === endpoint);
 		const subscriptionArn = subscription?.SubscriptionArn;
 
 		if (!subscriptionArn || subscriptionArn === "PendingConfirmation") {
 			throw new SNSSubscriptionNotFoundError(endpoint, topic);
 		}
 
-		await this.#client.send(
-			new UnsubscribeCommand({ SubscriptionArn: subscriptionArn }),
-		);
+		await this.#client.send(new UnsubscribeCommand({ SubscriptionArn: subscriptionArn }));
 	}
 
 	async getSubscriptionsToTopic(topic: string): Promise<Subscription[]> {
@@ -161,9 +142,7 @@ export class AlertSNSClient {
 	async deleteTopic(topic: string): Promise<void> {
 		try {
 			const topicArn = await this.getTopicArn(topic);
-			await this.#client.send(
-				new DeleteTopicCommand({ TopicArn: topicArn }),
-			);
+			await this.#client.send(new DeleteTopicCommand({ TopicArn: topicArn }));
 		} catch (err) {
 			if (err instanceof SNSTopicNotFoundError) return;
 			throw new SNSUnknownError(err);
@@ -182,10 +161,7 @@ export class AlertSNSClient {
 		}
 	}
 
-	async sendMessage(
-		topic: string,
-		message: string,
-	): Promise<string | undefined> {
+	async sendMessage(topic: string, message: string): Promise<string | undefined> {
 		try {
 			const topicArn = await this.getTopicArn(topic);
 			const response = await this.#client.send(

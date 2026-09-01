@@ -1,23 +1,30 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyRequest } from "fastify";
-import { hasPermission, requirePermission } from "@/plugins/authorization";
-import { getSession } from "../auth/service";
+import {
+	getRequestSession,
+	hasPermission,
+	listRequestPermissions,
+	requirePermission,
+} from "@/plugins/authorization";
 import {
 	CameraCaptureListResponseSchema,
 	CameraCaptureRequestBodySchema,
+	CameraConfigBodySchema,
 	CameraDataListResponseSchema,
 	CameraDeviceParamsSchema,
+	CameraImageMetadataQuerySchema,
 	CameraListResponseSchema,
 	CameraResponseSchema,
-	CameraImageMetadataQuerySchema,
-	CameraConfigBodySchema,
 	MqtxStatusResponseSchema,
 } from "./schemas";
 import {
 	CameraBadRequestError,
 	CameraCaptureNotFoundError,
+	type CameraConfigInput,
 	CameraMqtxRequestFailedError,
 	CameraNotFoundError,
+	type CameraQueryFilters,
+	type CaptureRequestInput,
 	getCamera,
 	getCameraCaptureByPath,
 	listCameraCaptures,
@@ -26,27 +33,18 @@ import {
 	requestCameraCapture,
 	requestLegacyCameraCapture,
 	updateCameraConfig,
-	type CameraConfigInput,
-	type CameraQueryFilters,
-	type CaptureRequestInput,
 } from "./service";
 
 const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
-		if (!app.db)
-			throw app.httpErrors.serviceUnavailable(
-				"database is not configured",
-			);
+		if (!app.db) throw app.httpErrors.serviceUnavailable("database is not configured");
 		return app.db;
 	};
 
 	app.setErrorHandler((err, _request, reply) => {
-		if (err instanceof CameraNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof CameraCaptureNotFoundError)
-			return reply.forbidden(err.message);
-		if (err instanceof CameraBadRequestError)
-			return reply.badRequest(err.message);
+		if (err instanceof CameraNotFoundError) return reply.notFound(err.message);
+		if (err instanceof CameraCaptureNotFoundError) return reply.forbidden(err.message);
+		if (err instanceof CameraBadRequestError) return reply.badRequest(err.message);
 		if (err instanceof CameraMqtxRequestFailedError) {
 			return reply.code(err.statusCode).send({
 				statusCode: err.statusCode,
@@ -58,9 +56,8 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	});
 
 	async function sessionFor(request: FastifyRequest) {
-		const session = await getSession(request);
-		if (!session)
-			throw app.httpErrors.unauthorized("authentication required");
+		const session = await getRequestSession(request);
+		if (!session) throw app.httpErrors.unauthorized("authentication required");
 		return session;
 	}
 
@@ -69,14 +66,8 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		return {
 			from: typeof q.from === "string" ? q.from : undefined,
 			to: typeof q.to === "string" ? q.to : undefined,
-			limit:
-				typeof q.limit === "string" || typeof q.limit === "number"
-					? q.limit
-					: undefined,
-			page:
-				typeof q.page === "string" || typeof q.page === "number"
-					? q.page
-					: undefined,
+			limit: typeof q.limit === "string" || typeof q.limit === "number" ? q.limit : undefined,
+			page: typeof q.page === "string" || typeof q.page === "number" ? q.page : undefined,
 			taggedOnly: q.taggedOnly !== undefined,
 		};
 	}
@@ -85,10 +76,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_CONTROL_PANEL",
-				"R_EXTERNAL_CONTROL_PANEL",
-			),
+			preHandler: requirePermission("R_CLIENT_CONTROL_PANEL", "R_EXTERNAL_CONTROL_PANEL"),
 			schema: {
 				tags: ["cameras"],
 				response: { 200: CameraListResponseSchema },
@@ -97,20 +85,14 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		async (request) => {
 			const session = await sessionFor(request);
 			const query = request.query as Record<string, string | undefined>;
-			const canReadExternal = await hasPermission(
-				request,
-				"R_EXTERNAL_CONTROL_PANEL",
-			);
+			const canReadExternal = await hasPermission(request, "R_EXTERNAL_CONTROL_PANEL");
 			return {
 				data: await listCameras(
 					getDb(),
 					session,
 					{ canReadExternal },
 					{
-						gaugeId:
-							query.gaugeId === undefined
-								? undefined
-								: Number(query.gaugeId),
+						gaugeId: query.gaugeId === undefined ? undefined : Number(query.gaugeId),
 						clientId:
 							canReadExternal && query.clientId !== undefined
 								? Number(query.clientId)
@@ -125,10 +107,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/:deviceId",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_CONTROL_PANEL",
-				"R_EXTERNAL_CONTROL_PANEL",
-			),
+			preHandler: requirePermission("R_CLIENT_CONTROL_PANEL", "R_EXTERNAL_CONTROL_PANEL"),
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
@@ -138,10 +117,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		async (request) => {
 			const session = await sessionFor(request);
 			const params = request.params as { deviceId: string };
-			const canReadExternal = await hasPermission(
-				request,
-				"R_EXTERNAL_CONTROL_PANEL",
-			);
+			const canReadExternal = await hasPermission(request, "R_EXTERNAL_CONTROL_PANEL");
 			return getCamera(getDb(), params.deviceId, session, {
 				canReadExternal,
 			});
@@ -152,10 +128,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/:deviceId/data",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
@@ -165,10 +138,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		async (request) => {
 			const session = await sessionFor(request);
 			const params = request.params as { deviceId: string };
-			const canReadExternal = await hasPermission(
-				request,
-				"R_EXTERNAL_DEVICES",
-			);
+			const canReadExternal = await hasPermission(request, "R_EXTERNAL_DEVICES");
 			return {
 				data: await listCameraDataRecords(
 					getDb(),
@@ -184,10 +154,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	async function listImages(request: FastifyRequest) {
 		const session = await sessionFor(request);
 		const params = request.params as { deviceId: string };
-		const canReadExternal = await hasPermission(
-			request,
-			"R_EXTERNAL_DEVICES",
-		);
+		const canReadExternal = await hasPermission(request, "R_EXTERNAL_DEVICES");
 		return {
 			data: await listCameraCaptures(
 				getDb(),
@@ -203,10 +170,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/:deviceId/images",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
@@ -220,10 +184,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/:deviceId/3.1/images",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
@@ -237,31 +198,18 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		const session = await sessionFor(request);
 		const params = request.params as { deviceId: string };
 		const query = request.query as { path?: string };
-		if (!query.path)
-			throw app.httpErrors.badRequest(
-				"Missing required 'path' query param",
-			);
-		const canReadExternal = await hasPermission(
-			request,
-			"R_EXTERNAL_DEVICES",
-		);
-		return getCameraCaptureByPath(
-			getDb(),
-			params.deviceId,
-			query.path,
-			session,
-			{ canReadExternal },
-		);
+		if (!query.path) throw app.httpErrors.badRequest("Missing required 'path' query param");
+		const canReadExternal = await hasPermission(request, "R_EXTERNAL_DEVICES");
+		return getCameraCaptureByPath(getDb(), params.deviceId, query.path, session, {
+			canReadExternal,
+		});
 	}
 
 	// GET /v1/cameras/:deviceId/images/signed?path=stored/path.jpg
 	app.get(
 		"/:deviceId/images/signed",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
@@ -278,10 +226,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.get(
 		"/:deviceId/3.1/images/signed",
 		{
-			preHandler: requirePermission(
-				"R_CLIENT_DEVICES",
-				"R_EXTERNAL_DEVICES",
-			),
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
@@ -298,10 +243,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/:deviceId/images",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_CONTROL_PANEL",
-				"W_EXTERNAL_CONTROL_PANEL",
-			),
+			preHandler: requirePermission("W_CLIENT_CONTROL_PANEL", "W_EXTERNAL_CONTROL_PANEL"),
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
@@ -311,17 +253,10 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		async (request) => {
 			const session = await sessionFor(request);
 			const params = request.params as { deviceId: string };
-			const canWriteExternal = await hasPermission(
-				request,
-				"W_EXTERNAL_CONTROL_PANEL",
-			);
-			return requestLegacyCameraCapture(
-				getDb(),
-				app.mqtx,
-				params.deviceId,
-				session,
-				{ canWriteExternal },
-			);
+			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_CONTROL_PANEL");
+			return requestLegacyCameraCapture(getDb(), app.mqtx, params.deviceId, session, {
+				canWriteExternal,
+			});
 		},
 	);
 
@@ -329,10 +264,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.post(
 		"/:deviceId/3.1/capture",
 		{
-			preHandler: requirePermission(
-				"W_CLIENT_CONTROL_PANEL",
-				"W_EXTERNAL_CONTROL_PANEL",
-			),
+			preHandler: requirePermission("W_CLIENT_CONTROL_PANEL", "W_EXTERNAL_CONTROL_PANEL"),
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
@@ -343,10 +275,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		async (request) => {
 			const session = await sessionFor(request);
 			const params = request.params as { deviceId: string };
-			const canWriteExternal = await hasPermission(
-				request,
-				"W_EXTERNAL_CONTROL_PANEL",
-			);
+			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_CONTROL_PANEL");
 			return requestCameraCapture(
 				getDb(),
 				app.mqtx,
@@ -378,9 +307,10 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		async (request) => {
 			const session = await sessionFor(request);
 			const params = request.params as { deviceId: string };
+			const permissions = await listRequestPermissions(request);
 			const canWriteExternal =
-				(await hasPermission(request, "W_EXTERNAL_CONTROL_PANEL")) ||
-				(await hasPermission(request, "W_EXTERNAL_DEVICES"));
+				permissions.includes("W_EXTERNAL_CONTROL_PANEL") ||
+				permissions.includes("W_EXTERNAL_DEVICES");
 			return updateCameraConfig(
 				getDb(),
 				app.mqtx,

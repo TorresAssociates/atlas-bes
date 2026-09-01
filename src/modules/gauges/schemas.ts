@@ -70,41 +70,6 @@ export const GaugeFeatureCollectionSchema = Type.Object({
 	features: Type.Array(GaugeFeatureSchema),
 });
 
-// Live-status feed for GET /v1/gauges/status — volatile per-gauge values the
-// map markers poll, joined to the geojson features by `id`. Nullable fields
-// mean "no data": no computable risk, no connectivity report, no sensor.
-export const GaugeStatusSchema = Type.Object({
-	id: Type.Integer(),
-	riskLevel: Nullable(Type.Number()),
-	connected: Nullable(Type.Boolean()),
-	waterLevel: Nullable(Type.Number()),
-	waterLevelDate: Nullable(Type.String({ format: "date-time" })),
-	rainfall: Nullable(Type.Number()),
-	rainfallAccumulation: Nullable(Type.Number()),
-});
-
-export const GaugeStatusListSchema = Type.Object({
-	data: Type.Array(GaugeStatusSchema),
-});
-
-// rainfallWindow is trailing hours of rainfall accumulation, bounded to the
-// presets the map exposes so arbitrary measurement_record scans can't be
-// requested. Defaults to 3 in the service.
-export const GaugeStatusQuerySchema = Type.Partial(
-	Type.Object({
-		cityId: Type.Integer({ minimum: 1 }),
-		includeArchived: Type.Boolean(),
-		active: Type.Boolean(),
-		rainfallWindow: Type.Union([
-			Type.Literal(1),
-			Type.Literal(3),
-			Type.Literal(6),
-			Type.Literal(12),
-			Type.Literal(24),
-		]),
-	}),
-);
-
 export const GaugeIdParamsSchema = Type.Object({
 	id: Type.Integer({ minimum: 1 }),
 });

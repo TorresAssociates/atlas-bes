@@ -80,7 +80,11 @@ export class AssetSerialNumberConflictError extends Error {
 }
 
 function isUniqueViolation(error: unknown): boolean {
-	return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "23505";
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		(error as { code?: unknown }).code === "23505"
+	);
 }
 
 function toIso(value: Date | string): string {
@@ -134,7 +138,8 @@ async function findVisibleAsset(
 	session: SessionSubject,
 	access: AssetReadAccess | AssetWriteAccess,
 ): Promise<AssetRow> {
-	const canAccessExternal = "canReadExternal" in access ? access.canReadExternal : access.canWriteExternal;
+	const canAccessExternal =
+		"canReadExternal" in access ? access.canReadExternal : access.canWriteExternal;
 	const asset = canAccessExternal
 		? await queries.findAssetById(db, id)
 		: await queries.findAssetByIdForClient(db, id, session.client_id);
@@ -147,7 +152,9 @@ export async function listAssets(
 	session: SessionSubject,
 	access: AssetReadAccess,
 ): Promise<AssetResponse[]> {
-	const rows = access.canReadExternal ? await queries.listAssets(db) : await queries.listAssetsForClient(db, session.client_id);
+	const rows = access.canReadExternal
+		? await queries.listAssets(db)
+		: await queries.listAssetsForClient(db, session.client_id);
 	return rows.map(toAssetResponse);
 }
 
@@ -166,7 +173,8 @@ export async function createAsset(
 	access: AssetWriteAccess,
 	input: CreateAssetInput,
 ): Promise<AssetResponse> {
-	await ensureAssetTypeAccess(db, session, access, input.asset_type_id);
+	await ensureAssetTypeAccess(db, session, access, input.asset_type_id);
+
 	await ensureGaugeStationAccess(db, session, access, input.gauge_station_id);
 
 	try {
@@ -178,7 +186,9 @@ export async function createAsset(
 				...(input.cost === undefined ? {} : { cost: input.cost }),
 				...(input.deploy_date === undefined ? {} : { deploy_date: input.deploy_date }),
 				...(input.eos_date === undefined ? {} : { eos_date: input.eos_date }),
-				...(input.serial_number === undefined ? {} : { serial_number: input.serial_number }),
+				...(input.serial_number === undefined
+					? {}
+					: { serial_number: input.serial_number }),
 			}),
 		);
 	} catch (error) {
@@ -195,8 +205,10 @@ export async function updateAsset(
 	input: UpdateAssetInput,
 ): Promise<AssetResponse> {
 	await findVisibleAsset(db, id, session, access);
-	if (input.asset_type_id !== undefined) await ensureAssetTypeAccess(db, session, access, input.asset_type_id);
-	if (input.gauge_station_id !== undefined) await ensureGaugeStationAccess(db, session, access, input.gauge_station_id);
+	if (input.asset_type_id !== undefined)
+		await ensureAssetTypeAccess(db, session, access, input.asset_type_id);
+	if (input.gauge_station_id !== undefined)
+		await ensureGaugeStationAccess(db, session, access, input.gauge_station_id);
 
 	try {
 		const updated = await queries.updateAsset(db, id, input);

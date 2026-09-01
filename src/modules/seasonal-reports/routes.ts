@@ -1,9 +1,8 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { Type } from "@sinclair/typebox";
 import type { FastifyRequest } from "fastify";
-import { hasPermission, requirePermission } from "@/plugins/authorization";
+import { getRequestSession, hasPermission, requirePermission } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	CreateSeasonalReportAnswerBodySchema,
 	CreateSeasonalReportBodySchema,
@@ -66,7 +65,7 @@ const seasonalReportRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	});
 
 	async function sessionFor(request: FastifyRequest) {
-		const session = await getSession(request);
+		const session = await getRequestSession(request);
 		if (!session) throw app.httpErrors.unauthorized("authentication required");
 		return session;
 	}

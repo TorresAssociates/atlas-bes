@@ -1,22 +1,19 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { Json } from "@/db/types";
-import { requireSession } from "@/plugins/authorization";
+import { getRequestSession, requireSession } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import { PreferenceSchema, UpdatePreferenceBodySchema } from "./schemas";
 import {
 	getOwnPreferences,
 	PreferenceNotFoundError,
-	updateOwnPreferences,
 	type UpdatePreferenceInput,
+	updateOwnPreferences,
 } from "./service";
 
 const preferenceRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
 		if (!app.db) {
-			throw app.httpErrors.serviceUnavailable(
-				"database is not configured",
-			);
+			throw app.httpErrors.serviceUnavailable("database is not configured");
 		}
 
 		return app.db;
@@ -49,7 +46,7 @@ const preferenceRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
@@ -74,7 +71,7 @@ const preferenceRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}

@@ -4,8 +4,7 @@ import pg from "pg";
 import { Wait } from "testcontainers";
 
 const REPO_ROOT = join(import.meta.dir, "../..");
-const DEFAULT_WINDOWS_TEST_DATABASE_URL =
-	"postgres://postgres:dev@localhost:5432/atlas_test";
+const DEFAULT_WINDOWS_TEST_DATABASE_URL = "postgres://postgres:dev@localhost:5432/atlas_test";
 let localDatabaseCounter = 0;
 
 export interface TestDatabase {
@@ -18,9 +17,7 @@ function databaseNameFrom(connectionUri: string): string {
 	const url = new URL(connectionUri);
 	const databaseName = url.pathname.replace(/^\//, "");
 	if (!/^[a-zA-Z0-9_]+$/.test(databaseName)) {
-		throw new Error(
-			`test database name ${JSON.stringify(databaseName)} is not safe to create`,
-		);
+		throw new Error(`test database name ${JSON.stringify(databaseName)} is not safe to create`);
 	}
 	return databaseName;
 }
@@ -47,10 +44,9 @@ async function ensureDatabaseExists(connectionUri: string): Promise<void> {
 	});
 
 	try {
-		const existing = await adminPool.query(
-			"SELECT 1 FROM pg_database WHERE datname = $1",
-			[databaseName],
-		);
+		const existing = await adminPool.query("SELECT 1 FROM pg_database WHERE datname = $1", [
+			databaseName,
+		]);
 		if (existing.rowCount === 0) {
 			await adminPool.query(`CREATE DATABASE ${databaseName}`);
 		}
@@ -80,12 +76,8 @@ async function dropDatabase(connectionUri: string): Promise<void> {
 async function applySchemaAndSeed(pool: pg.Pool): Promise<void> {
 	// pg runs multi-statement strings via the simple query protocol, so each
 	// file can be applied in one call.
-	await pool.query(
-		await Bun.file(join(REPO_ROOT, "db/local/schema.sql")).text(),
-	);
-	await pool.query(
-		await Bun.file(join(REPO_ROOT, "db/local/seed.sql")).text(),
-	);
+	await pool.query(await Bun.file(join(REPO_ROOT, "db/local/schema.sql")).text());
+	await pool.query(await Bun.file(join(REPO_ROOT, "db/local/seed.sql")).text());
 }
 
 function getLocalTestDatabaseUrl(): string | undefined {
@@ -93,15 +85,12 @@ function getLocalTestDatabaseUrl(): string | undefined {
 
 	// Bun + Testcontainers can fail Docker Desktop named-pipe discovery on Windows.
 	// Use the local compose Postgres instead, isolated in per-test databases.
-	if (process.platform === "win32")
-		return uniqueDatabaseUrl(DEFAULT_WINDOWS_TEST_DATABASE_URL);
+	if (process.platform === "win32") return uniqueDatabaseUrl(DEFAULT_WINDOWS_TEST_DATABASE_URL);
 
 	return undefined;
 }
 
-async function startLocalTestDatabase(
-	connectionUri: string,
-): Promise<TestDatabase> {
+async function startLocalTestDatabase(connectionUri: string): Promise<TestDatabase> {
 	await ensureDatabaseExists(connectionUri);
 
 	const pool = new pg.Pool({ connectionString: connectionUri, max: 10 });
@@ -112,8 +101,7 @@ async function startLocalTestDatabase(
 		connectionUri,
 		stop: async () => {
 			await pool.end();
-			if (!process.env.TEST_DATABASE_URL)
-				await dropDatabase(connectionUri);
+			if (!process.env.TEST_DATABASE_URL) await dropDatabase(connectionUri);
 		},
 	};
 }
@@ -124,12 +112,7 @@ async function startContainerTestDatabase(): Promise<TestDatabase> {
 	// stream never closes, so start() hangs forever. The message appears twice
 	// (initdb restart, then the real boot) - wait for the second.
 	const container = await new PostgreSqlContainer("postgres:16")
-		.withWaitStrategy(
-			Wait.forLogMessage(
-				/database system is ready to accept connections/,
-				2,
-			),
-		)
+		.withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
 		.start();
 	const connectionUri = container.getConnectionUri();
 	const pool = new pg.Pool({ connectionString: connectionUri, max: 10 });
@@ -163,8 +146,7 @@ export async function startTestDatabase(): Promise<TestDatabase> {
  * real config still need every required variable present.
  */
 export function stubConfigEnv(): void {
-	process.env.DATABASE_URL ??=
-		"postgres://unused:unused@localhost:5432/unused";
+	process.env.DATABASE_URL ??= "postgres://unused:unused@localhost:5432/unused";
 	process.env.S3_ASSETS_BUCKET ??= "test-bucket";
 	process.env.BETTER_AUTH_SECRET ??= "test-secret";
 	process.env.ENCRYPTION_KEY ??= "test-encryption-key";

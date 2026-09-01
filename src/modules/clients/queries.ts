@@ -40,7 +40,11 @@ export async function softDeleteClientById(db: Kysely<DB>, id: number) {
 
 		if (!deleted) return undefined;
 
-		await trx.updateTable("invite").set({ client_id: null }).where("client_id", "=", id).execute();
+		await trx
+			.updateTable("invite")
+			.set({ client_id: null })
+			.where("client_id", "=", id)
+			.execute();
 		return deleted;
 	});
 }

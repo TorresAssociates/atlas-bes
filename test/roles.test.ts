@@ -52,7 +52,7 @@ interface RoleBody {
 	id: number;
 	name: string;
 	client_id: number;
-    deleted_at: string | null;
+	deleted_at: string | null;
 	permissions: Array<{ id: number; name: string; assign_role: boolean }>;
 }
 

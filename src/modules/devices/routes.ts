@@ -1,8 +1,12 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyRequest } from "fastify";
-import { hasPermission, requirePermission } from "@/plugins/authorization";
+import {
+	getRequestSession,
+	hasPermission,
+	listRequestPermissions,
+	requirePermission,
+} from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	DeviceDetailQuerySchema,
 	DeviceDetailSchema,
@@ -29,9 +33,9 @@ const deviceRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	// Viewing inactive devices requires the write permission matching the read
 	// scope (W_EXTERNAL_DEVICES for external readers, W_CLIENT_DEVICES otherwise).
 	const readAccess = async (request: FastifyRequest) => {
-		const canReadExternal = await hasPermission(request, "R_EXTERNAL_DEVICES");
-		const canViewInactive = await hasPermission(
-			request,
+		const permissions = await listRequestPermissions(request);
+		const canReadExternal = permissions.includes("R_EXTERNAL_DEVICES");
+		const canViewInactive = permissions.includes(
 			canReadExternal ? "W_EXTERNAL_DEVICES" : "W_CLIENT_DEVICES",
 		);
 		return { canReadExternal, canViewInactive };
@@ -60,7 +64,7 @@ const deviceRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			return {
@@ -87,7 +91,7 @@ const deviceRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			return getDevice(
@@ -121,7 +125,7 @@ const deviceRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_DEVICES");

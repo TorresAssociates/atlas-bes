@@ -1,12 +1,12 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import {
+	getRequestSession,
 	hasPermission,
 	listRequestPermissions,
 	requirePermission,
 	requireSession,
 } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	UserIdParamsSchema,
 	UserListSchema,
@@ -68,19 +68,14 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
 
 			const permissions = await listRequestPermissions(request);
 
-			return getMe(
-				getDb(),
-				app.config.ENCRYPTION_KEY,
-				session,
-				permissions,
-			);
+			return getMe(getDb(), app.config.ENCRYPTION_KEY, session, permissions);
 		},
 	);
 
@@ -101,7 +96,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
@@ -130,7 +125,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
@@ -163,7 +158,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
@@ -195,7 +190,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
@@ -228,7 +223,7 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}

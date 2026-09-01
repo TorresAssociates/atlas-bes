@@ -1,4 +1,4 @@
-import { sql, type Insertable, type Kysely, type Selectable } from "kysely";
+import { type Insertable, type Kysely, type Selectable, sql } from "kysely";
 import type { DB, Json } from "@/db/types";
 import type { UpdatePreferenceInput } from "./service";
 

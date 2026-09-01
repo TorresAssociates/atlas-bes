@@ -105,7 +105,11 @@ export async function updateAssetType(
 		: await queries.findAssetTypeByIdForClient(db, id, session.client_id);
 	if (!current) throw new AssetTypeNotFoundError(id);
 
-	if (!access.canWriteExternal && input.owner_client_id !== undefined && input.owner_client_id !== session.client_id) {
+	if (
+		!access.canWriteExternal &&
+		input.owner_client_id !== undefined &&
+		input.owner_client_id !== session.client_id
+	) {
 		throw new AssetTypeAccessDeniedError();
 	}
 

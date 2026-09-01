@@ -1,5 +1,5 @@
-import type { DB } from "@/db/types";
 import type { Kysely, Selectable } from "kysely";
+import type { DB } from "@/db/types";
 
 export type ChannelRow = Selectable<DB["channel"]>;
 export type ChannelConfigRow = Selectable<DB["channel_config"]>;
@@ -8,9 +8,7 @@ export type ChannelConfigInternalPowerSensorRow = Selectable<
 	DB["channel_config_internal_power_sensor"]
 >;
 export type ChannelConfigSdi12Row = Selectable<DB["channel_config_sdi12"]>;
-export type ChannelConfigAccumulationRow = Selectable<
-	DB["channel_config_accumulation"]
->;
+export type ChannelConfigAccumulationRow = Selectable<DB["channel_config_accumulation"]>;
 export type ChannelConfigTiltRow = Selectable<DB["channel_config_tilt"]>;
 
 const channelColumns = [
@@ -33,13 +31,7 @@ const channelConfigColumns = [
 	"introduced",
 	"archived",
 ] as const;
-const displayColumns = [
-	"id",
-	"channel_id",
-	"display_index",
-	"introduced",
-	"archived",
-] as const;
+const displayColumns = ["id", "channel_id", "display_index", "introduced", "archived"] as const;
 const internalPowerSensorColumns = [
 	"id",
 	"channel_id",
@@ -78,11 +70,7 @@ function scopedDeviceQuery(db: Kysely<DB>, clientId: number) {
 	return db
 		.selectFrom("device")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"device_info.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.innerJoin(
 			"client_gauge_station",
 			"client_gauge_station.gauge_station_id",
@@ -112,9 +100,7 @@ export function findDeviceByIdForClient(
 	deviceId: number,
 	clientId: number,
 ): Promise<{ id: number } | undefined> {
-	return scopedDeviceQuery(db, clientId)
-		.where("device.id", "=", deviceId)
-		.executeTakeFirst();
+	return scopedDeviceQuery(db, clientId).where("device.id", "=", deviceId).executeTakeFirst();
 }
 
 export function listChannels(db: Kysely<DB>): Promise<ChannelRow[]> {
@@ -137,7 +123,11 @@ export function listChannelsForClient(db: Kysely<DB>, clientId: number): Promise
 		.innerJoin("device", "device.id", "channel.device_id")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
 		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
-		.innerJoin("client_gauge_station", "client_gauge_station.gauge_station_id", "gauge_station.id")
+		.innerJoin(
+			"client_gauge_station",
+			"client_gauge_station.gauge_station_id",
+			"gauge_station.id",
+		)
 		.select(channelColumns)
 		.distinct()
 		.where("channel.archived", "is", null)
@@ -150,10 +140,7 @@ export function listChannelsForClient(db: Kysely<DB>, clientId: number): Promise
 		.orderBy("channel.id", "asc")
 		.execute();
 }
-export function listChannelsForDevice(
-	db: Kysely<DB>,
-	deviceId: number,
-): Promise<ChannelRow[]> {
+export function listChannelsForDevice(db: Kysely<DB>, deviceId: number): Promise<ChannelRow[]> {
 	return db
 		.selectFrom("channel")
 		.select(channelColumns)
@@ -185,11 +172,7 @@ export function findChannelByIdForClient(
 		.selectFrom("channel")
 		.innerJoin("device", "device.id", "channel.device_id")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"device_info.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.innerJoin(
 			"client_gauge_station",
 			"client_gauge_station.gauge_station_id",

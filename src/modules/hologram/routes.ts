@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
+import type { HologramSimState } from "@/lib/hologram/HologramClient";
 import { requirePermission } from "@/plugins/authorization";
 import {
 	ActivateSimBodySchema,
@@ -6,15 +7,14 @@ import {
 	HologramStateParamsSchema,
 } from "./schemas";
 import {
-	HologramRequestFailedError,
+	type ActivateSimInput,
 	activateHologramSim,
 	getHologramCosts,
 	getHologramPlan,
-	updateHologramDeviceState,
-	type ActivateSimInput,
 	type HologramCostsInput,
+	HologramRequestFailedError,
+	updateHologramDeviceState,
 } from "./service";
-import type { HologramSimState } from "@/lib/hologram/HologramClient";
 
 const hologramRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.setErrorHandler((err, _request, reply) => {
@@ -49,7 +49,10 @@ const hologramRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			schema: { tags: ["hologram"], body: ActivateSimBodySchema },
 		},
 		async (request, reply) => {
-			const result = await activateHologramSim(app.hologram, request.body as ActivateSimInput);
+			const result = await activateHologramSim(
+				app.hologram,
+				request.body as ActivateSimInput,
+			);
 			return reply.code(200).send(result);
 		},
 	);

@@ -1,7 +1,6 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
 import type { PermissionName } from "@/plugins/authorization";
-import { listUserPermissionNames } from "@/plugins/authorization.queries";
 import { recordUserAuditLog } from "../audit-logs/service";
 import type { SessionSubject } from "../auth/service";
 import type { UserRow } from "./queries";
@@ -157,20 +156,6 @@ export async function getUserByEmail(
 	const user = await queries.findUserByEmail(db, email, encryptionKey);
 	if (!user) throw new UserEmailNotFoundError(email);
 	return toUserResponse(user);
-}
-
-export async function getCurrentUser(
-	db: Kysely<DB>,
-	encryptionKey: string,
-	session: SessionSubject,
-): Promise<CurrentUserResponse> {
-	const user = await queries.findUserById(db, session.user_id, encryptionKey);
-	if (!user) throw new UserNotFoundError(session.user_id);
-
-	return {
-		user: toUserResponse(user),
-		permissions: await listUserPermissionNames(db, session.user_id, session.role_id),
-	};
 }
 
 export async function updateOwnPhoneNumber(

@@ -21,10 +21,7 @@ export class PreferenceNotFoundError extends Error {
 	}
 }
 
-async function ensurePreference(
-	db: Kysely<DB>,
-	userId: string,
-): Promise<PreferenceRow> {
+async function ensurePreference(db: Kysely<DB>, userId: string): Promise<PreferenceRow> {
 	const preference = await queries.findPreferenceByUserId(db, userId);
 	if (preference) return preference;
 

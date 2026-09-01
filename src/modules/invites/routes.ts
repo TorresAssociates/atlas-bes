@@ -1,7 +1,6 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { hasPermission, requirePermission } from "@/plugins/authorization";
+import { getRequestSession, hasPermission, requirePermission } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	AcceptedInviteListSchema,
 	AcceptedInviteUserSchema,
@@ -89,7 +88,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
@@ -122,7 +121,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
@@ -161,7 +160,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}
@@ -190,7 +189,7 @@ const inviteRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) {
 				throw app.httpErrors.unauthorized("authentication required");
 			}

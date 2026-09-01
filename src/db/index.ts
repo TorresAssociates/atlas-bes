@@ -43,14 +43,23 @@ class DBClientPoolAdapter implements DatabasePool {
 	}
 }
 
-// Pool max stays at 10 — a larger pool
-// hides backpressure rather than adding throughput.
-export function createPool(connectionString: string): pg.Pool {
+// Default pool max is 10 — a larger pool mostly hides backpressure rather
+// than adding throughput. Overridable per environment via DB_POOL_MAX
+// (config.poolMax); remember total Aurora connections = tasks × pool max.
+const DEFAULT_POOL_MAX = 10;
+const DEFAULT_POOL_IDLE_TIMEOUT_MS = 30_000;
+
+export function createPool(
+	connectionString: string,
+	max: number = DEFAULT_POOL_MAX,
+	idleTimeoutMillis: number = DEFAULT_POOL_IDLE_TIMEOUT_MS,
+): pg.Pool {
 	return new pg.Pool({
 		connectionString,
-		max: 10,
-		idleTimeoutMillis: 30_000,
+		max,
+		idleTimeoutMillis,
 		connectionTimeoutMillis: 5_000,
+		keepAlive: true,
 	});
 }
 
@@ -60,6 +69,8 @@ export interface DatabaseClientConfig {
 	awsRegionOverride?: string;
 	awsAccessKeyIdOverride?: string;
 	awsSecretAccessKeyOverride?: string;
+	poolMax?: number;
+	poolIdleTimeoutMs?: number;
 }
 
 interface AwsDatabaseCredentialsSecret {
@@ -78,6 +89,8 @@ const RDS_GLOBAL_CA_URL = "https://truststore.pki.rds.amazonaws.com/global/globa
 
 function createConnectionStringClient(
 	connectionString: string,
+	poolMax: number,
+	poolIdleTimeoutMs: number,
 	logger?: ConstructorParameters<typeof DBClient>[1],
 ): DBClient {
 	const dbClient = new DBClient(
@@ -85,9 +98,10 @@ function createConnectionStringClient(
 			defaultConfig: {
 				poolConfig: {
 					connectionString,
-					max: 10,
-					idleTimeoutMillis: 30_000,
+					max: poolMax,
+					idleTimeoutMillis: poolIdleTimeoutMs,
 					connectionTimeoutMillis: 5_000,
+					keepAlive: true,
 					ssl: undefined,
 				},
 			},
@@ -99,6 +113,8 @@ function createConnectionStringClient(
 
 function createAwsSecretClient(
 	config: DatabaseClientConfig,
+	poolMax: number,
+	poolIdleTimeoutMs: number,
 	logger?: ConstructorParameters<typeof DBClient>[1],
 ): DBClient {
 	if (!config.awsSecretIdDbCredentials) {
@@ -154,9 +170,10 @@ function createAwsSecretClient(
 		{
 			defaultConfig: {
 				poolConfig: {
-					max: 10,
-					idleTimeoutMillis: 30_000,
+					max: poolMax,
+					idleTimeoutMillis: poolIdleTimeoutMs,
 					connectionTimeoutMillis: 5_000,
+					keepAlive: true,
 					maxLifetimeSeconds: 604_800,
 				},
 				onSwitchSsl: getCurrentDatabaseSslCa,
@@ -173,9 +190,11 @@ export async function createDatabaseClient(
 	config: DatabaseClientConfig,
 	logger?: ConstructorParameters<typeof DBClient>[1],
 ): Promise<DatabasePool> {
+	const poolMax = config.poolMax ?? DEFAULT_POOL_MAX;
+	const poolIdleTimeoutMs = config.poolIdleTimeoutMs ?? DEFAULT_POOL_IDLE_TIMEOUT_MS;
 	const dbClient = config.awsSecretIdDbCredentials
-		? createAwsSecretClient(config, logger)
-		: createConnectionStringClient(config.connectionString, logger);
+		? createAwsSecretClient(config, poolMax, poolIdleTimeoutMs, logger)
+		: createConnectionStringClient(config.connectionString, poolMax, poolIdleTimeoutMs, logger);
 	await dbClient.init();
 	return new DBClientPoolAdapter(dbClient);
 }
@@ -187,7 +206,18 @@ export async function createDatabaseClient(
 // Deliberately NO CamelCasePlugin: the schema is snake_case and so is the
 // API. There is no case conversion layer anywhere.
 export function createDb(pool: DatabasePool): Kysely<DB> {
-	return new Kysely<DB>({ dialect: new PostgresDialect({ pool: pool as pg.Pool }) });
+	return new Kysely<DB>({
+		dialect: new PostgresDialect({ pool: pool as pg.Pool }),
+		log(event) {
+			if (event.level === "error") {
+				console.error(
+					`[sql] failed: ${event.query.sql}`,
+					event.query.parameters,
+					event.error,
+				);
+			}
+		},
+	});
 }
 
 function pgErrorCode(err: unknown): string | undefined {

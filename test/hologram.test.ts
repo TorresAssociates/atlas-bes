@@ -187,4 +187,3 @@ test("GET /v1/hologram/costs rejects client report readers", async () => {
 
 	expect(res.statusCode).toBe(403);
 });
-

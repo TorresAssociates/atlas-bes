@@ -2,12 +2,12 @@ import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { SNSSubscriptionNotFoundError } from "@/lib/sns/errors";
 import {
-	hasPermission,
+	getRequestSession,
+	listRequestPermissions,
 	requirePermission,
 	requireSession,
 } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	AlertSubscriptionDeleteSchema,
 	AlertSubscriptionListSchema,
@@ -34,14 +34,14 @@ import {
 	deleteGaugeAlertSubscriptions,
 	listDeviceAlertSubscriptions,
 	listGaugeAlertSubscriptions,
+	type SubscribeDeviceAlertInput,
+	type SubscribeGaugeAlertInput,
 	sendTestAlertMessage,
 	subscribeDeviceAlert,
 	subscribeGaugeAlert,
 	subscribeToTestAlertTopic,
-	unsubscribeFromTestAlertTopic,
-	type SubscribeDeviceAlertInput,
-	type SubscribeGaugeAlertInput,
 	type TestAlertSubscriptionInput,
+	unsubscribeFromTestAlertTopic,
 } from "./service";
 
 type AlertSubscriptionParams = { userId: string };
@@ -70,57 +70,42 @@ type TestAlertSubscriptionRequest = FastifyRequest<{
 
 const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
-		if (!app.db)
-			throw app.httpErrors.serviceUnavailable(
-				"database is not configured",
-			);
+		if (!app.db) throw app.httpErrors.serviceUnavailable("database is not configured");
 		return app.db;
 	};
 
 	app.setErrorHandler((err, _request, reply) => {
-		if (err instanceof AlertSubscriptionAccessDeniedError)
-			return reply.forbidden(err.message);
+		if (err instanceof AlertSubscriptionAccessDeniedError) return reply.forbidden(err.message);
 		if (err instanceof AlertSubscriptionTargetUserNotFoundError)
 			return reply.notFound(err.message);
-		if (err instanceof AlertSubscriptionTargetNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof AlertSubscriptionNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof AlertTopicNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof SNSSubscriptionNotFoundError)
-			return reply.notFound(err.message);
+		if (err instanceof AlertSubscriptionTargetNotFoundError) return reply.notFound(err.message);
+		if (err instanceof AlertSubscriptionNotFoundError) return reply.notFound(err.message);
+		if (err instanceof AlertTopicNotFoundError) return reply.notFound(err.message);
+		if (err instanceof SNSSubscriptionNotFoundError) return reply.notFound(err.message);
 		if (err instanceof AlertSubscriptionPhoneNumberRequiredError)
 			return reply.badRequest(err.message);
 		if (err instanceof AlertSubscriptionNotificationTypeUnsupportedError) {
 			return reply.badRequest(err.message);
 		}
-		if (err instanceof AlertSubscriptionInputError)
-			return reply.badRequest(err.message);
+		if (err instanceof AlertSubscriptionInputError) return reply.badRequest(err.message);
 		return reply.send(err);
 	});
 
 	async function subscriptionAccess(request: FastifyRequest) {
+		const permissions = await listRequestPermissions(request);
 		return {
-			canWriteExternalUsers: await hasPermission(
-				request,
-				"W_EXTERNAL_USERS",
-			),
-			canWriteClientUsers: await hasPermission(request, "W_CLIENT_USERS"),
-			canSubscribeSms: await hasPermission(request, "EX_TEXT_SUB"),
-			canSubscribeEmail: await hasPermission(request, "EX_EMAIL_SUB"),
-			canSendClientAlert: await hasPermission(request, "EX_CLIENT_ALERT"),
-			canSendExternalAlert: await hasPermission(
-				request,
-				"EX_EXTERNAL_ALERT",
-			),
+			canWriteExternalUsers: permissions.includes("W_EXTERNAL_USERS"),
+			canWriteClientUsers: permissions.includes("W_CLIENT_USERS"),
+			canSubscribeSms: permissions.includes("EX_TEXT_SUB"),
+			canSubscribeEmail: permissions.includes("EX_EMAIL_SUB"),
+			canSendClientAlert: permissions.includes("EX_CLIENT_ALERT"),
+			canSendExternalAlert: permissions.includes("EX_EXTERNAL_ALERT"),
 		};
 	}
 
 	async function routeContext(request: FastifyRequest) {
-		const session = await getSession(request);
-		if (!session)
-			throw app.httpErrors.unauthorized("authentication required");
+		const session = await getRequestSession(request);
+		if (!session) throw app.httpErrors.unauthorized("authentication required");
 		return {
 			db: getDb(),
 			sns: app.alertSns,
@@ -140,24 +125,16 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		reply: FastifyReply,
 	) => {
 		const context = await routeContext(request);
-		const subscription = await subscribeToTestAlertTopic(
-			context.sns,
-			request.body,
-		);
+		const subscription = await subscribeToTestAlertTopic(context.sns, request.body);
 		return reply.code(201).send(subscription);
 	};
 
-	const testAlertUnsubscribeHandler = async (
-		request: TestAlertSubscriptionRequest,
-	) => {
+	const testAlertUnsubscribeHandler = async (request: TestAlertSubscriptionRequest) => {
 		const context = await routeContext(request);
 		return unsubscribeFromTestAlertTopic(context.sns, request.body);
 	};
 
-	const gaugePostHandler = async (
-		request: GaugeAlertRequest,
-		reply: FastifyReply,
-	) => {
+	const gaugePostHandler = async (request: GaugeAlertRequest, reply: FastifyReply) => {
 		const context = await routeContext(request);
 		const subscription = await subscribeGaugeAlert(
 			context.db,
@@ -171,10 +148,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		return reply.code(201).send(subscription);
 	};
 
-	const devicePostHandler = async (
-		request: DeviceAlertRequest,
-		reply: FastifyReply,
-	) => {
+	const devicePostHandler = async (request: DeviceAlertRequest, reply: FastifyReply) => {
 		const context = await routeContext(request);
 		const subscription = await subscribeDeviceAlert(
 			context.db,

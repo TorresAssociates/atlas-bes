@@ -77,7 +77,10 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 							// Fastify hands the res serializer its Reply (not the raw
 							// ServerResponse), so the originating request's method and
 							// url can ride along on the "request completed" line.
-							res(reply: { statusCode: number; request?: { method: string; url: string } }) {
+							res(reply: {
+								statusCode: number;
+								request?: { method: string; url: string };
+							}) {
 								return {
 									statusCode: reply.statusCode,
 									method: reply.request?.method,
@@ -100,7 +103,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 	// CSP breaks the swagger-ui pages at /docs. Everything else stays on.
 	await app.register(helmet, { contentSecurityPolicy: false });
 	await app.register(cookie);
-	await app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
+	await app.register(rateLimit, { max: 1000, timeWindow: "1 minute" });
 	// maxEventLoopDelay: 0 disables load shedding on purpose — no production
 	// numbers exist yet, and an uncalibrated threshold either sheds traffic
 	// that could have been served or never fires at all. Registering the plugin
@@ -129,6 +132,8 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 					awsRegionOverride: app.config.AWS_REGION_OVERRIDE,
 					awsAccessKeyIdOverride: app.config.AWS_ACCESS_KEY_ID_OVERRIDE,
 					awsSecretAccessKeyOverride: app.config.AWS_SECRET_ACCESS_KEY_OVERRIDE,
+					poolMax: app.config.DB_POOL_MAX,
+					poolIdleTimeoutMs: app.config.DB_POOL_IDLE_TIMEOUT_MS,
 				});
 	const pool = opts.pool ?? createdPool;
 	app.decorate("pool", pool);
@@ -163,9 +168,13 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 				region: app.config.AWS_REGION,
 			}),
 	);
-	app.decorate("rainbow", opts.rainbow ?? createRainbowClient({
-		apiToken: app.config.RAINBOW_API_TOKEN,
-	}));
+	app.decorate(
+		"rainbow",
+		opts.rainbow ??
+			createRainbowClient({
+				apiToken: app.config.RAINBOW_API_TOKEN,
+			}),
+	);
 	if (createdPool) {
 		app.addHook("onClose", async (instance) => {
 			instance.log.info("shutdown: closing database pool");

@@ -253,7 +253,11 @@ test("POST /v1/audit-logs/users scopes client writers to targets in their own cl
 		body: { action: "UPDATE_USER", target_id: manager.id },
 	});
 	expect(ownClient.statusCode).toBe(201);
-	const body = ownClient.json<{ actor_user_id: string; target_user_id: string; action: string }>();
+	const body = ownClient.json<{
+		actor_user_id: string;
+		target_user_id: string;
+		action: string;
+	}>();
 	expect(body.actor_user_id).toBe(manager.id);
 	expect(body.target_user_id).toBe(manager.id);
 	expect(body.action).toBe("UPDATE_USER");
@@ -314,5 +318,3 @@ test("POST /v1/audit-logs/roles-perms accepts role-only entries with null extras
 	expect(body.permission_id).toBeNull();
 	expect(body.added).toBe(false);
 });
-
-

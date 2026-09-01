@@ -77,15 +77,15 @@ async function seedSim(input: {
 		);
 	}
 	if (input.provider === "hologram") {
-		await db.pool.query(
-			`INSERT INTO sim_info_hologram (sim_id, device_id) VALUES ($1, $2)`,
-			[simId, input.hologramDeviceId ?? 12345],
-		);
+		await db.pool.query(`INSERT INTO sim_info_hologram (sim_id, device_id) VALUES ($1, $2)`, [
+			simId,
+			input.hologramDeviceId ?? 12345,
+		]);
 	} else {
-		await db.pool.query(
-			`INSERT INTO sim_info_emnify (sim_id, bic) VALUES ($1, $2)`,
-			[simId, input.bic ?? "BIC1234567890123"],
-		);
+		await db.pool.query(`INSERT INTO sim_info_emnify (sim_id, bic) VALUES ($1, $2)`, [
+			simId,
+			input.bic ?? "BIC1234567890123",
+		]);
 	}
 	if (input.deviceId) {
 		await db.pool.query(
@@ -170,7 +170,9 @@ test("GET /v1/sims lets admins see every SIM", async () => {
 	});
 
 	expect(res.statusCode).toBe(200);
-	expect(res.json<{ data: SimBody[] }>().data.map((sim) => sim.iccid)).toContain("89010000000000000003");
+	expect(res.json<{ data: SimBody[] }>().data.map((sim) => sim.iccid)).toContain(
+		"89010000000000000003",
+	);
 });
 
 test("GET /v1/sims/:iccid returns provider-specific SIM details", async () => {
@@ -181,14 +183,16 @@ test("GET /v1/sims/:iccid returns provider-specific SIM details", async () => {
 	});
 
 	expect(res.statusCode).toBe(200);
-	expect(res.json<SimBody>()).toEqual(expect.objectContaining({
-		iccid: "89010000000000000002",
-		imei: "123456789012345",
-		bic: "BIC1234567890123",
-		boxSerialNumber: "bryan-test-device",
-		gaugeName: "bryan-test-gauge",
-		simProvider: { name: "emnify", apn: "em" },
-	}));
+	expect(res.json<SimBody>()).toEqual(
+		expect.objectContaining({
+			iccid: "89010000000000000002",
+			imei: "123456789012345",
+			bic: "BIC1234567890123",
+			boxSerialNumber: "bryan-test-device",
+			gaugeName: "bryan-test-gauge",
+			simProvider: { name: "emnify", apn: "em" },
+		}),
+	);
 });
 
 test("GET /v1/sims/:iccid hides another client's SIM from client readers", async () => {
@@ -214,9 +218,11 @@ test("POST /v1/sims creates a Hologram SIM", async () => {
 	});
 
 	expect(res.statusCode).toBe(201);
-	expect(res.json<{ message: string; usimId: number }>()).toEqual(expect.objectContaining({
-		message: "SIM card inserted successfully",
-	}));
+	expect(res.json<{ message: string; usimId: number }>()).toEqual(
+		expect.objectContaining({
+			message: "SIM card inserted successfully",
+		}),
+	);
 });
 
 test("POST /v1/sims returns 409 for duplicate ICCID", async () => {
@@ -290,11 +296,13 @@ test("POST /v1/sims/activate activates all inactive SIMs for an IMEI", async () 
 		url: "/v1/sims/89010000000000000001",
 		headers: { cookie: admin.cookie },
 	});
-	expect(listRes.json<SimBody>()).toEqual(expect.objectContaining({
-		isActivated: true,
-		isPaused: false,
-		deviceId: 54321,
-	}));
+	expect(listRes.json<SimBody>()).toEqual(
+		expect.objectContaining({
+			isActivated: true,
+			isPaused: false,
+			deviceId: 54321,
+		}),
+	);
 });
 
 test("POST /v1/sims/activate hides another client's device from client writers", async () => {

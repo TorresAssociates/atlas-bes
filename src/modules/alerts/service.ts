@@ -1,10 +1,7 @@
 import type { Kysely } from "kysely";
 import type { AlertLevel, DB, NotificationType } from "@/db/types";
 import type { AlertSNSClient } from "@/lib/sns/AlertSNSClient";
-import {
-	SNSSubscriptionNotFoundError,
-	SNSUnknownError,
-} from "@/lib/sns/errors";
+import { SNSSubscriptionNotFoundError, SNSUnknownError } from "@/lib/sns/errors";
 import type { SessionSubject } from "../auth/service";
 import { GaugeNotFoundError, getGauge, getGaugeByName } from "../gauges/service";
 import type {
@@ -55,10 +52,7 @@ export interface TestAlertSubscriptionResponse {
 	phone_number: string;
 }
 
-export type AlertSubscriptionResponse = Omit<
-	AlertSubscriptionRow,
-	"introduced" | "archived"
-> & {
+export type AlertSubscriptionResponse = Omit<AlertSubscriptionRow, "introduced" | "archived"> & {
 	introduced: string;
 	archived: string | null;
 };
@@ -92,9 +86,7 @@ export class AlertSubscriptionTargetUserNotFoundError extends Error {
 
 export class AlertSubscriptionPhoneNumberRequiredError extends Error {
 	constructor(userId: string) {
-		super(
-			`user ${JSON.stringify(userId)} must have a phone number for SMS alerts`,
-		);
+		super(`user ${JSON.stringify(userId)} must have a phone number for SMS alerts`);
 		this.name = "AlertSubscriptionPhoneNumberRequiredError";
 	}
 }
@@ -108,9 +100,7 @@ export class AlertSubscriptionNotificationTypeUnsupportedError extends Error {
 
 export class AlertSubscriptionTargetNotFoundError extends Error {
 	constructor(target: "gauge_station" | "device") {
-		super(
-			`${target} does not exist or is not available to the target user's client`,
-		);
+		super(`${target} does not exist or is not available to the target user's client`);
 		this.name = "AlertSubscriptionTargetNotFoundError";
 	}
 }
@@ -136,14 +126,11 @@ export class AlertTopicNotFoundError extends Error {
 	}
 }
 
-function toAlertSubscriptionResponse(
-	row: AlertSubscriptionRow,
-): AlertSubscriptionResponse {
+function toAlertSubscriptionResponse(row: AlertSubscriptionRow): AlertSubscriptionResponse {
 	return {
 		...row,
 		introduced: new Date(row.introduced).toISOString(),
-		archived:
-			row.archived === null ? null : new Date(row.archived).toISOString(),
+		archived: row.archived === null ? null : new Date(row.archived).toISOString(),
 	};
 }
 
@@ -153,8 +140,7 @@ function toAlertSubscriptionDetailResponse(
 	return {
 		...row,
 		introduced: new Date(row.introduced).toISOString(),
-		archived:
-			row.archived === null ? null : new Date(row.archived).toISOString(),
+		archived: row.archived === null ? null : new Date(row.archived).toISOString(),
 	};
 }
 
@@ -165,16 +151,11 @@ async function resolveTargetUser(
 	access: AlertSubscriptionAccess,
 	targetUserId: string,
 ) {
-	const user = await queries.findSubscriptionTargetUser(
-		db,
-		targetUserId,
-		encryptionKey,
-	);
+	const user = await queries.findSubscriptionTargetUser(db, targetUserId, encryptionKey);
 	if (!user) throw new AlertSubscriptionTargetUserNotFoundError(targetUserId);
 
 	if (access.canWriteExternalUsers) return user;
-	if (access.canWriteClientUsers && user.client_id === session.client_id)
-		return user;
+	if (access.canWriteClientUsers && user.client_id === session.client_id) return user;
 	if (session.user_id === targetUserId) return user;
 
 	throw new AlertSubscriptionAccessDeniedError();
@@ -199,10 +180,7 @@ async function findOrCreateAlert(
 	db: Kysely<DB>,
 	input: { client_id: number; type: string; level: AlertLevel },
 ) {
-	return (
-		(await queries.findActiveAlert(db, input)) ??
-		(await queries.insertAlert(db, input))
-	);
+	return (await queries.findActiveAlert(db, input)) ?? (await queries.insertAlert(db, input));
 }
 
 async function findOrCreateSubscription(
@@ -226,8 +204,7 @@ async function subscribeSmsIfNeeded(
 	topicName: string,
 	targetUserId: string,
 ): Promise<void> {
-	if (phoneNumber === null)
-		throw new AlertSubscriptionPhoneNumberRequiredError(targetUserId);
+	if (phoneNumber === null) throw new AlertSubscriptionPhoneNumberRequiredError(targetUserId);
 	try {
 		await sns.subscribeSms(phoneNumber, topicName);
 	} catch (err) {
@@ -246,13 +223,7 @@ export async function subscribeGaugeAlert(
 ): Promise<AlertSubscriptionResponse> {
 	const notificationType = resolveNotificationType(input);
 	ensureNotificationPermission(access, notificationType);
-	const user = await resolveTargetUser(
-		db,
-		encryptionKey,
-		session,
-		access,
-		targetUserId,
-	);
+	const user = await resolveTargetUser(db, encryptionKey, session, access, targetUserId);
 
 	const gaugeStation = await resolveGaugeStation(db, input, {
 		clientId: user.client_id,
@@ -266,9 +237,7 @@ export async function subscribeGaugeAlert(
 			targetUserId,
 		);
 	} else {
-		throw new AlertSubscriptionNotificationTypeUnsupportedError(
-			notificationType,
-		);
+		throw new AlertSubscriptionNotificationTypeUnsupportedError(notificationType);
 	}
 
 	const alert = await findOrCreateAlert(db, {
@@ -298,30 +267,18 @@ export async function subscribeDeviceAlert(
 ): Promise<AlertSubscriptionResponse> {
 	const notificationType = resolveNotificationType(input);
 	ensureNotificationPermission(access, notificationType);
-	const user = await resolveTargetUser(
-		db,
-		encryptionKey,
-		session,
-		access,
-		targetUserId,
-	);
+	const user = await resolveTargetUser(db, encryptionKey, session, access, targetUserId);
 	const device = await resolveDeviceAlertTarget(db, input, user.client_id);
 
 	if (notificationType === "sms") {
 		await subscribeSmsIfNeeded(
 			sns,
 			user.phone_number,
-			sns.getTopicName(
-				device.gauge_station_name,
-				device.serial_number,
-				input.alert_type,
-			),
+			sns.getTopicName(device.gauge_station_name, device.serial_number, input.alert_type),
 			targetUserId,
 		);
 	} else {
-		throw new AlertSubscriptionNotificationTypeUnsupportedError(
-			notificationType,
-		);
+		throw new AlertSubscriptionNotificationTypeUnsupportedError(notificationType);
 	}
 
 	const alert = await findOrCreateAlert(db, {
@@ -348,12 +305,8 @@ export async function sendTestAlertMessage(
 	sns: AlertSNSClient,
 ): Promise<SendTestAlertMessageResponse> {
 	try {
-		const messageId = await sns.sendMessage(
-			TEST_ALERT_TOPIC,
-			TEST_ALERT_MESSAGE,
-		);
-		if (messageId === undefined)
-			throw new AlertTopicNotFoundError(TEST_ALERT_TOPIC);
+		const messageId = await sns.sendMessage(TEST_ALERT_TOPIC, TEST_ALERT_MESSAGE);
+		if (messageId === undefined) throw new AlertTopicNotFoundError(TEST_ALERT_TOPIC);
 		return {
 			message: "Success",
 			topic: TEST_ALERT_TOPIC,
@@ -406,13 +359,7 @@ export async function listGaugeAlertSubscriptions(
 	access: AlertSubscriptionAccess,
 	targetUserId: string,
 ): Promise<AlertSubscriptionDetailResponse[]> {
-	const user = await resolveTargetUser(
-		db,
-		encryptionKey,
-		session,
-		access,
-		targetUserId,
-	);
+	const user = await resolveTargetUser(db, encryptionKey, session, access, targetUserId);
 	return (
 		await queries.listActiveAlertSubscriptionsForUser(db, {
 			user_id: user.id,
@@ -428,13 +375,7 @@ export async function listDeviceAlertSubscriptions(
 	access: AlertSubscriptionAccess,
 	targetUserId: string,
 ): Promise<AlertSubscriptionDetailResponse[]> {
-	const user = await resolveTargetUser(
-		db,
-		encryptionKey,
-		session,
-		access,
-		targetUserId,
-	);
+	const user = await resolveTargetUser(db, encryptionKey, session, access, targetUserId);
 	return (
 		await queries.listActiveAlertSubscriptionsForUser(db, {
 			user_id: user.id,
@@ -495,23 +436,16 @@ async function deleteAlertSubscriptions(
 	level: AlertLevel,
 	subscriptionId?: number,
 ): Promise<DeleteAlertSubscriptionsResponse> {
-	const user = await resolveTargetUser(
+	const user = await resolveTargetUser(db, encryptionKey, session, access, targetUserId);
+	const subscriptions = await queries.findActiveAlertSubscriptionsForUnsubscribe(
 		db,
 		encryptionKey,
-		session,
-		access,
-		targetUserId,
+		{
+			user_id: user.id,
+			level,
+			subscription_id: subscriptionId,
+		},
 	);
-	const subscriptions =
-		await queries.findActiveAlertSubscriptionsForUnsubscribe(
-			db,
-			encryptionKey,
-			{
-				user_id: user.id,
-				level,
-				subscription_id: subscriptionId,
-			},
-		);
 
 	if (subscriptionId !== undefined && subscriptions.length === 0)
 		throw new AlertSubscriptionNotFoundError();
@@ -520,15 +454,13 @@ async function deleteAlertSubscriptions(
 	const archived: AlertSubscriptionResponse[] = [];
 	for (const subscription of subscriptions) {
 		if (subscription.notification_type === "sms") {
-			await unsubscribeSmsIfNeeded(sns, subscription, user.id).catch(
-				(err) => {
-					if (err instanceof SNSSubscriptionNotFoundError) {
-						wasNotSubscribed = true;
-						return;
-					}
-					throw err;
-				},
-			);
+			await unsubscribeSmsIfNeeded(sns, subscription, user.id).catch((err) => {
+				if (err instanceof SNSSubscriptionNotFoundError) {
+					wasNotSubscribed = true;
+					return;
+				}
+				throw err;
+			});
 		}
 		archived.push(
 			toAlertSubscriptionResponse(
@@ -552,8 +484,7 @@ async function unsubscribeSmsIfNeeded(
 ): Promise<void> {
 	if (subscription.phone_number === null)
 		throw new AlertSubscriptionPhoneNumberRequiredError(targetUserId);
-	const deviceSerialNumber =
-		subscription.alert_level === "device" ? "device" : null;
+	const deviceSerialNumber = subscription.alert_level === "device" ? "device" : null;
 	const topicName = sns.getTopicName(
 		subscription.gauge_station_name,
 		deviceSerialNumber,
@@ -584,11 +515,12 @@ async function resolveGaugeStation(
 	};
 
 	try {
-		const gauge = input.gauge_station_id !== undefined
-			? await getGauge(db, input.gauge_station_id, targetSession, access)
-			: input.gauge_station_name !== undefined
-				? await getGaugeByName(db, input.gauge_station_name, targetSession, access)
-				: null;
+		const gauge =
+			input.gauge_station_id !== undefined
+				? await getGauge(db, input.gauge_station_id, targetSession, access)
+				: input.gauge_station_name !== undefined
+					? await getGaugeByName(db, input.gauge_station_name, targetSession, access)
+					: null;
 
 		if (!gauge) {
 			throw new AlertSubscriptionInputError(
@@ -621,17 +553,14 @@ async function resolveDeviceAlertTarget(
 	}
 
 	if (input.serial_number !== undefined) {
-		const device =
-			await queries.findDeviceAlertTargetForClientBySerialNumber(
-				db,
-				input.serial_number,
-				clientId,
-			);
+		const device = await queries.findDeviceAlertTargetForClientBySerialNumber(
+			db,
+			input.serial_number,
+			clientId,
+		);
 		if (!device) throw new AlertSubscriptionTargetNotFoundError("device");
 		return device;
 	}
 
-	throw new AlertSubscriptionInputError(
-		"device_id or serial_number is required",
-	);
+	throw new AlertSubscriptionInputError("device_id or serial_number is required");
 }

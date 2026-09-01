@@ -60,5 +60,3 @@ export async function deleteClient(db: Kysely<DB>, id: number): Promise<void> {
 	const deleted = await queries.softDeleteClientById(db, id);
 	if (!deleted) throw new ClientNotFoundError(id);
 }
-
-

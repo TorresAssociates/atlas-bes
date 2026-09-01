@@ -100,78 +100,109 @@ export class HologramClient {
 			body: JSON.stringify({ state }),
 		});
 		const data = await readJson<HologramApiResponse<unknown>>(response);
-		if (!response.ok || data.success === false) throw new HologramApiError(response.status, response.statusText);
+		if (!response.ok || data.success === false)
+			throw new HologramApiError(response.status, response.statusText);
 	}
 
 	async getGlobalStandardFlatRatePlan(): Promise<HologramPlanResponse> {
 		const { orgId, apiKey } = this.#credentials();
-		const response = await this.#fetch(`${HOLOGRAM_API_BASE}/plans?orgid=${encodeURIComponent(orgId)}`, {
-			method: "GET",
-			headers: { Authorization: `Basic ${apiKey}` },
-		});
+		const response = await this.#fetch(
+			`${HOLOGRAM_API_BASE}/plans?orgid=${encodeURIComponent(orgId)}`,
+			{
+				method: "GET",
+				headers: { Authorization: `Basic ${apiKey}` },
+			},
+		);
 		const data = await readJson<HologramApiResponse<HologramPlan[]>>(response);
-		if (!response.ok || data.success === false) throw new HologramApiError(response.status, response.statusText);
+		if (!response.ok || data.success === false)
+			throw new HologramApiError(response.status, response.statusText);
 
-		const plan = (data.data ?? []).find((candidate) => candidate.name === GLOBAL_STANDARD_FLAT_RATE);
+		const plan = (data.data ?? []).find(
+			(candidate) => candidate.name === GLOBAL_STANDARD_FLAT_RATE,
+		);
 		if (!plan) throw new HologramPlanNotFoundError();
 		return { status: 200, planId: Number(plan.id) };
 	}
 
-	async activateSim(input: { iccid: string; boxId: string }): Promise<HologramActivationResponse> {
+	async activateSim(input: {
+		iccid: string;
+		boxId: string;
+	}): Promise<HologramActivationResponse> {
 		const { orgId, apiKey } = this.#credentials();
 		const { planId } = await this.getGlobalStandardFlatRatePlan();
-		const response = await this.#fetch(`${HOLOGRAM_API_BASE}/links/cellular/sim_${input.iccid}/claim`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Basic ${apiKey}`,
-			},
-			body: JSON.stringify({ plan: planId, zone: "global", orgid: Number(orgId) }),
-		});
-		const data = await readJson<HologramApiResponse<Array<{ device?: number | string }> | Record<string, unknown>>>(response);
-
-		if (!response.ok) {
-			const simError = isRecord(data.data) ? data.data[input.iccid] : undefined;
-			if (simError !== "SIM is already activated") throw new HologramApiError(response.status, response.statusText);
-		}
-
-		const firstActivated = Array.isArray(data.data) ? data.data[0] : undefined;
-		const deviceId = firstActivated?.device === undefined ? null : Number(firstActivated.device);
-		if (deviceId !== null) {
-			await this.#fetch(`${HOLOGRAM_API_BASE}/devices/${deviceId}?orgid=${encodeURIComponent(orgId)}`, {
-				method: "PUT",
+		const response = await this.#fetch(
+			`${HOLOGRAM_API_BASE}/links/cellular/sim_${input.iccid}/claim`,
+			{
+				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 					Authorization: `Basic ${apiKey}`,
 				},
-				body: JSON.stringify({ name: input.boxId }),
-			});
+				body: JSON.stringify({ plan: planId, zone: "global", orgid: Number(orgId) }),
+			},
+		);
+		const data =
+			await readJson<
+				HologramApiResponse<Array<{ device?: number | string }> | Record<string, unknown>>
+			>(response);
+
+		if (!response.ok) {
+			const simError = isRecord(data.data) ? data.data[input.iccid] : undefined;
+			if (simError !== "SIM is already activated")
+				throw new HologramApiError(response.status, response.statusText);
+		}
+
+		const firstActivated = Array.isArray(data.data) ? data.data[0] : undefined;
+		const deviceId =
+			firstActivated?.device === undefined ? null : Number(firstActivated.device);
+		if (deviceId !== null) {
+			await this.#fetch(
+				`${HOLOGRAM_API_BASE}/devices/${deviceId}?orgid=${encodeURIComponent(orgId)}`,
+				{
+					method: "PUT",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Basic ${apiKey}`,
+					},
+					body: JSON.stringify({ name: input.boxId }),
+				},
+			);
 		}
 
 		return { status: 200, message: "Hologram SIM Activated Successfully", deviceId };
 	}
 
-	async getCosts(input: { startDate?: string; endDate?: string; limit?: number }): Promise<HologramCostsResponse> {
+	async getCosts(input: {
+		startDate?: string;
+		endDate?: string;
+		limit?: number;
+	}): Promise<HologramCostsResponse> {
 		const { orgId, apiKey } = this.#credentials();
-		const balanceResponse = await this.#fetch(`${HOLOGRAM_API_BASE}/organizations/${orgId}/balance`, {
-			method: "GET",
-			headers: { Authorization: `Basic ${apiKey}` },
-		});
+		const balanceResponse = await this.#fetch(
+			`${HOLOGRAM_API_BASE}/organizations/${orgId}/balance`,
+			{
+				method: "GET",
+				headers: { Authorization: `Basic ${apiKey}` },
+			},
+		);
 		const balanceData = await readJson<HologramApiResponse<unknown>>(balanceResponse);
 		if (!balanceResponse.ok || balanceData.success === false) {
 			throw new HologramApiError(balanceResponse.status, balanceResponse.statusText);
 		}
 
 		const historyUrl = new URL(`${HOLOGRAM_API_BASE}/organizations/${orgId}/balancehistory`);
-		if (input.startDate !== undefined) historyUrl.searchParams.append("timestart", seconds(input.startDate));
-		if (input.endDate !== undefined) historyUrl.searchParams.append("timeend", seconds(input.endDate));
+		if (input.startDate !== undefined)
+			historyUrl.searchParams.append("timestart", seconds(input.startDate));
+		if (input.endDate !== undefined)
+			historyUrl.searchParams.append("timeend", seconds(input.endDate));
 		historyUrl.searchParams.append("limit", String(input.limit ?? 200));
 
 		const historyResponse = await this.#fetch(historyUrl.toString(), {
 			method: "GET",
 			headers: { Authorization: `Basic ${apiKey}` },
 		});
-		const historyData = await readJson<HologramApiResponse<HologramBalanceTransaction[]>>(historyResponse);
+		const historyData =
+			await readJson<HologramApiResponse<HologramBalanceTransaction[]>>(historyResponse);
 		if (!historyResponse.ok || historyData.success === false) {
 			throw new HologramApiError(historyResponse.status, historyResponse.statusText);
 		}

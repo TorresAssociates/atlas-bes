@@ -1,5 +1,5 @@
-import type { DB } from "@/db/types";
 import { type Insertable, type Kysely, sql } from "kysely";
+import type { DB } from "@/db/types";
 
 export interface DeviceLookupRow {
 	id: number;
@@ -26,11 +26,7 @@ export function findDeviceBySerialNumberForClient(
 	return db
 		.selectFrom("device")
 		.innerJoin("device_info", "device_info.device_id", "device.id")
-		.innerJoin(
-			"gauge_station",
-			"gauge_station.id",
-			"device_info.gauge_station_id",
-		)
+		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.innerJoin(
 			"client_gauge_station",
 			"client_gauge_station.gauge_station_id",
@@ -46,10 +42,7 @@ export function findDeviceBySerialNumberForClient(
 		.executeTakeFirst();
 }
 
-export async function archiveCurrentDeviceInfo(
-	db: Kysely<DB>,
-	deviceId: number,
-): Promise<void> {
+export async function archiveCurrentDeviceInfo(db: Kysely<DB>, deviceId: number): Promise<void> {
 	await db
 		.updateTable("device_info")
 		.set({ archived: new Date() })
@@ -69,21 +62,11 @@ export function findCurrentDeviceInfo(db: Kysely<DB>, deviceId: number) {
 		.executeTakeFirst();
 }
 
-export function insertDeviceInfo(
-	db: Kysely<DB>,
-	info: Insertable<DB["device_info"]>,
-) {
-	return db
-		.insertInto("device_info")
-		.values(info)
-		.returningAll()
-		.executeTakeFirstOrThrow();
+export function insertDeviceInfo(db: Kysely<DB>, info: Insertable<DB["device_info"]>) {
+	return db.insertInto("device_info").values(info).returningAll().executeTakeFirstOrThrow();
 }
 
-export async function archiveCurrentWifiActive(
-	db: Kysely<DB>,
-	deviceId: number,
-): Promise<void> {
+export async function archiveCurrentWifiActive(db: Kysely<DB>, deviceId: number): Promise<void> {
 	await db
 		.updateTable("device_wifi_interface_active")
 		.set({ archived: new Date() })
@@ -92,11 +75,7 @@ export async function archiveCurrentWifiActive(
 		.execute();
 }
 
-export function insertWifiActive(
-	db: Kysely<DB>,
-	deviceId: number,
-	wifiActive: boolean,
-) {
+export function insertWifiActive(db: Kysely<DB>, deviceId: number, wifiActive: boolean) {
 	return db
 		.insertInto("device_wifi_interface_active")
 		.values({ device_id: deviceId, wifi_active: wifiActive })
@@ -104,10 +83,7 @@ export function insertWifiActive(
 		.executeTakeFirstOrThrow();
 }
 
-export async function archiveCurrentWifiConfig(
-	db: Kysely<DB>,
-	deviceId: number,
-): Promise<void> {
+export async function archiveCurrentWifiConfig(db: Kysely<DB>, deviceId: number): Promise<void> {
 	await db
 		.updateTable("device_wifi_interface_config")
 		.set({ archived: new Date() })
@@ -129,10 +105,7 @@ export async function insertEncryptedWifiPassword(
 	`.execute(db);
 }
 
-export async function archiveCurrentDevicePower(
-	db: Kysely<DB>,
-	deviceId: number,
-): Promise<void> {
+export async function archiveCurrentDevicePower(db: Kysely<DB>, deviceId: number): Promise<void> {
 	await db
 		.updateTable("device_power")
 		.set({ archived: new Date() })
@@ -192,11 +165,7 @@ export function findCurrentDeviceDatalogging(db: Kysely<DB>, deviceId: number) {
 		.executeTakeFirst();
 }
 
-export function insertDeviceDatalogging(
-	db: Kysely<DB>,
-	deviceId: number,
-	timestep: number,
-) {
+export function insertDeviceDatalogging(db: Kysely<DB>, deviceId: number, timestep: number) {
 	return db
 		.insertInto("device_datalogging")
 		.values({ device_id: deviceId, timestep })

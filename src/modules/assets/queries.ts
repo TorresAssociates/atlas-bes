@@ -1,5 +1,5 @@
-import type { DB } from "@/db/types";
 import type { Insertable, Kysely, Selectable, Updateable } from "kysely";
+import type { DB } from "@/db/types";
 
 export type AssetRow = Selectable<DB["asset"]>;
 export type AssetTypeLookupRow = Pick<Selectable<DB["asset_type"]>, "id" | "owner_client_id">;
@@ -24,7 +24,11 @@ export function listAssets(db: Kysely<DB>): Promise<AssetRow[]> {
 export function listAssetsForClient(db: Kysely<DB>, clientId: number): Promise<AssetRow[]> {
 	return db
 		.selectFrom("asset")
-		.innerJoin("client_gauge_station", "client_gauge_station.gauge_station_id", "asset.gauge_station_id")
+		.innerJoin(
+			"client_gauge_station",
+			"client_gauge_station.gauge_station_id",
+			"asset.gauge_station_id",
+		)
 		.select(assetColumns)
 		.where("client_gauge_station.client_id", "=", clientId)
 		.orderBy("asset.id", "asc")
@@ -46,7 +50,11 @@ export function findAssetByIdForClient(
 ): Promise<AssetRow | undefined> {
 	return db
 		.selectFrom("asset")
-		.innerJoin("client_gauge_station", "client_gauge_station.gauge_station_id", "asset.gauge_station_id")
+		.innerJoin(
+			"client_gauge_station",
+			"client_gauge_station.gauge_station_id",
+			"asset.gauge_station_id",
+		)
 		.select(assetColumns)
 		.where("asset.id", "=", id)
 		.where("client_gauge_station.client_id", "=", clientId)
@@ -63,7 +71,6 @@ export function findAssetTypeById(
 		.where("id", "=", id)
 		.executeTakeFirst();
 }
-
 
 export function insertAsset(db: Kysely<DB>, asset: InsertAssetRow): Promise<AssetRow> {
 	return db.insertInto("asset").values(asset).returning(assetColumns).executeTakeFirstOrThrow();
@@ -85,4 +92,3 @@ export function updateAsset(
 export function deleteAsset(db: Kysely<DB>, id: number): Promise<AssetRow | undefined> {
 	return db.deleteFrom("asset").where("id", "=", id).returning(assetColumns).executeTakeFirst();
 }
-

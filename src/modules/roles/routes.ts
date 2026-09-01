@@ -1,8 +1,7 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { Type } from "@sinclair/typebox";
-import { hasPermission, requirePermission } from "@/plugins/authorization";
+import { getRequestSession, hasPermission, requirePermission } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	CreateRoleBodySchema,
 	PermissionListSchema,
@@ -18,33 +17,26 @@ import {
 	getRole,
 	listPermissions,
 	listRoles,
-	replaceRolePermissions,
 	RoleAccessDeniedError,
 	RoleInUseError,
 	RoleNotFoundError,
 	RolePermissionAccessDeniedError,
 	RolePermissionNotAssignableError,
+	replaceRolePermissions,
 	updateRole,
 } from "./service";
 
 const roleRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
-		if (!app.db)
-			throw app.httpErrors.serviceUnavailable(
-				"database is not configured",
-			);
+		if (!app.db) throw app.httpErrors.serviceUnavailable("database is not configured");
 		return app.db;
 	};
 
 	app.setErrorHandler((err, _request, reply) => {
-		if (err instanceof RoleNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof RoleAccessDeniedError)
-			return reply.forbidden(err.message);
-		if (err instanceof RolePermissionAccessDeniedError)
-			return reply.forbidden(err.message);
-		if (err instanceof RolePermissionNotAssignableError)
-			return reply.badRequest(err.message);
+		if (err instanceof RoleNotFoundError) return reply.notFound(err.message);
+		if (err instanceof RoleAccessDeniedError) return reply.forbidden(err.message);
+		if (err instanceof RolePermissionAccessDeniedError) return reply.forbidden(err.message);
+		if (err instanceof RolePermissionNotAssignableError) return reply.badRequest(err.message);
 		if (err instanceof RoleInUseError) return reply.conflict(err.message);
 		return reply.send(err);
 	});
@@ -64,14 +56,10 @@ const roleRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
-			if (!session)
-				throw app.httpErrors.unauthorized("authentication required");
+			const session = await getRequestSession(request);
+			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			const canAccessExternalUsers = await hasPermission(
-				request,
-				"R_EXTERNAL_USERS",
-			);
+			const canAccessExternalUsers = await hasPermission(request, "R_EXTERNAL_USERS");
 			return {
 				data: await listRoles(getDb(), session, {
 					canAccessExternalUsers,
@@ -96,14 +84,10 @@ const roleRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
-			if (!session)
-				throw app.httpErrors.unauthorized("authentication required");
+			const session = await getRequestSession(request);
+			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			const canAccessExternalUsers = await hasPermission(
-				request,
-				"R_EXTERNAL_USERS",
-			);
+			const canAccessExternalUsers = await hasPermission(request, "R_EXTERNAL_USERS");
 			return {
 				data: await listPermissions(getDb(), session, {
 					canAccessExternalUsers,
@@ -130,14 +114,10 @@ const roleRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
-			if (!session)
-				throw app.httpErrors.unauthorized("authentication required");
+			const session = await getRequestSession(request);
+			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			const canAccessExternalUsers = await hasPermission(
-				request,
-				"R_EXTERNAL_USERS",
-			);
+			const canAccessExternalUsers = await hasPermission(request, "R_EXTERNAL_USERS");
 			return getRole(getDb(), request.params.id, session, {
 				canAccessExternalUsers,
 				canAccessClientUsers: true,
@@ -162,14 +142,10 @@ const roleRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const session = await getSession(request);
-			if (!session)
-				throw app.httpErrors.unauthorized("authentication required");
+			const session = await getRequestSession(request);
+			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			const canAccessExternalUsers = await hasPermission(
-				request,
-				"W_EXTERNAL_USERS",
-			);
+			const canAccessExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
 			const role = await createRole(
 				getDb(),
 				session,
@@ -202,14 +178,10 @@ const roleRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
-			if (!session)
-				throw app.httpErrors.unauthorized("authentication required");
+			const session = await getRequestSession(request);
+			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			const canAccessExternalUsers = await hasPermission(
-				request,
-				"W_EXTERNAL_USERS",
-			);
+			const canAccessExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
 			return updateRole(
 				getDb(),
 				request.params.id,
@@ -242,14 +214,10 @@ const roleRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
-			if (!session)
-				throw app.httpErrors.unauthorized("authentication required");
+			const session = await getRequestSession(request);
+			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			const canAccessExternalUsers = await hasPermission(
-				request,
-				"W_EXTERNAL_USERS",
-			);
+			const canAccessExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
 			return replaceRolePermissions(
 				getDb(),
 				request.params.id,
@@ -281,14 +249,10 @@ const roleRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const session = await getSession(request);
-			if (!session)
-				throw app.httpErrors.unauthorized("authentication required");
+			const session = await getRequestSession(request);
+			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			const canAccessExternalUsers = await hasPermission(
-				request,
-				"W_EXTERNAL_USERS",
-			);
+			const canAccessExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
 			await deleteRole(getDb(), request.params.id, session, {
 				canAccessExternalUsers,
 				canAccessClientUsers: true,
@@ -299,4 +263,3 @@ const roleRoutes: FastifyPluginAsyncTypebox = async (app) => {
 };
 
 export default roleRoutes;
-

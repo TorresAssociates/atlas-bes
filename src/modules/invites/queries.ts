@@ -8,7 +8,14 @@ export type AcceptedInviteWithSenderRow = AcceptedInviteRow & {
 };
 export type InsertInviteRow = Insertable<DB["invite"]>;
 
-const inviteColumns = ["id", "token", "expires_at", "sender_user_id", "client_id", "role_id"] as const;
+const inviteColumns = [
+	"id",
+	"token",
+	"expires_at",
+	"sender_user_id",
+	"client_id",
+	"role_id",
+] as const;
 
 export function listInvites(db: Kysely<DB>): Promise<InviteRow[]> {
 	return db.selectFrom("invite").select(inviteColumns).orderBy("id", "desc").execute();
@@ -24,7 +31,11 @@ export function listInvitesForClient(db: Kysely<DB>, clientId: number): Promise<
 }
 
 export function insertInvite(db: Kysely<DB>, invite: InsertInviteRow): Promise<InviteRow> {
-	return db.insertInto("invite").values(invite).returning(inviteColumns).executeTakeFirstOrThrow();
+	return db
+		.insertInto("invite")
+		.values(invite)
+		.returning(inviteColumns)
+		.executeTakeFirstOrThrow();
 }
 
 export function findInviteByToken(db: Kysely<DB>, token: string): Promise<InviteRow | undefined> {

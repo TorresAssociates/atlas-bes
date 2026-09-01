@@ -3,11 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { MqtxClient } from "@/lib/mqtx/MqtxClient";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
-import {
-	startTestDatabase,
-	stubConfigEnv,
-	type TestDatabase,
-} from "./helpers/database";
+import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
 
 setDefaultTimeout(120_000);
 
@@ -29,11 +25,7 @@ const fakeMqtx = {
 		mqtxCalls.push({ method: "state", deviceId, version, payload });
 		return { status: 200, success: true, body: "" };
 	},
-	async sendConfigUpdate(
-		deviceId: string,
-		version: string,
-		payload: unknown,
-	) {
+	async sendConfigUpdate(deviceId: string, version: string, payload: unknown) {
 		mqtxCalls.push({ method: "config", deviceId, version, payload });
 		return { status: 200, success: true, body: "" };
 	},
@@ -168,9 +160,7 @@ test("PUT /v1/mqtx/:deviceId/settings/alerts sends monitored codes to MQTX", asy
 		headers: { cookie: clientManager.cookie },
 		body: {
 			version: "v2",
-			monitoredCodes: [
-				{ channelCodeId: "WL", operation: ">", threshold: 2.5 },
-			],
+			monitoredCodes: [{ channelCodeId: "WL", operation: ">", threshold: 2.5 }],
 		},
 	});
 
@@ -181,9 +171,7 @@ test("PUT /v1/mqtx/:deviceId/settings/alerts sends monitored codes to MQTX", asy
 		version: "v2",
 		payload: {
 			config: {
-				monitoredCodes: [
-					{ code: "WL", operation: ">", threshold: 2.5 },
-				],
+				monitoredCodes: [{ code: "WL", operation: ">", threshold: 2.5 }],
 			},
 		},
 	});

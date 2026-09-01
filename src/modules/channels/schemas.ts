@@ -1,5 +1,5 @@
-import { Nullable } from "@/schemas";
 import { Type } from "@sinclair/typebox";
+import { Nullable } from "@/schemas";
 
 const TimestampSchema = Type.String({ format: "date-time" });
 const ArchivedTimestampSchema = Nullable(TimestampSchema);
@@ -87,9 +87,7 @@ export const ChannelRecordResponseSchema = Type.Object({
 	channel: ChannelSchema,
 	channel_config: Nullable(ChannelConfigSchema),
 	channel_config_display: Nullable(ChannelConfigDisplaySchema),
-	channel_config_internal_power_sensor: Nullable(
-		ChannelConfigInternalPowerSensorSchema,
-	),
+	channel_config_internal_power_sensor: Nullable(ChannelConfigInternalPowerSensorSchema),
 	channel_config_sdi12: Nullable(ChannelConfigSdi12Schema),
 	channel_config_accumulation: Nullable(ChannelConfigAccumulationSchema),
 	channel_config_tilt: Nullable(ChannelConfigTiltSchema),

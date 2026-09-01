@@ -15,6 +15,11 @@ export interface RequestLike {
 	headers: Record<string, string | string[] | undefined>;
 }
 
+// Structural reply type; a FastifyReply satisfies it.
+export interface ReplyLike {
+	header(name: string, value: string | string[]): unknown;
+}
+
 export interface CreateInvitedEmailPasswordUserInput {
 	email: string;
 	name: string;
@@ -56,7 +61,10 @@ export function initAuth(instance: Auth): void {
 	auth = instance;
 }
 
-export async function getSession(request: RequestLike): Promise<SessionSubject | null> {
+export async function getSession(
+	request: RequestLike,
+	reply?: ReplyLike,
+): Promise<SessionSubject | null> {
 	if (!auth) return null;
 
 	const headers = new Headers();
@@ -65,7 +73,17 @@ export async function getSession(request: RequestLike): Promise<SessionSubject |
 		else if (Array.isArray(value)) for (const v of value) headers.append(name, v);
 	}
 
-	const session = (await auth.api.getSession({ headers })) as ATLASAuthSession | null;
+	const { headers: responseHeaders, response: session } = (await auth.api.getSession({
+		headers,
+		returnHeaders: true,
+	})) as unknown as { headers: Headers | null; response: ATLASAuthSession | null };
+
+	// Forward better-auth's Set-Cookie (the refreshed session_data cookie-cache
+	// cookie) when the caller can. Without this, the cookie expires after its
+	// maxAge and every later request falls back to DB session resolution.
+	const setCookies = responseHeaders?.getSetCookie() ?? [];
+	if (reply && setCookies.length > 0) reply.header("set-cookie", setCookies);
+
 	if (!session) return null;
 
 	return {

@@ -1,18 +1,14 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { requirePermission } from "@/plugins/authorization";
 import type { EmnifySimState } from "@/lib/emnify/EmnifyClient";
+import { requirePermission } from "@/plugins/authorization";
+import { ActivateSimBodySchema, EmnifyCostsQuerySchema, EmnifyStateParamsSchema } from "./schemas";
 import {
-	ActivateSimBodySchema,
-	EmnifyCostsQuerySchema,
-	EmnifyStateParamsSchema,
-} from "./schemas";
-import {
-	EmnifyRequestFailedError,
+	type ActivateSimInput,
 	activateEmnifySim,
+	type EmnifyCostsInput,
+	EmnifyRequestFailedError,
 	getEmnifyCosts,
 	updateEmnifySimState,
-	type ActivateSimInput,
-	type EmnifyCostsInput,
 } from "./service";
 
 const emnifyRoutes: FastifyPluginAsyncTypebox = async (app) => {
@@ -37,7 +33,11 @@ const emnifyRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		},
 		async (request, reply) => {
 			const params = request.params as { iccid: string; state: string };
-			await updateEmnifySimState(app.emnify, params.iccid, Number(params.state) as EmnifySimState);
+			await updateEmnifySimState(
+				app.emnify,
+				params.iccid,
+				Number(params.state) as EmnifySimState,
+			);
 			return reply.code(204).send(null);
 		},
 	);

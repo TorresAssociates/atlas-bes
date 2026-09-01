@@ -35,26 +35,20 @@ export interface ChannelRecordResponse {
 
 export class ChannelDeviceNotFoundError extends Error {
 	constructor(deviceId: number) {
-		super(
-			`device ${deviceId} does not exist or is not available to your client`,
-		);
+		super(`device ${deviceId} does not exist or is not available to your client`);
 		this.name = "ChannelDeviceNotFoundError";
 	}
 }
 
 export class ChannelNotFoundError extends Error {
 	constructor(channelId: number) {
-		super(
-			`channel ${channelId} does not exist or is not available to your client`,
-		);
+		super(`channel ${channelId} does not exist or is not available to your client`);
 		this.name = "ChannelNotFoundError";
 	}
 }
 
 function serializeDate(value: Date | string): string {
-	return value instanceof Date
-		? value.toISOString()
-		: new Date(value).toISOString();
+	return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 function withSerializedDates<
@@ -67,10 +61,7 @@ function withSerializedDates<
 	};
 }
 
-async function hydrateChannel(
-	db: Kysely<DB>,
-	channel: ChannelRow,
-): Promise<ChannelRecordResponse> {
+async function hydrateChannel(db: Kysely<DB>, channel: ChannelRow): Promise<ChannelRecordResponse> {
 	const [
 		channelConfig,
 		displayConfig,
@@ -89,24 +80,16 @@ async function hydrateChannel(
 
 	return {
 		channel: withSerializedDates(channel),
-		channel_config: channelConfig
-			? withSerializedDates(channelConfig)
-			: null,
-		channel_config_display: displayConfig
-			? withSerializedDates(displayConfig)
-			: null,
+		channel_config: channelConfig ? withSerializedDates(channelConfig) : null,
+		channel_config_display: displayConfig ? withSerializedDates(displayConfig) : null,
 		channel_config_internal_power_sensor: internalPowerSensorConfig
 			? withSerializedDates(internalPowerSensorConfig)
 			: null,
-		channel_config_sdi12: sdi12Config
-			? withSerializedDates(sdi12Config)
-			: null,
+		channel_config_sdi12: sdi12Config ? withSerializedDates(sdi12Config) : null,
 		channel_config_accumulation: accumulationConfig
 			? withSerializedDates(accumulationConfig)
 			: null,
-		channel_config_tilt: tiltConfig
-			? withSerializedDates(tiltConfig)
-			: null,
+		channel_config_tilt: tiltConfig ? withSerializedDates(tiltConfig) : null,
 	};
 }
 
@@ -128,11 +111,7 @@ export async function listChannelsForDevice(
 ): Promise<ChannelRecordResponse[]> {
 	const device = access.canReadExternal
 		? await queries.findDeviceById(db, deviceId)
-		: await queries.findDeviceByIdForClient(
-				db,
-				deviceId,
-				session.client_id,
-			);
+		: await queries.findDeviceByIdForClient(db, deviceId, session.client_id);
 	if (!device) throw new ChannelDeviceNotFoundError(deviceId);
 
 	const channels = await queries.listChannelsForDevice(db, deviceId);
@@ -147,11 +126,7 @@ export async function getChannel(
 ): Promise<ChannelRecordResponse> {
 	const channel = access.canReadExternal
 		? await queries.findChannelById(db, channelId)
-		: await queries.findChannelByIdForClient(
-				db,
-				channelId,
-				session.client_id,
-			);
+		: await queries.findChannelByIdForClient(db, channelId, session.client_id);
 	if (!channel) throw new ChannelNotFoundError(channelId);
 	return hydrateChannel(db, channel);
 }

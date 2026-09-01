@@ -1,8 +1,12 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyRequest } from "fastify";
-import { hasPermission, requirePermission } from "@/plugins/authorization";
+import {
+	getRequestSession,
+	hasPermission,
+	listRequestPermissions,
+	requirePermission,
+} from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	CreateGaugeBodySchema,
 	GaugeFeatureCollectionSchema,
@@ -10,8 +14,6 @@ import {
 	GaugeListQuerySchema,
 	GaugeListSchema,
 	GaugeSchema,
-	GaugeStatusListSchema,
-	GaugeStatusQuerySchema,
 	UpdateGaugeBodySchema,
 } from "./schemas";
 import {
@@ -22,7 +24,6 @@ import {
 	GaugeNameConflictError,
 	GaugeNotFoundError,
 	getGauge,
-	listGaugeStatuses,
 	listGauges,
 	listGaugesGeoJson,
 	updateGauge,
@@ -37,9 +38,9 @@ const gaugeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	// Viewing inactive gauges requires the write permission matching the read
 	// scope (W_EXTERNAL_DEVICES for external readers, W_CLIENT_DEVICES otherwise).
 	const readAccess = async (request: FastifyRequest) => {
-		const canReadExternal = await hasPermission(request, "R_EXTERNAL_DEVICES");
-		const canViewInactive = await hasPermission(
-			request,
+		const permissions = await listRequestPermissions(request);
+		const canReadExternal = permissions.includes("R_EXTERNAL_DEVICES");
+		const canViewInactive = permissions.includes(
 			canReadExternal ? "W_EXTERNAL_DEVICES" : "W_CLIENT_DEVICES",
 		);
 		return { canReadExternal, canViewInactive };
@@ -70,7 +71,7 @@ const gaugeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			return {
@@ -98,42 +99,10 @@ const gaugeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			return listGaugesGeoJson(getDb(), session, await readAccess(request), request.query);
-		},
-	);
-
-	// GET /v1/gauges/status — volatile per-gauge marker data (risk, connectivity,
-	// latest readings, windowed rainfall). Same authorized row set as / and
-	// /geojson; the frontend polls this and joins to geojson features by id.
-	app.get(
-		"/status",
-		{
-			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
-			schema: {
-				tags: ["gauges"],
-				querystring: GaugeStatusQuerySchema,
-				response: {
-					200: GaugeStatusListSchema,
-					401: HttpErrorSchema,
-					403: HttpErrorSchema,
-				},
-			},
-		},
-		async (request) => {
-			const session = await getSession(request);
-			if (!session) throw app.httpErrors.unauthorized("authentication required");
-
-			return {
-				data: await listGaugeStatuses(
-					getDb(),
-					session,
-					await readAccess(request),
-					request.query,
-				),
-			};
 		},
 	);
 
@@ -154,7 +123,7 @@ const gaugeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			return getGauge(getDb(), request.params.id, session, await readAccess(request));
@@ -179,7 +148,7 @@ const gaugeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request, reply) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_DEVICES");
@@ -208,7 +177,7 @@ const gaugeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_DEVICES");

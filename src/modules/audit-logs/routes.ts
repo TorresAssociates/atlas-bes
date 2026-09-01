@@ -1,7 +1,12 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { hasPermission, requirePermission, requireSession } from "@/plugins/authorization";
+import type { FastifyRequest } from "fastify";
+import {
+	getRequestSession,
+	hasPermission,
+	requirePermission,
+	requireSession,
+} from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	AuditLogActionListSchema,
 	ControlAuditLogListQuerySchema,
@@ -44,8 +49,8 @@ const auditLogRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		return app.db;
 	};
 
-	const getSessionOrThrow = async (request: Parameters<typeof getSession>[0]) => {
-		const session = await getSession(request);
+	const getSessionOrThrow = async (request: FastifyRequest) => {
+		const session = await getRequestSession(request);
 		if (!session) {
 			throw app.httpErrors.unauthorized("authentication required");
 		}

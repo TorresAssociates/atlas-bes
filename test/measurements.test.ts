@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test";
 import type { FastifyInstance } from "fastify";
+import { createDb } from "@/db";
+import { getBulkDeviceData, getDeviceData } from "@/modules/measurements/service";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
 import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
@@ -164,12 +166,27 @@ interface DeviceDataBody {
 	deviceId: number;
 	from: string;
 	to: string;
+	truncated: boolean;
 	data: { channel: ChannelBody; measurements: { date: string; value: number | null }[] }[];
+}
+
+interface BulkDeviceDataBody {
+	from: string;
+	to: string;
+	truncated: boolean;
+	devices: {
+		deviceId: number;
+		data: { channel: ChannelBody; measurements: { date: string; value: number | null }[] }[];
+	}[];
 }
 
 interface DeviceLatestDataBody {
 	deviceId: number;
 	data: { channel: ChannelBody; date: string | null; value: number | null }[];
+}
+
+interface BulkDeviceLatestDataBody {
+	devices: DeviceLatestDataBody[];
 }
 
 test("GET /v1/devices/:id/data returns 401 without a session", async () => {
@@ -290,6 +307,99 @@ test("GET /v1/devices/:id/data?includeInactiveChannels=true includes inactive ch
 	expect(inactive.measurements).toEqual([{ date: hourAgo.toISOString(), value: 7 }]);
 });
 
+test("GET /v1/devices/data returns 401 without a session", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data?deviceIds=${dataDeviceId}`,
+	});
+	expect(res.statusCode).toBe(401);
+});
+
+test("GET /v1/devices/data requires at least one deviceId", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/devices/data",
+		headers: { cookie: admin.cookie },
+	});
+	expect(res.statusCode).toBe(400);
+});
+
+test("GET /v1/devices/data returns measurements for several devices at once", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data?deviceIds=${dataDeviceId}&deviceIds=${torresDeviceId}`,
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<BulkDeviceDataBody>();
+	// Default window: to = now, from = to - 24h.
+	expect(new Date(body.to).getTime() - new Date(body.from).getTime()).toBe(24 * HOUR_MS);
+	// Devices come back in request order.
+	expect(body.devices.map((entry) => entry.deviceId)).toEqual([dataDeviceId, torresDeviceId]);
+
+	const dataDevice = body.devices[0]!;
+	expect(dataDevice.data.map((entry) => entry.channel.id)).toEqual([
+		waterChannelId,
+		batteryChannelId,
+		stageChannelId,
+	]);
+	expect(dataDevice.data[0]!.measurements).toEqual([
+		{ date: twoHoursAgo.toISOString(), value: null },
+		{ date: ninetyMinutesAgo.toISOString(), value: 99 },
+		{ date: hourAgo.toISOString(), value: 10 },
+	]);
+
+	// A device with no channels still appears, with an empty data array.
+	expect(body.devices[1]!.data).toEqual([]);
+});
+
+test("GET /v1/devices/data accepts a single deviceIds value", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data?deviceIds=${dataDeviceId}`,
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<BulkDeviceDataBody>();
+	expect(body.devices.map((entry) => entry.deviceId)).toEqual([dataDeviceId]);
+});
+
+test("GET /v1/devices/data applies channel filters across all devices", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data?deviceIds=${dataDeviceId}&deviceIds=${torresDeviceId}&category=battery`,
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<BulkDeviceDataBody>();
+	expect(body.devices[0]!.data.map((entry) => entry.channel.id)).toEqual([batteryChannelId]);
+	expect(body.devices[1]!.data).toEqual([]);
+});
+
+test("GET /v1/devices/data rejects an inverted window", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data?deviceIds=${dataDeviceId}&from=2026-01-02T00:00:00Z&to=2026-01-01T00:00:00Z`,
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(400);
+});
+
+test("GET /v1/devices/data returns 404 when any device is hidden from the caller", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data?deviceIds=${dataDeviceId}&deviceIds=${torresDeviceId}`,
+		headers: { cookie: clientManager.cookie },
+	});
+
+	expect(res.statusCode).toBe(404);
+	expect(res.json<{ message: string }>().message).toContain(String(torresDeviceId));
+});
+
 test("GET /v1/devices/:id/data/latest serves current values per channel", async () => {
 	const res = await app.inject({
 		method: "GET",
@@ -325,6 +435,116 @@ test("GET /v1/devices/:id/data/latest?includeInactive=true includes inactive cha
 	const body = res.json<DeviceLatestDataBody>();
 	const inactive = body.data.find((entry) => entry.channel.id === inactiveChannelId)!;
 	expect(inactive.value).toBe(7);
+});
+
+test("data responses report truncated=false when under the point cap", async () => {
+	const single = await app.inject({
+		method: "GET",
+		url: `/v1/devices/${dataDeviceId}/data`,
+		headers: { cookie: admin.cookie },
+	});
+	expect(single.statusCode).toBe(200);
+	expect(single.json<DeviceDataBody>().truncated).toBe(false);
+
+	const bulk = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data?deviceIds=${dataDeviceId}`,
+		headers: { cookie: admin.cookie },
+	});
+	expect(bulk.statusCode).toBe(200);
+	expect(bulk.json<BulkDeviceDataBody>().truncated).toBe(false);
+});
+
+test("the measurement point cap truncates data and flags it", async () => {
+	// Exercised at the service layer so the cap can be small; routes use the
+	// production MAX_MEASUREMENT_POINTS default.
+	const kdb = createDb(db.pool);
+	const session = { user_id: "test", client_id: 1, role_id: 1 };
+	const access = { canReadExternal: true, canViewInactive: true };
+
+	// Within the default 24h window the seed holds 4 points (3 water, 1 battery).
+	const result = await getDeviceData(kdb, dataDeviceId, session, access, {}, 2);
+	expect(result.truncated).toBe(true);
+	const totalPoints = result.data.reduce((sum, entry) => sum + entry.measurements.length, 0);
+	expect(totalPoints).toBe(2);
+
+	const bulk = await getBulkDeviceData(kdb, [dataDeviceId], session, access, {}, 2);
+	expect(bulk.truncated).toBe(true);
+
+	const uncapped = await getDeviceData(kdb, dataDeviceId, session, access, {}, 100);
+	expect(uncapped.truncated).toBe(false);
+	expect(uncapped.data.reduce((sum, entry) => sum + entry.measurements.length, 0)).toBe(4);
+});
+
+test("GET /v1/devices/data/latest returns 401 without a session", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data/latest?deviceIds=${dataDeviceId}`,
+	});
+	expect(res.statusCode).toBe(401);
+});
+
+test("GET /v1/devices/data/latest requires at least one deviceId", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/devices/data/latest",
+		headers: { cookie: admin.cookie },
+	});
+	expect(res.statusCode).toBe(400);
+});
+
+test("GET /v1/devices/data/latest serves current values for several devices at once", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data/latest?deviceIds=${dataDeviceId}&deviceIds=${torresDeviceId}`,
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<BulkDeviceLatestDataBody>();
+	// Devices come back in request order.
+	expect(body.devices.map((entry) => entry.deviceId)).toEqual([dataDeviceId, torresDeviceId]);
+
+	const dataDevice = body.devices[0]!;
+	expect(dataDevice.data.map((entry) => entry.channel.id)).toEqual([
+		waterChannelId,
+		batteryChannelId,
+		stageChannelId,
+	]);
+	// The older record inserted later must not have displaced the latest value.
+	expect(dataDevice.data[0]!.date).toBe(hourAgo.toISOString());
+	expect(dataDevice.data[0]!.value).toBe(10);
+	expect(dataDevice.data[1]!.value).toBe(12.5);
+	// Never-reported channel: nulls, not fabricated values.
+	expect(dataDevice.data[2]!.date).toBeNull();
+	expect(dataDevice.data[2]!.value).toBeNull();
+
+	// A device with no channels still appears, with an empty data array.
+	expect(body.devices[1]!.data).toEqual([]);
+});
+
+test("GET /v1/devices/data/latest?includeInactive=true includes inactive channels", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data/latest?deviceIds=${dataDeviceId}&includeInactive=true`,
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<BulkDeviceLatestDataBody>();
+	const inactive = body.devices[0]!.data.find((entry) => entry.channel.id === inactiveChannelId)!;
+	expect(inactive.value).toBe(7);
+});
+
+test("GET /v1/devices/data/latest returns 404 when any device is hidden from the caller", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/devices/data/latest?deviceIds=${dataDeviceId}&deviceIds=${torresDeviceId}`,
+		headers: { cookie: clientManager.cookie },
+	});
+
+	expect(res.statusCode).toBe(404);
+	expect(res.json<{ message: string }>().message).toContain(String(torresDeviceId));
 });
 
 test("GET /v1/devices/:id/data hides another client's device from session users", async () => {

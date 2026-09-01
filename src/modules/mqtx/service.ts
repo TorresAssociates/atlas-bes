@@ -4,12 +4,7 @@ import type { MqtxClient, MqtxResponse } from "@/lib/mqtx/MqtxClient";
 import type { SessionSubject } from "../auth/service";
 import * as queries from "./queries";
 
-export type ControlType =
-	| "wifi"
-	| "override"
-	| "overtop"
-	| "manualMeasurement"
-	| "ping";
+export type ControlType = "wifi" | "override" | "overtop" | "manualMeasurement" | "ping";
 
 export interface MqtxWriteAccess {
 	canWriteExternal: boolean;
@@ -65,9 +60,7 @@ export interface MqtxSuccessResponse {
 
 export class MqtxDeviceNotFoundError extends Error {
 	constructor(deviceId: string) {
-		super(
-			`device ${deviceId} does not exist or is not available to your client`,
-		);
+		super(`device ${deviceId} does not exist or is not available to your client`);
 		this.name = "MqtxDeviceNotFoundError";
 	}
 }
@@ -112,11 +105,7 @@ async function ensureDeviceAccess(
 ) {
 	const device = access.canWriteExternal
 		? await queries.findDeviceBySerialNumber(db, deviceId)
-		: await queries.findDeviceBySerialNumberForClient(
-				db,
-				deviceId,
-				session.client_id,
-			);
+		: await queries.findDeviceBySerialNumberForClient(db, deviceId, session.client_id);
 	if (!device) throw new MqtxDeviceNotFoundError(deviceId);
 	return device;
 }
@@ -141,18 +130,14 @@ export async function sendMqtxControl(
 	switch (input.controlType) {
 		case "wifi":
 			if (input.requestedState === undefined)
-				throw new MqtxBadRequestError(
-					"requestedState is required for wifi control",
-				);
+				throw new MqtxBadRequestError("requestedState is required for wifi control");
 			response = await mqtx.sendStateUpdate(mqtxDeviceId, version, {
 				wifiInterface: { enabled: input.requestedState },
 			});
 			break;
 		case "override":
 			if (input.requestedState === undefined)
-				throw new MqtxBadRequestError(
-					"requestedState is required for override control",
-				);
+				throw new MqtxBadRequestError("requestedState is required for override control");
 			response =
 				version === "v1"
 					? await mqtx.sendV1LightsCommand(
@@ -197,10 +182,7 @@ export async function updateAlertSettings(
 	input: AlertsSettingsInput,
 ): Promise<void> {
 	await ensureDeviceAccess(db, deviceId, session, access);
-	if (
-		!Array.isArray(input.monitoredCodes) &&
-		typeof input.monitoredCodes !== "object"
-	) {
+	if (!Array.isArray(input.monitoredCodes) && typeof input.monitoredCodes !== "object") {
 		throw new MqtxBadRequestError("Invalid alerts payload");
 	}
 
@@ -210,13 +192,9 @@ export async function updateAlertSettings(
 				code,
 				...(isRecord(data) ? data : {}),
 			}));
-	const response = await mqtx.sendConfigUpdate(
-		deviceId,
-		versionOrDefault(input.version),
-		{
-			config: { monitoredCodes },
-		},
-	);
+	const response = await mqtx.sendConfigUpdate(deviceId, versionOrDefault(input.version), {
+		config: { monitoredCodes },
+	});
 	ensureMqtxSuccess(response);
 }
 
@@ -245,21 +223,15 @@ export async function updateDataSettings(
 		}));
 	}
 
-	const response = await mqtx.sendConfigUpdate(
-		deviceId,
-		versionOrDefault(input.version),
-		{ config },
-	);
+	const response = await mqtx.sendConfigUpdate(deviceId, versionOrDefault(input.version), {
+		config,
+	});
 	ensureMqtxSuccess(response);
 
 	if (input.timestep !== undefined) {
 		await db.transaction().execute(async (trx) => {
 			await queries.archiveCurrentDeviceDatalogging(trx, device.id);
-			await queries.insertDeviceDatalogging(
-				trx,
-				device.id,
-				input.timestep!,
-			);
+			await queries.insertDeviceDatalogging(trx, device.id, input.timestep!);
 		});
 	}
 	return { message: "Settings updated successfully", status: 200 };
@@ -335,10 +307,8 @@ export async function updatePowerSettings(
 ): Promise<MqtxSuccessResponse> {
 	const device = await ensureDeviceAccess(db, deviceId, session, access);
 	const current = await queries.findCurrentDevicePower(db, device.id);
-	const minVoltage =
-		input.min === undefined ? current?.min_voltage : roundPower(input.min);
-	const maxVoltage =
-		input.max === undefined ? current?.max_voltage : roundPower(input.max);
+	const minVoltage = input.min === undefined ? current?.min_voltage : roundPower(input.min);
+	const maxVoltage = input.max === undefined ? current?.max_voltage : roundPower(input.max);
 	if (minVoltage === undefined || maxVoltage === undefined) {
 		throw new MqtxBadRequestError(
 			"min and max are required when no power settings exist for the device",

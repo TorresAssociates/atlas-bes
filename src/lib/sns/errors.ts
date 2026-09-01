@@ -18,9 +18,7 @@ export class SNSUnknownError extends Error {
 
 export class SNSSubscriptionNotFoundError extends Error {
 	constructor(endpoint: string, topic: string) {
-		super(
-			`${endpoint} is not subscribed to SNS topic ${JSON.stringify(topic)}`,
-		);
+		super(`${endpoint} is not subscribed to SNS topic ${JSON.stringify(topic)}`);
 		this.name = "SNSSubscriptionNotFoundError";
 	}
 }

@@ -136,7 +136,11 @@ test("POST /v1/asset-types lets admins create for any client", async () => {
 
 	expect(res.statusCode).toBe(201);
 	expect(res.json<AssetTypeBody>()).toEqual(
-		expect.objectContaining({ owner_client_id: 1, name: "admin-created-type", current_value: null }),
+		expect.objectContaining({
+			owner_client_id: 1,
+			name: "admin-created-type",
+			current_value: null,
+		}),
 	);
 });
 

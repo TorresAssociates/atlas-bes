@@ -35,8 +35,12 @@ beforeAll(async () => {
 		 VALUES ('city-test-station-one'), ('city-test-station-two')
 		 RETURNING id, name`,
 	);
-	const stationOneId = stations.rows.find((station) => station.name === "city-test-station-one")!.id;
-	const stationTwoId = stations.rows.find((station) => station.name === "city-test-station-two")!.id;
+	const stationOneId = stations.rows.find(
+		(station) => station.name === "city-test-station-one",
+	)!.id;
+	const stationTwoId = stations.rows.find(
+		(station) => station.name === "city-test-station-two",
+	)!.id;
 
 	await db.pool.query(
 		`INSERT INTO gauge_station_info (gauge_station_id, city_id, location, latitude, longitude)

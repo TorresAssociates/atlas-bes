@@ -92,7 +92,9 @@ test("GET /v1/seasonal-reports/types lists seeded report types", async () => {
 
 	expect(res.statusCode).toBe(200);
 	expect(res.json<{ data: Array<{ id: number; report_type: string }> }>().data).toEqual(
-		expect.arrayContaining([expect.objectContaining({ id: 1, report_type: "seasonalReportV1" })]),
+		expect.arrayContaining([
+			expect.objectContaining({ id: 1, report_type: "seasonalReportV1" }),
+		]),
 	);
 });
 
@@ -105,7 +107,12 @@ test("GET /v1/seasonal-reports/types/:id/questions lists seeded questions for a 
 
 	expect(res.statusCode).toBe(200);
 	expect(res.json<{ data: Array<{ id: number; question_text: string }> }>().data).toEqual(
-		expect.arrayContaining([expect.objectContaining({ id: 1, question_text: "Is solar panel rated for at least 65 Watts?" })]),
+		expect.arrayContaining([
+			expect.objectContaining({
+				id: 1,
+				question_text: "Is solar panel rated for at least 65 Watts?",
+			}),
+		]),
 	);
 });
 
@@ -258,7 +265,9 @@ test("GET /v1/seasonal-reports/:id/answers lists visible report answers", async 
 
 	expect(res.statusCode).toBe(200);
 	expect(res.json<{ data: SeasonalReportAnswerBody[] }>().data).toEqual(
-		expect.arrayContaining([expect.objectContaining({ seasonal_report_question_id: 1, response: "yes" })]),
+		expect.arrayContaining([
+			expect.objectContaining({ seasonal_report_question_id: 1, response: "yes" }),
+		]),
 	);
 });
 
@@ -289,7 +298,9 @@ test("GET /v1/seasonal-reports/:id/images lists image rows", async () => {
 
 	expect(res.statusCode).toBe(200);
 	expect(res.json<{ data: SeasonalReportImageBody[] }>().data).toEqual(
-		expect.arrayContaining([expect.objectContaining({ path: "seasonal-reports/solar-panel.jpg" })]),
+		expect.arrayContaining([
+			expect.objectContaining({ path: "seasonal-reports/solar-panel.jpg" }),
+		]),
 	);
 });
 
@@ -319,6 +330,9 @@ test("DELETE /v1/seasonal-reports/:id deletes an unreferenced same-client report
 	});
 
 	expect(res.statusCode).toBe(204);
-	const deleted = await db.pool.query<{ id: number }>(`SELECT id FROM seasonal_report WHERE id = $1`, [reportId]);
+	const deleted = await db.pool.query<{ id: number }>(
+		`SELECT id FROM seasonal_report WHERE id = $1`,
+		[reportId],
+	);
 	expect(deleted.rows).toEqual([]);
 });

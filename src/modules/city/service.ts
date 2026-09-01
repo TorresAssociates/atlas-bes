@@ -48,9 +48,7 @@ function normalizeState(state: string): string {
 }
 
 function normalizeCityInput<T extends { state?: string }>(input: T): T {
-	return input.state === undefined
-		? input
-		: { ...input, state: normalizeState(input.state) };
+	return input.state === undefined ? input : { ...input, state: normalizeState(input.state) };
 }
 
 export function listCities(
@@ -95,11 +93,7 @@ export async function updateCity(
 ): Promise<CityResponse> {
 	if (!access.canWriteClients) throw new CityAccessDeniedError();
 
-	const updated = await queries.updateCityById(
-		db,
-		id,
-		normalizeCityInput(input),
-	);
+	const updated = await queries.updateCityById(db, id, normalizeCityInput(input));
 	if (!updated) throw new CityNotFoundError(id);
 	return updated;
 }

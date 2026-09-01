@@ -88,7 +88,9 @@ export class EmnifyInvalidStateTransitionError extends Error {
 	readonly requestedState: string;
 
 	constructor(current: EmnifySimState, requested: EmnifySimState) {
-		super(`Cannot transition from ${STATE_NAMES[current]} (${current}) to ${STATE_NAMES[requested]} (${requested})`);
+		super(
+			`Cannot transition from ${STATE_NAMES[current]} (${current}) to ${STATE_NAMES[requested]} (${requested})`,
+		);
 		this.name = "EmnifyInvalidStateTransitionError";
 		this.currentState = `${current} - ${STATE_NAMES[current]}`;
 		this.requestedState = `${requested} - ${STATE_NAMES[requested]}`;
@@ -121,7 +123,8 @@ export class EmnifyClient {
 		const jwt = await this.#authenticate();
 		const sim = await this.#findSimByIccid(iccid, jwt);
 		const currentState = sim.status.id;
-		if (!isValidTransition(currentState, state)) throw new EmnifyInvalidStateTransitionError(currentState, state);
+		if (!isValidTransition(currentState, state))
+			throw new EmnifyInvalidStateTransitionError(currentState, state);
 
 		const response = await this.#fetch(`${EMNIFY_API_BASE}/sim/${sim.id}`, {
 			method: "PATCH",
@@ -131,7 +134,12 @@ export class EmnifyClient {
 			},
 			body: JSON.stringify({ status: { id: state } }),
 		});
-		if (response.status !== 204) throw new EmnifyApiError(response.status, response.statusText, "Failed to update Emnify SIM status");
+		if (response.status !== 204)
+			throw new EmnifyApiError(
+				response.status,
+				response.statusText,
+				"Failed to update Emnify SIM status",
+			);
 	}
 
 	async activateSim(input: EmnifyActivationInput): Promise<EmnifyActivationResponse> {
@@ -142,28 +150,42 @@ export class EmnifyClient {
 			let activationBic = encodeURIComponent(input.bic);
 			if (!activationBic.startsWith("%23")) activationBic = `%23${activationBic}`;
 
-			const simResponse = await this.#fetch(`${EMNIFY_API_BASE}/sim_batch/bic/${activationBic}`, {
-				method: "GET",
-				headers: { Authorization: `Bearer ${jwt}` },
-			});
+			const simResponse = await this.#fetch(
+				`${EMNIFY_API_BASE}/sim_batch/bic/${activationBic}`,
+				{
+					method: "GET",
+					headers: { Authorization: `Bearer ${jwt}` },
+				},
+			);
 
 			if (simResponse.status === 400) {
 				await this.#alreadyRegisteredActivation(input.iccid, input.box, jwt);
 			} else if (simResponse.status === 200) {
-				const registerResponse = await this.#fetch(`${EMNIFY_API_BASE}/sim_batch/bic/${activationBic}`, {
-					method: "PATCH",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${jwt}`,
+				const registerResponse = await this.#fetch(
+					`${EMNIFY_API_BASE}/sim_batch/bic/${activationBic}`,
+					{
+						method: "PATCH",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${jwt}`,
+						},
+						body: JSON.stringify({ sim_status: { id: 1 } }),
 					},
-					body: JSON.stringify({ sim_status: { id: 1 } }),
-				});
+				);
 				if (!registerResponse.ok) {
-					throw new EmnifyApiError(registerResponse.status, registerResponse.statusText, await registerResponse.text());
+					throw new EmnifyApiError(
+						registerResponse.status,
+						registerResponse.statusText,
+						await registerResponse.text(),
+					);
 				}
 				await this.#createEndpointAndActivateSim(input.iccid, input.box, jwt);
 			} else {
-				throw new EmnifyApiError(simResponse.status, simResponse.statusText, await simResponse.text());
+				throw new EmnifyApiError(
+					simResponse.status,
+					simResponse.statusText,
+					await simResponse.text(),
+				);
 			}
 		}
 
@@ -172,22 +194,31 @@ export class EmnifyClient {
 
 	async getCosts(input: { startDate?: string; endDate?: string }): Promise<EmnifyCostsResponse> {
 		const jwt = await this.#authenticate();
-		const dailyUrl = new URL(`${EMNIFY_API_BASE}/organisation/${this.#organisationId}/stats/daily`);
-		if (input.startDate !== undefined) dailyUrl.searchParams.append("start_date", dateOnly(input.startDate));
-		if (input.endDate !== undefined) dailyUrl.searchParams.append("end_date", dateOnly(input.endDate));
+		const dailyUrl = new URL(
+			`${EMNIFY_API_BASE}/organisation/${this.#organisationId}/stats/daily`,
+		);
+		if (input.startDate !== undefined)
+			dailyUrl.searchParams.append("start_date", dateOnly(input.startDate));
+		if (input.endDate !== undefined)
+			dailyUrl.searchParams.append("end_date", dateOnly(input.endDate));
 
 		const dailyResponse = await this.#fetch(dailyUrl.toString(), {
 			method: "GET",
 			headers: { Authorization: `Bearer ${jwt}` },
 		});
-		if (!dailyResponse.ok) throw new EmnifyApiError(dailyResponse.status, dailyResponse.statusText);
+		if (!dailyResponse.ok)
+			throw new EmnifyApiError(dailyResponse.status, dailyResponse.statusText);
 		await dailyResponse.json();
 
-		const monthlyResponse = await this.#fetch(`${EMNIFY_API_BASE}/organisation/${this.#organisationId}/stats`, {
-			method: "GET",
-			headers: { Authorization: `Bearer ${jwt}` },
-		});
-		if (!monthlyResponse.ok) throw new EmnifyApiError(monthlyResponse.status, monthlyResponse.statusText);
+		const monthlyResponse = await this.#fetch(
+			`${EMNIFY_API_BASE}/organisation/${this.#organisationId}/stats`,
+			{
+				method: "GET",
+				headers: { Authorization: `Bearer ${jwt}` },
+			},
+		);
+		if (!monthlyResponse.ok)
+			throw new EmnifyApiError(monthlyResponse.status, monthlyResponse.statusText);
 		const monthlyData = await monthlyResponse.json();
 		return processEmnifyData(monthlyData);
 	}
@@ -199,9 +230,19 @@ export class EmnifyClient {
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ application_token: this.#applicationToken }),
 		});
-		if (!response.ok) throw new EmnifyApiError(response.status, response.statusText, "Emnify authentication failed");
+		if (!response.ok)
+			throw new EmnifyApiError(
+				response.status,
+				response.statusText,
+				"Emnify authentication failed",
+			);
 		const data = (await response.json()) as { auth_token?: string };
-		if (!data.auth_token) throw new EmnifyApiError(response.status, response.statusText, "Failed to obtain authentication token from Emnify");
+		if (!data.auth_token)
+			throw new EmnifyApiError(
+				response.status,
+				response.statusText,
+				"Failed to obtain authentication token from Emnify",
+			);
 		return data.auth_token;
 	}
 
@@ -217,13 +258,25 @@ export class EmnifyClient {
 		return sim as EmnifySimRecord;
 	}
 
-	async #alreadyRegisteredActivation(iccid: string, box: EmnifyActivationInput["box"], jwt: string): Promise<void> {
+	async #alreadyRegisteredActivation(
+		iccid: string,
+		box: EmnifyActivationInput["box"],
+		jwt: string,
+	): Promise<void> {
 		const sim = await this.#findSimByIccid(iccid, jwt);
-		const endpointResponse = await this.#fetch(`${EMNIFY_API_BASE}/endpoint?q=iccid_with_luhn:${sim.iccid ?? iccid}&per_page=1`, {
-			method: "GET",
-			headers: { Authorization: `Bearer ${jwt}` },
-		});
-		if (!endpointResponse.ok) throw new EmnifyApiError(endpointResponse.status, endpointResponse.statusText, "Failed to fetch endpoint");
+		const endpointResponse = await this.#fetch(
+			`${EMNIFY_API_BASE}/endpoint?q=iccid_with_luhn:${sim.iccid ?? iccid}&per_page=1`,
+			{
+				method: "GET",
+				headers: { Authorization: `Bearer ${jwt}` },
+			},
+		);
+		if (!endpointResponse.ok)
+			throw new EmnifyApiError(
+				endpointResponse.status,
+				endpointResponse.statusText,
+				"Failed to fetch endpoint",
+			);
 		const endpointData = await endpointResponse.json();
 		const endpoint = (endpointData as { data?: EmnifyEndpointRecord[] })?.data?.[0];
 
@@ -243,10 +296,19 @@ export class EmnifyClient {
 				sim: { id: endpoint.sim.id, status: { id: 1 } },
 			}),
 		});
-		if (!activateResponse.ok) throw new EmnifyApiError(activateResponse.status, activateResponse.statusText, await activateResponse.text());
+		if (!activateResponse.ok)
+			throw new EmnifyApiError(
+				activateResponse.status,
+				activateResponse.statusText,
+				await activateResponse.text(),
+			);
 	}
 
-	async #createEndpointAndActivateSim(iccid: string, box: EmnifyActivationInput["box"], jwt: string): Promise<void> {
+	async #createEndpointAndActivateSim(
+		iccid: string,
+		box: EmnifyActivationInput["box"],
+		jwt: string,
+	): Promise<void> {
 		const response = await this.#fetch(`${EMNIFY_API_BASE}/endpoint`, {
 			method: "POST",
 			headers: {
@@ -262,7 +324,8 @@ export class EmnifyClient {
 				tariff_profile: { id: this.#tariffProfileId },
 			}),
 		});
-		if (!response.ok) throw new EmnifyApiError(response.status, response.statusText, await response.text());
+		if (!response.ok)
+			throw new EmnifyApiError(response.status, response.statusText, await response.text());
 	}
 }
 
@@ -289,15 +352,18 @@ function processEmnifyData(monthlyData: any): EmnifyCostsResponse {
 	const hostingFees = Number.parseFloat(monthlyData.hosting_fees) || 0;
 	const now = new Date();
 	const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-	const daysPassed = Math.floor((now.getTime() - startOfCurrentMonth.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+	const daysPassed =
+		Math.floor((now.getTime() - startOfCurrentMonth.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 	const dailyUsageCost = daysPassed > 0 ? currentMonthCost / daysPassed : 0;
 	const costByDate: EmnifyCostByDate[] = [];
 	let totalCost = hostingFees;
 
-	const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0] ?? "";
+	const firstOfMonth =
+		new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0] ?? "";
 	costByDate.push({ date: firstOfMonth, amount: hostingFees + dailyUsageCost });
 	for (let i = 1; i < daysPassed; i += 1) {
-		const date = new Date(now.getFullYear(), now.getMonth(), i + 1).toISOString().split("T")[0] ?? "";
+		const date =
+			new Date(now.getFullYear(), now.getMonth(), i + 1).toISOString().split("T")[0] ?? "";
 		costByDate.push({ date, amount: dailyUsageCost });
 		totalCost += dailyUsageCost;
 	}
@@ -323,4 +389,3 @@ function dateOnly(date: string): string {
 function capitalizeFirstLetter(value: string): string {
 	return value.charAt(0).toUpperCase() + value.slice(1);
 }
-

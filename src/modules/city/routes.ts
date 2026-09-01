@@ -1,7 +1,11 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { hasPermission, requirePermission, requireSession } from "@/plugins/authorization";
+import {
+	getRequestSession,
+	hasPermission,
+	requirePermission,
+	requireSession,
+} from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
-import { getSession } from "../auth/service";
 import {
 	CityIdParamsSchema,
 	CityListQuerySchema,
@@ -21,18 +25,13 @@ import {
 
 const cityRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	const getDb = () => {
-		if (!app.db)
-			throw app.httpErrors.serviceUnavailable(
-				"database is not configured",
-			);
+		if (!app.db) throw app.httpErrors.serviceUnavailable("database is not configured");
 		return app.db;
 	};
 
 	app.setErrorHandler((err, _request, reply) => {
-		if (err instanceof CityNotFoundError)
-			return reply.notFound(err.message);
-		if (err instanceof CityAccessDeniedError)
-			return reply.forbidden(err.message);
+		if (err instanceof CityNotFoundError) return reply.notFound(err.message);
+		if (err instanceof CityAccessDeniedError) return reply.forbidden(err.message);
 		return reply.send(err);
 	});
 
@@ -51,7 +50,7 @@ const cityRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const canReadClients = await hasPermission(request, "R_CLIENTS");
@@ -77,7 +76,7 @@ const cityRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			},
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const canReadClients = await hasPermission(request, "R_CLIENTS");

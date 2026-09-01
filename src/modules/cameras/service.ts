@@ -80,9 +80,7 @@ type SerializedTimelineRow<
 
 export class CameraNotFoundError extends Error {
 	constructor(deviceId: string) {
-		super(
-			`camera ${deviceId} does not exist or is not available to your client`,
-		);
+		super(`camera ${deviceId} does not exist or is not available to your client`);
 		this.name = "CameraNotFoundError";
 	}
 }
@@ -112,9 +110,7 @@ export class CameraMqtxRequestFailedError extends Error {
 }
 
 function serializeDate(value: Date | string): string {
-	return value instanceof Date
-		? value.toISOString()
-		: new Date(value).toISOString();
+	return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 function withSerializedDates<
@@ -144,13 +140,9 @@ function parseDate(value: string | undefined, field: string): Date | undefined {
 	if (value === undefined) return undefined;
 	const numeric = Number(value);
 	const date =
-		Number.isFinite(numeric) && value.trim() !== ""
-			? new Date(numeric)
-			: new Date(value);
+		Number.isFinite(numeric) && value.trim() !== "" ? new Date(numeric) : new Date(value);
 	if (Number.isNaN(date.getTime()))
-		throw new CameraBadRequestError(
-			`${field} must be a valid date or millisecond timestamp`,
-		);
+		throw new CameraBadRequestError(`${field} must be a valid date or millisecond timestamp`);
 	return date;
 }
 
@@ -182,10 +174,7 @@ function toCaptureResponse(row: CameraCaptureEntryRow): CameraCaptureResponse {
 	};
 }
 
-async function hydrateCamera(
-	db: Kysely<DB>,
-	camera: CameraDeviceRow,
-): Promise<CameraResponse> {
+async function hydrateCamera(db: Kysely<DB>, camera: CameraDeviceRow): Promise<CameraResponse> {
 	const [cameraConfig, presets, rotation] = await Promise.all([
 		queries.findCurrentCameraConfig(db, camera.id),
 		queries.listCameraConfigPresets(db, camera.id),
@@ -206,16 +195,10 @@ async function findVisibleCamera(
 	access: CameraReadAccess | CameraWriteAccess,
 ): Promise<CameraDeviceRow> {
 	const canAccessExternal =
-		"canReadExternal" in access
-			? access.canReadExternal
-			: access.canWriteExternal;
+		"canReadExternal" in access ? access.canReadExternal : access.canWriteExternal;
 	const camera = canAccessExternal
 		? await queries.findCameraByDeviceSerialNumber(db, deviceId)
-		: await queries.findCameraByDeviceSerialNumberForClient(
-				db,
-				deviceId,
-				session.client_id,
-			);
+		: await queries.findCameraByDeviceSerialNumberForClient(db, deviceId, session.client_id);
 	if (!camera) throw new CameraNotFoundError(deviceId);
 	return camera;
 }
@@ -243,10 +226,7 @@ export async function getCamera(
 	session: SessionSubject,
 	access: CameraReadAccess,
 ): Promise<CameraResponse> {
-	return hydrateCamera(
-		db,
-		await findVisibleCamera(db, deviceId, session, access),
-	);
+	return hydrateCamera(db, await findVisibleCamera(db, deviceId, session, access));
 }
 
 export async function listCameraDataRecords(
@@ -257,30 +237,21 @@ export async function listCameraDataRecords(
 	filters: CameraQueryFilters = {},
 ): Promise<CameraDataRecordResponse[]> {
 	const camera = await findVisibleCamera(db, deviceId, session, access);
-	const records = await queries.listCameraDataRecords(
-		db,
-		camera.id,
-		toRecordFilters(filters),
-	);
+	const records = await queries.listCameraDataRecords(db, camera.id, toRecordFilters(filters));
 	return Promise.all(
 		records.map(async (record) => ({
 			record: {
 				...record,
 				date: serializeDate(record.date),
 			},
-			captures: (
-				await queries.listCapturesForDataRecord(db, record.id)
-			).map((capture) => ({
+			captures: (await queries.listCapturesForDataRecord(db, record.id)).map((capture) => ({
 				...capture,
 				date: serializeDate(record.date),
 				camera_id: record.camera_id,
 				device_id: camera.device_id,
 				device_serial_number: camera.device_serial_number,
 			})),
-			detections: await queries.listDetectionsForDataRecord(
-				db,
-				record.id,
-			),
+			detections: await queries.listDetectionsForDataRecord(db, record.id),
 		})),
 	);
 }
@@ -293,11 +264,7 @@ export async function listCameraCaptures(
 	filters: CameraQueryFilters = {},
 ): Promise<CameraCaptureResponse[]> {
 	const camera = await findVisibleCamera(db, deviceId, session, access);
-	const rows = await queries.listCameraCaptureEntries(
-		db,
-		camera.id,
-		toRecordFilters(filters),
-	);
+	const rows = await queries.listCameraCaptureEntries(db, camera.id, toRecordFilters(filters));
 	return rows.map(toCaptureResponse);
 }
 
@@ -322,9 +289,7 @@ export async function requestLegacyCameraCapture(
 	access: CameraWriteAccess,
 ): Promise<MqtxStatusResponse> {
 	await findVisibleCamera(db, deviceId, session, access);
-	return ensureMqtxSuccess(
-		await mqtx.sendLegacyCameraCapture(normalizeMqtxDeviceId(deviceId)),
-	);
+	return ensureMqtxSuccess(await mqtx.sendLegacyCameraCapture(normalizeMqtxDeviceId(deviceId)));
 }
 
 export async function requestCameraCapture(
@@ -337,13 +302,9 @@ export async function requestCameraCapture(
 ): Promise<MqtxStatusResponse> {
 	await findVisibleCamera(db, deviceId, session, access);
 	validateCaptureRequest(input);
-	const response = await mqtx.sendCameraCaptureGet(
-		normalizeMqtxDeviceId(deviceId),
-		"3.1",
-		{
-			capture: { annotate: input.annotate, format: input.format },
-		},
-	);
+	const response = await mqtx.sendCameraCaptureGet(normalizeMqtxDeviceId(deviceId), "3.1", {
+		capture: { annotate: input.annotate, format: input.format },
+	});
 	return ensureMqtxSuccess(response);
 }
 
@@ -358,19 +319,13 @@ export async function updateCameraConfig(
 	await findVisibleCamera(db, deviceId, session, access);
 	validateCameraConfig(input);
 	return ensureMqtxSuccess(
-		await mqtx.sendConfigUpdate(
-			normalizeMqtxDeviceId(deviceId),
-			"3.1",
-			input,
-		),
+		await mqtx.sendConfigUpdate(normalizeMqtxDeviceId(deviceId), "3.1", input),
 	);
 }
 
 function validateCaptureRequest(input: CaptureRequestInput): void {
 	if (![0, 1, 2].includes(input.annotate)) {
-		throw new CameraBadRequestError(
-			"annotate is required and must be 0, 1, or 2",
-		);
+		throw new CameraBadRequestError("annotate is required and must be 0, 1, or 2");
 	}
 	if (!input.format || ![0, 1, 2].includes(input.format.type)) {
 		throw new CameraBadRequestError("format.type must be 0, 1, or 2");
@@ -389,8 +344,7 @@ function validateCaptureRequest(input: CaptureRequestInput): void {
 	}
 }
 
-const CHECKIN_REGEX =
-	/^((sat|sun|mon|tue|wed|thu|fri)?(([01][0-9])|(2[0-3])):[0-5][0-9])?$/;
+const CHECKIN_REGEX = /^((sat|sun|mon|tue|wed|thu|fri)?(([01][0-9])|(2[0-3])):[0-5][0-9])?$/;
 
 function validateCameraConfig(input: CameraConfigInput): void {
 	if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -409,9 +363,7 @@ function validateCameraConfig(input: CameraConfigInput): void {
 			values[key] !== undefined &&
 			(typeof values[key] !== "number" || !Number.isFinite(values[key]))
 		) {
-			throw new CameraBadRequestError(
-				`camera.${key} must be a finite number`,
-			);
+			throw new CameraBadRequestError(`camera.${key} must be a finite number`);
 		}
 	}
 	for (const key of ["selectedPreset", "cameraBootTimeDelay"] as const) {
@@ -421,15 +373,12 @@ function validateCameraConfig(input: CameraConfigInput): void {
 				(values[key] as number) < 0 ||
 				(values[key] as number) > 255)
 		) {
-			throw new CameraBadRequestError(
-				`camera.${key} must be an integer between 0 and 255`,
-			);
+			throw new CameraBadRequestError(`camera.${key} must be an integer between 0 and 255`);
 		}
 	}
 	if (
 		values.checkInTime !== undefined &&
-		(typeof values.checkInTime !== "string" ||
-			!CHECKIN_REGEX.test(values.checkInTime))
+		(typeof values.checkInTime !== "string" || !CHECKIN_REGEX.test(values.checkInTime))
 	) {
 		throw new CameraBadRequestError(
 			'camera.checkInTime must be empty or match [day]HH:MM, e.g. "14:30" or "mon14:30"',
@@ -437,28 +386,18 @@ function validateCameraConfig(input: CameraConfigInput): void {
 	}
 	if (values.presets !== undefined) {
 		if (!Array.isArray(values.presets) || values.presets.length < 1)
-			throw new CameraBadRequestError(
-				"camera.presets must be a non-empty array",
-			);
+			throw new CameraBadRequestError("camera.presets must be a non-empty array");
 		for (const preset of values.presets) {
 			if (!preset || typeof preset !== "object" || Array.isArray(preset))
-				throw new CameraBadRequestError(
-					"each camera preset must be an object",
-				);
+				throw new CameraBadRequestError("each camera preset must be an object");
 			const p = preset as Record<string, unknown>;
-			if (
-				!Number.isInteger(p.id) ||
-				(p.id as number) < 1 ||
-				(p.id as number) > 254
-			)
+			if (!Number.isInteger(p.id) || (p.id as number) < 1 || (p.id as number) > 254)
 				throw new CameraBadRequestError(
 					"each camera preset requires an integer id between 1 and 254",
 				);
 			for (const key of ["pan", "tilt", "zoom"] as const) {
 				if (typeof p[key] !== "number" || !Number.isFinite(p[key]))
-					throw new CameraBadRequestError(
-						`each camera preset requires a finite ${key}`,
-					);
+					throw new CameraBadRequestError(`each camera preset requires a finite ${key}`);
 			}
 		}
 	}

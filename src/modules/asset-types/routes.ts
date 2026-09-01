@@ -1,17 +1,16 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { hasPermission, requirePermission } from "@/plugins/authorization";
-import { getSession } from "../auth/service";
+import { getRequestSession, hasPermission, requirePermission } from "@/plugins/authorization";
 import {
 	AssetTypeAccessDeniedError,
 	AssetTypeClientNotFoundError,
 	AssetTypeInUseError,
 	AssetTypeNotFoundError,
+	type CreateAssetTypeInput,
 	createAssetType,
 	deleteAssetType,
 	listAssetTypes,
-	updateAssetType,
-	type CreateAssetTypeInput,
 	type UpdateAssetTypeInput,
+	updateAssetType,
 } from "./service";
 
 const assetTypeRoutes: FastifyPluginAsyncTypebox = async (app) => {
@@ -36,7 +35,7 @@ const assetTypeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			schema: { tags: ["asset-types"] },
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const canReadExternal = await hasPermission(request, "R_EXTERNAL_REPORTS");
@@ -52,7 +51,7 @@ const assetTypeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			schema: { tags: ["asset-types"] },
 		},
 		async (request, reply) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_REPORTS");
@@ -74,7 +73,7 @@ const assetTypeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			schema: { tags: ["asset-types"] },
 		},
 		async (request) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const params = request.params as { id: number | string };
@@ -97,7 +96,7 @@ const assetTypeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			schema: { tags: ["asset-types"] },
 		},
 		async (request, reply) => {
-			const session = await getSession(request);
+			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			const params = request.params as { id: number | string };
@@ -109,4 +108,3 @@ const assetTypeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 };
 
 export default assetTypeRoutes;
-

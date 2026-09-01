@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
 import type { SessionSubject } from "../auth/service";
-import type { GaugeStationRiskRow, GaugeStationRow, GaugeStationStatusRow } from "./queries";
+import type { GaugeStationRiskRow, GaugeStationRow } from "./queries";
 import * as queries from "./queries";
 
 export interface GaugeListInput {
@@ -80,22 +80,6 @@ export interface GaugeFeatureCollectionResponse {
 	type: "FeatureCollection";
 	features: GaugeFeatureResponse[];
 }
-
-export interface GaugeStatusInput extends GaugeListInput {
-	rainfallWindow?: number;
-}
-
-export interface GaugeStatusResponse {
-	id: number;
-	riskLevel: number | null;
-	connected: boolean | null;
-	waterLevel: number | null;
-	waterLevelDate: string | null;
-	rainfall: number | null;
-	rainfallAccumulation: number | null;
-}
-
-export const DEFAULT_RAINFALL_WINDOW_HOURS = 3;
 
 export class GaugeNotFoundError extends Error {
 	constructor(gaugeId: number | string) {
@@ -210,45 +194,6 @@ export async function listGaugesGeoJson(
 		? await queries.listGaugeStationsWithRisk(db, filters)
 		: await queries.listGaugeStationsWithRiskForClient(db, session.client_id, filters);
 	return { type: "FeatureCollection", features: rows.map(toGaugeFeature) };
-}
-
-function toGaugeStatus(row: GaugeStationStatusRow): GaugeStatusResponse {
-	return {
-		id: row.id,
-		riskLevel: row.risk_level,
-		connected: row.connected,
-		waterLevel: row.water_level,
-		waterLevelDate:
-			row.water_level_date === null ? null : new Date(row.water_level_date).toISOString(),
-		rainfall: row.rainfall,
-		rainfallAccumulation: row.rainfall_accumulation,
-	};
-}
-
-// Same authorized row set as listGauges/listGaugesGeoJson (shared filters and
-// resolveActiveFilter), so a status row exists for exactly the gauges the
-// caller sees in geojson.
-export async function listGaugeStatuses(
-	db: Kysely<DB>,
-	session: SessionSubject,
-	access: GaugeReadAccess,
-	input: GaugeStatusInput = {},
-): Promise<GaugeStatusResponse[]> {
-	const windowHours = input.rainfallWindow ?? DEFAULT_RAINFALL_WINDOW_HOURS;
-	const filters = {
-		cityId: input.cityId,
-		includeArchived: input.includeArchived,
-		active: resolveActiveFilter(access, input),
-	};
-	const rows = access.canReadExternal
-		? await queries.listGaugeStationStatuses(db, windowHours, filters)
-		: await queries.listGaugeStationStatusesForClient(
-				db,
-				session.client_id,
-				windowHours,
-				filters,
-			);
-	return rows.map(toGaugeStatus);
 }
 
 export async function getGauge(

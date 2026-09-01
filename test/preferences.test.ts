@@ -2,11 +2,7 @@ import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
-import {
-	startTestDatabase,
-	stubConfigEnv,
-	type TestDatabase,
-} from "./helpers/database";
+import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
 
 setDefaultTimeout(120_000);
 

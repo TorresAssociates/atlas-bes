@@ -3,11 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { AlertSNSClient } from "@/lib/sns/AlertSNSClient";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
-import {
-	startTestDatabase,
-	stubConfigEnv,
-	type TestDatabase,
-} from "./helpers/database";
+import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
 
 setDefaultTimeout(120_000);
 
@@ -23,11 +19,7 @@ const snsDeletedTopics: string[] = [];
 const snsMessages: Array<{ topic: string; message: string }> = [];
 
 const fakeAlertSns = {
-	getTopicName(
-		gaugeName: string,
-		deviceSerialNumber: string | null,
-		warningType: string,
-	) {
+	getTopicName(gaugeName: string, deviceSerialNumber: string | null, warningType: string) {
 		return `${gaugeName}_${deviceSerialNumber ? "Device_" : ""}alert_${warningType}`;
 	},
 	getAlertMessage(
@@ -35,8 +27,7 @@ const fakeAlertSns = {
 		deviceSerialNumber: string | null,
 		warningDescription: string,
 	) {
-		const alertTarget =
-			deviceSerialNumber === null ? "" : `(${deviceSerialNumber}) `;
+		const alertTarget = deviceSerialNumber === null ? "" : `(${deviceSerialNumber}) `;
 		return `Alert - ${warningDescription} ${alertTarget}at Gauge ${gaugeName}!`;
 	},
 	async subscribeSms(phoneNumber: string, topic: string) {
@@ -85,9 +76,7 @@ beforeAll(async () => {
 		body: { phone_number: "+15555550300" },
 	});
 	if (phone.statusCode !== 200)
-		throw new Error(
-			`failed to set phone: ${phone.statusCode} ${phone.body}`,
-		);
+		throw new Error(`failed to set phone: ${phone.statusCode} ${phone.body}`);
 
 	const adminPhone = await app.inject({
 		method: "PATCH",
@@ -96,9 +85,7 @@ beforeAll(async () => {
 		body: { phone_number: "+15555550100" },
 	});
 	if (adminPhone.statusCode !== 200)
-		throw new Error(
-			`failed to set admin phone: ${adminPhone.statusCode} ${adminPhone.body}`,
-		);
+		throw new Error(`failed to set admin phone: ${adminPhone.statusCode} ${adminPhone.body}`);
 
 	const station = await db.pool.query<{ id: number }>(
 		`INSERT INTO gauge_station (name) VALUES ('alert-test-gauge') RETURNING id`,
@@ -381,9 +368,7 @@ test("DELETE /v1/alerts/subscriptions/user/:userId/deviceAlerts archives device 
 		phoneNumber: "+15555550300",
 		topic: "alert-test-gauge_Device_alert_delDevice",
 	});
-	expect(snsDeletedTopics).toContain(
-		"alert-test-gauge_Device_alert_delDevice",
-	);
+	expect(snsDeletedTopics).toContain("alert-test-gauge_Device_alert_delDevice");
 });
 
 test("POST /v1/alerts/testMessage sends the monthly test message", async () => {
@@ -401,8 +386,7 @@ test("POST /v1/alerts/testMessage sends the monthly test message", async () => {
 	});
 	expect(snsMessages).toContainEqual({
 		topic: "ATLASTEST",
-		message:
-			"This is the monthly test of the ATLAS messaging system. No Action Required.",
+		message: "This is the monthly test of the ATLAS messaging system. No Action Required.",
 	});
 });
 
