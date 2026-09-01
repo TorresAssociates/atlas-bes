@@ -48,6 +48,7 @@ const configSchema = Type.Object({
 	MICROSOFT_CLIENT_ID: Type.Optional(Type.String({ minLength: 1 })),
 	MICROSOFT_CLIENT_SECRET: Type.Optional(Type.String({ minLength: 1 })),
 	MICROSOFT_TENANT_ID: Type.Optional(Type.String({ minLength: 1 })),
+    RAINBOW_API_TOKEN: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export type AppConfig = Static<typeof configSchema>;

@@ -96,8 +96,10 @@ export function listControlAuditLogs(
 			"control_audit_log.actor_user_id",
 		]);
 
-	if (filters.clientId !== undefined) query = query.where("actor.client_id", "=", filters.clientId);
-	if (filters.from !== undefined) query = query.where("control_audit_log.date", ">=", filters.from);
+	if (filters.clientId !== undefined)
+		query = query.where("actor.client_id", "=", filters.clientId);
+	if (filters.from !== undefined)
+		query = query.where("control_audit_log.date", ">=", filters.from);
 	if (filters.to !== undefined) query = query.where("control_audit_log.date", "<=", filters.to);
 	if (filters.logActionId !== undefined) {
 		query = query.where("control_audit_log.log_action_id", "=", filters.logActionId);
@@ -146,7 +148,8 @@ export function listUserAuditLogs(
 			"user_audit_log.target_user_id",
 		]);
 
-	if (filters.clientId !== undefined) query = query.where("target.client_id", "=", filters.clientId);
+	if (filters.clientId !== undefined)
+		query = query.where("target.client_id", "=", filters.clientId);
 	if (filters.from !== undefined) query = query.where("user_audit_log.date", ">=", filters.from);
 	if (filters.to !== undefined) query = query.where("user_audit_log.date", "<=", filters.to);
 	if (filters.logActionId !== undefined) {
@@ -184,7 +187,11 @@ export function listRolePermissionsAuditLogs(
 ): Promise<RolePermissionsAuditLogRow[]> {
 	let query = db
 		.selectFrom("role_permissions_audit_log")
-		.innerJoin("audit_log_action", "audit_log_action.id", "role_permissions_audit_log.log_action_id")
+		.innerJoin(
+			"audit_log_action",
+			"audit_log_action.id",
+			"role_permissions_audit_log.log_action_id",
+		)
 		.innerJoin("user as actor", "actor.id", "role_permissions_audit_log.actor_user_id")
 		.select([
 			"role_permissions_audit_log.id",
@@ -197,7 +204,8 @@ export function listRolePermissionsAuditLogs(
 			"role_permissions_audit_log.added",
 		]);
 
-	if (filters.clientId !== undefined) query = query.where("actor.client_id", "=", filters.clientId);
+	if (filters.clientId !== undefined)
+		query = query.where("actor.client_id", "=", filters.clientId);
 	if (filters.from !== undefined) {
 		query = query.where("role_permissions_audit_log.date", ">=", filters.from);
 	}
@@ -247,7 +255,11 @@ export function findUserClientById(
 	db: Kysely<DB>,
 	id: string,
 ): Promise<{ id: string; client_id: number } | undefined> {
-	return db.selectFrom("user").select(["id", "client_id"]).where("id", "=", id).executeTakeFirst();
+	return db
+		.selectFrom("user")
+		.select(["id", "client_id"])
+		.where("id", "=", id)
+		.executeTakeFirst();
 }
 
 export function findRoleById(

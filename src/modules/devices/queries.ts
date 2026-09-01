@@ -42,115 +42,130 @@ const riskLevelCase = sql<number | null>`CASE
 				/ NULLIF(risk_level_monitor_config_gradient.end_value - risk_level_monitor_config_gradient.begin_value, 0)))
 END`;
 
+// Shared join block for the risk computation: every valid monitor on the
+// device with its config, monitored channel, latest measurement, and
+// range/gradient config rows.
+function riskLevelMonitorJoins() {
+	const eb = expressionBuilder<DB, "device">();
+	return eb
+		.selectFrom("risk_level_monitor")
+		.innerJoin("risk_level_monitor_config", (join) =>
+			join
+				.onRef(
+					"risk_level_monitor_config.risk_level_monitor_id",
+					"=",
+					"risk_level_monitor.id",
+				)
+				.on(validAt("risk_level_monitor_config")),
+		)
+		.innerJoin("risk_level_monitor_channel", (join) =>
+			join
+				.onRef(
+					"risk_level_monitor_channel.risk_level_monitor_id",
+					"=",
+					"risk_level_monitor.id",
+				)
+				.on(validAt("risk_level_monitor_channel")),
+		)
+		.leftJoin(
+			"measurement_record_latest",
+			"measurement_record_latest.channel_id",
+			"risk_level_monitor_channel.channel_id",
+		)
+		.leftJoin("risk_level_monitor_config_range", (join) =>
+			join
+				.onRef(
+					"risk_level_monitor_config_range.risk_level_monitor_id",
+					"=",
+					"risk_level_monitor.id",
+				)
+				.on(validAt("risk_level_monitor_config_range")),
+		)
+		.leftJoin("risk_level_monitor_config_gradient", (join) =>
+			join
+				.onRef(
+					"risk_level_monitor_config_gradient.risk_level_monitor_id",
+					"=",
+					"risk_level_monitor.id",
+				)
+				.on(validAt("risk_level_monitor_config_gradient")),
+		)
+		.whereRef("risk_level_monitor.device_id", "=", "device.id")
+		.where(validAt("risk_level_monitor"));
+}
+
 // Device-level risk comes from the highest-priority monitor config (lower
 // number = higher priority) among monitors that yield a risk value; monitors
 // with no computable risk are skipped, and equal priorities resolve to the
 // most significant (highest) risk value.
 function deviceRiskLevel(at?: Date) {
-	const eb = expressionBuilder<DB, "device">();
-	let query = eb
-		.selectFrom("risk_level_monitor")
-		.innerJoin("risk_level_monitor_config", (join) =>
-			join
-				.onRef(
-					"risk_level_monitor_config.risk_level_monitor_id",
-					"=",
-					"risk_level_monitor.id",
-				)
-				.on(validAt("risk_level_monitor_config")),
-		)
-		.innerJoin("risk_level_monitor_channel", (join) =>
-			join
-				.onRef(
-					"risk_level_monitor_channel.risk_level_monitor_id",
-					"=",
-					"risk_level_monitor.id",
-				)
-				.on(validAt("risk_level_monitor_channel")),
-		)
-		.leftJoin(
-			"measurement_record_latest",
-			"measurement_record_latest.channel_id",
-			"risk_level_monitor_channel.channel_id",
-		)
-		.leftJoin("risk_level_monitor_config_range", (join) =>
-			join
-				.onRef(
-					"risk_level_monitor_config_range.risk_level_monitor_id",
-					"=",
-					"risk_level_monitor.id",
-				)
-				.on(validAt("risk_level_monitor_config_range")),
-		)
-		.leftJoin("risk_level_monitor_config_gradient", (join) =>
-			join
-				.onRef(
-					"risk_level_monitor_config_gradient.risk_level_monitor_id",
-					"=",
-					"risk_level_monitor.id",
-				)
-				.on(validAt("risk_level_monitor_config_gradient")),
-		)
-		.whereRef("risk_level_monitor.device_id", "=", "device.id")
-		.where(validAt("risk_level_monitor"))
-		.select(
-			sql<
-				number | null
-			>`(ARRAY_AGG(${riskLevelCase} ORDER BY risk_level_monitor_config.priority, ${riskLevelCase} DESC) FILTER (WHERE ${riskLevelCase} IS NOT NULL))[1]`.as(
-				"risk_level",
-			),
-		);
+	let query = riskLevelMonitorJoins().select(
+		sql<
+			number | null
+		>`(ARRAY_AGG(${riskLevelCase} ORDER BY risk_level_monitor_config.priority, ${riskLevelCase} DESC) FILTER (WHERE ${riskLevelCase} IS NOT NULL))[1]`.as(
+			"risk_level",
+		),
+	);
 	if (at !== undefined) query = query.where(sql<boolean>`FALSE`);
 	return query;
 }
 
-function deviceRiskLevels(at?: Date) {
+// The monitor whose config produced the device-level risk: identical ordering
+// to deviceRiskLevel, aggregating the monitor id instead of the risk value.
+function deviceWinningRiskMonitorId() {
+	return riskLevelMonitorJoins().select(
+		sql<
+			number | null
+		>`(ARRAY_AGG(${sql.ref("risk_level_monitor.id")} ORDER BY risk_level_monitor_config.priority, ${riskLevelCase} DESC) FILTER (WHERE ${riskLevelCase} IS NOT NULL))[1]`.as(
+			"monitor_id",
+		),
+	);
+}
+
+// All range bands configured on the monitor that produced the device-level
+// risk, so clients can plot the reported risk among the full band set. Empty
+// when no monitor yields a risk or the winning monitor is gradient-based.
+function deviceRiskLevelConfigRanges(at?: Date) {
 	const eb = expressionBuilder<DB, "device">();
 	let query = eb
-		.selectFrom("risk_level_monitor")
-		.innerJoin("risk_level_monitor_config", (join) =>
-			join
-				.onRef(
-					"risk_level_monitor_config.risk_level_monitor_id",
-					"=",
-					"risk_level_monitor.id",
-				)
-				.on(validAt("risk_level_monitor_config")),
+		.selectFrom("risk_level_monitor_config_range")
+		.select([
+			"risk_level_monitor_config_range.min_value",
+			"risk_level_monitor_config_range.max_value",
+			"risk_level_monitor_config_range.risk_level",
+		])
+		.where(validAt("risk_level_monitor_config_range"))
+		.where(
+			"risk_level_monitor_config_range.risk_level_monitor_id",
+			"=",
+			sql<number>`(${deviceWinningRiskMonitorId()})`,
 		)
-		.innerJoin("risk_level_monitor_channel", (join) =>
-			join
-				.onRef(
-					"risk_level_monitor_channel.risk_level_monitor_id",
-					"=",
-					"risk_level_monitor.id",
-				)
-				.on(validAt("risk_level_monitor_channel")),
-		)
-		.leftJoin(
-			"measurement_record_latest",
-			"measurement_record_latest.channel_id",
-			"risk_level_monitor_channel.channel_id",
-		)
-		.leftJoin("risk_level_monitor_config_range", (join) =>
-			join
-				.onRef(
-					"risk_level_monitor_config_range.risk_level_monitor_id",
-					"=",
-					"risk_level_monitor.id",
-				)
-				.on(validAt("risk_level_monitor_config_range")),
-		)
-		.leftJoin("risk_level_monitor_config_gradient", (join) =>
-			join
-				.onRef(
-					"risk_level_monitor_config_gradient.risk_level_monitor_id",
-					"=",
-					"risk_level_monitor.id",
-				)
-				.on(validAt("risk_level_monitor_config_gradient")),
-		)
-		.whereRef("risk_level_monitor.device_id", "=", "device.id")
-		.where(validAt("risk_level_monitor"))
+		.orderBy("risk_level_monitor_config_range.min_value");
+	if (at !== undefined) query = query.where(sql<boolean>`FALSE`);
+	return query;
+}
+
+function deviceRiskLevelOverrideValue(at?: Date) {
+	const eb = expressionBuilder<DB, "device">();
+	return eb
+		.selectFrom("risk_level_monitor_config_override")
+		.select("risk_level_monitor_config_override.risk_level")
+		.whereRef("risk_level_monitor_config_override.device_id", "=", "device.id")
+		.where(validAt("risk_level_monitor_config_override", at))
+		.orderBy("risk_level_monitor_config_override.introduced", "desc")
+		.limit(1);
+}
+
+// A manual override (the old system's "overtopping") beats the computed monitor
+// risk for as long as an unarchived override row exists for the device.
+function deviceEffectiveRiskLevel(at?: Date) {
+	return sql<
+		number | null
+	>`COALESCE((${deviceRiskLevelOverrideValue(at)}), (${deviceRiskLevel(at)}))`;
+}
+
+function deviceRiskLevels(at?: Date) {
+	let query = riskLevelMonitorJoins()
 		.select([
 			"risk_level_monitor.id as monitor_id",
 			"risk_level_monitor_channel.channel_id",
@@ -193,8 +208,12 @@ function deviceSummarySelect(db: Kysely<DB>, at?: Date) {
 			"device_info.longitude",
 			"device_info.active",
 			"device_connected.connected",
-			deviceRiskLevel(at).as("risk_level"),
+			deviceEffectiveRiskLevel(at).as("risk_level"),
+			deviceRiskLevelOverrideValue(at).as("risk_level_override"),
 			"device_info.display_name",
+		])
+		.select(() => [
+			jsonArrayFrom(deviceRiskLevelConfigRanges(at)).as("risk_level_config_ranges"),
 		]);
 }
 
@@ -272,6 +291,7 @@ function deviceDetailSelect(db: Kysely<DB>, at?: Date) {
 						.orderBy("device_sim.sim_index"),
 				).as("sims"),
 				jsonArrayFrom(deviceRiskLevels(at)).as("risk_levels"),
+				jsonArrayFrom(deviceRiskLevelConfigRanges(at)).as("risk_level_config_ranges"),
 			];
 		})
 		.select([
@@ -305,7 +325,8 @@ function deviceDetailSelect(db: Kysely<DB>, at?: Date) {
 			"device_camera_trigger_override.id as camera_info_id",
 			"device_camera_trigger_override.trigger_override",
 			"device_camera_trigger.triggered",
-			deviceRiskLevel(at).as("risk_level"),
+			deviceEffectiveRiskLevel(at).as("risk_level"),
+			deviceRiskLevelOverrideValue(at).as("risk_level_override"),
 		]);
 }
 
@@ -443,6 +464,39 @@ export function insertDevicePower(
 export async function archiveDevicePower(db: Kysely<DB>, deviceId: number): Promise<void> {
 	await db
 		.updateTable("device_power")
+		.set({ archived: sql`now()` })
+		.where("device_id", "=", deviceId)
+		.where("archived", "is", null)
+		.execute();
+}
+
+export function findCurrentRiskLevelOverride(
+	db: Kysely<DB>,
+	deviceId: number,
+): Promise<{ id: number; risk_level: number } | undefined> {
+	return db
+		.selectFrom("risk_level_monitor_config_override")
+		.select(["id", "risk_level"])
+		.where("device_id", "=", deviceId)
+		.where("archived", "is", null)
+		.executeTakeFirst();
+}
+
+export function insertRiskLevelOverride(
+	db: Kysely<DB>,
+	deviceId: number,
+	riskLevel: number,
+): Promise<{ id: number }> {
+	return db
+		.insertInto("risk_level_monitor_config_override")
+		.values({ device_id: deviceId, risk_level: riskLevel })
+		.returning("id")
+		.executeTakeFirstOrThrow();
+}
+
+export async function archiveRiskLevelOverride(db: Kysely<DB>, deviceId: number): Promise<void> {
+	await db
+		.updateTable("risk_level_monitor_config_override")
 		.set({ archived: sql`now()` })
 		.where("device_id", "=", deviceId)
 		.where("archived", "is", null)

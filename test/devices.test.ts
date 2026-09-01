@@ -328,6 +328,8 @@ interface DeviceSummaryBody {
 	active: boolean | null;
 	connected: boolean | null;
 	riskLevel: number | null;
+	riskLevelOverride: number | null;
+	riskLevelConfigRanges: { minValue: number; maxValue: number; riskLevel: number }[];
 	displayName: string | null;
 }
 
@@ -401,6 +403,12 @@ test("GET /v1/devices returns the summary shape with the computed risk level", a
 		active: true,
 		connected: true,
 		riskLevel: 2,
+		riskLevelOverride: null,
+		// Every band of the winning (range) monitor, ordered by min_value.
+		riskLevelConfigRanges: [
+			{ minValue: 0, maxValue: 10, riskLevel: 1 },
+			{ minValue: 10, maxValue: 20, riskLevel: 2 },
+		],
 		displayName: "Main Logger",
 	});
 
@@ -411,6 +419,7 @@ test("GET /v1/devices returns the summary shape with the computed risk level", a
 	);
 	expect(camera.connected).toBeNull();
 	expect(camera.riskLevel).toBeNull();
+	expect(camera.riskLevelConfigRanges).toEqual([]);
 });
 
 test("GET /v1/devices limits session users to their client's devices", async () => {
@@ -549,6 +558,10 @@ test("GET /v1/devices/:id returns the full detail shape", async () => {
 			active: true,
 			connected: true,
 			riskLevel: 2,
+			riskLevelConfigRanges: [
+				{ minValue: 0, maxValue: 10, riskLevel: 1 },
+				{ minValue: 10, maxValue: 20, riskLevel: 2 },
+			],
 			displayName: "Main Logger",
 			pageVersion: "v2",
 			activationDate: "2026-01-15T00:00:00.000Z",
@@ -622,6 +635,9 @@ test("device risk level follows monitor config priority, not the overall max", a
 	// significant value wins. The priority-2 monitor's risk of 4 — the overall
 	// max — must not be used.
 	expect(body.riskLevel).toBe(3);
+	// The ranges echo the winning monitor's bands — the priority-1 monitor that
+	// produced risk 3, not the priority-0 or priority-2 ones.
+	expect(body.riskLevelConfigRanges).toEqual([{ minValue: 0, maxValue: 10, riskLevel: 3 }]);
 	// The per-monitor breakdown is ordered by priority.
 	expect(body.riskLevels.map((r) => r.priority)).toEqual([0, 1, 1, 2]);
 });
@@ -686,6 +702,7 @@ test("GET /v1/devices/:id?at= resolves SCD2 state as of that instant", async () 
 	// Historical risk is intentionally not computed from latest values.
 	expect(body.riskLevel).toBeNull();
 	expect(body.riskLevels).toEqual([]);
+	expect(body.riskLevelConfigRanges).toEqual([]);
 });
 
 test("PATCH /v1/devices/:id rejects read-only users", async () => {
@@ -803,4 +820,129 @@ test("PATCH /v1/devices/:id replaces power as a new SCD row", async () => {
 	expect(previousPower.archived).not.toBeNull();
 	expect(currentPower.min_voltage).toBe(11);
 	expect(currentPower.archived).toBeNull();
+});
+
+const controlAuditActions = async (deviceId: number) =>
+	(
+		await db.pool.query<{ action_id: string }>(
+			`SELECT audit_log_action.action_id FROM control_audit_log
+			 JOIN audit_log_action ON audit_log_action.id = control_audit_log.log_action_id
+			 WHERE control_audit_log.device_id = $1 ORDER BY control_audit_log.id`,
+			[deviceId],
+		)
+	).rows.map((row) => row.action_id);
+
+test("PATCH /v1/devices/:id sets a manual risk level override that trumps the computed risk", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/devices/${fullDeviceId}`,
+		headers: { cookie: admin.cookie },
+		body: { riskLevelOverride: 4 },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<DeviceDetailBody>();
+	expect(body.riskLevel).toBe(4);
+	expect(body.riskLevelOverride).toBe(4);
+	// The per-monitor breakdown still reports the computed values.
+	expect(body.riskLevels.map((r) => r.riskLevel)).toEqual([2, 2.5]);
+
+	// The list view resolves the override too.
+	const listRes = await app.inject({
+		method: "GET",
+		url: "/v1/devices",
+		headers: { cookie: admin.cookie },
+	});
+	const listed = must(
+		listRes.json<DeviceListBody>().data.find((device) => device.id === fullDeviceId),
+		"full device was not returned",
+	);
+	expect(listed.riskLevel).toBe(4);
+	expect(listed.riskLevelOverride).toBe(4);
+
+	expect(await controlAuditActions(fullDeviceId)).toEqual(["MAN_OVERTOP_ON"]);
+});
+
+test("PATCH /v1/devices/:id replaces an existing override as a new SCD row", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/devices/${fullDeviceId}`,
+		headers: { cookie: admin.cookie },
+		body: { riskLevelOverride: 3 },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<DeviceDetailBody>();
+	expect(body.riskLevel).toBe(3);
+	expect(body.riskLevelOverride).toBe(3);
+
+	const rows = await db.pool.query<{ risk_level: number; archived: Date | null }>(
+		`SELECT risk_level, archived FROM risk_level_monitor_config_override
+		 WHERE device_id = $1 ORDER BY id`,
+		[fullDeviceId],
+	);
+	expect(rows.rows).toHaveLength(2);
+	const previousOverride = must(rows.rows[0], "previous override row was not returned");
+	const currentOverride = must(rows.rows[1], "current override row was not returned");
+	expect(previousOverride.risk_level).toBe(4);
+	expect(previousOverride.archived).not.toBeNull();
+	expect(currentOverride.risk_level).toBe(3);
+	expect(currentOverride.archived).toBeNull();
+
+	expect(await controlAuditActions(fullDeviceId)).toEqual(["MAN_OVERTOP_ON", "MAN_OVERTOP_ON"]);
+});
+
+test("PATCH /v1/devices/:id clears the override and returns to the computed risk", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/devices/${fullDeviceId}`,
+		headers: { cookie: admin.cookie },
+		body: { riskLevelOverride: null },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<DeviceDetailBody>();
+	expect(body.riskLevel).toBe(2);
+	expect(body.riskLevelOverride).toBeNull();
+
+	expect(await controlAuditActions(fullDeviceId)).toEqual([
+		"MAN_OVERTOP_ON",
+		"MAN_OVERTOP_ON",
+		"MAN_OVERTOP_OFF",
+	]);
+});
+
+test("PATCH /v1/devices/:id clearing with no active override is a no-op", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/devices/${fullDeviceId}`,
+		headers: { cookie: admin.cookie },
+		body: { riskLevelOverride: null },
+	});
+
+	expect(res.statusCode).toBe(200);
+	expect(res.json<DeviceDetailBody>().riskLevelOverride).toBeNull();
+
+	// No new override rows and no MAN_OVERTOP_OFF audit entry for a no-op clear.
+	const rows = await db.pool.query<{ count: string }>(
+		`SELECT COUNT(*) AS count FROM risk_level_monitor_config_override WHERE device_id = $1`,
+		[fullDeviceId],
+	);
+	expect(must(rows.rows[0], "override count was not returned").count).toBe("2");
+	expect(await controlAuditActions(fullDeviceId)).toEqual([
+		"MAN_OVERTOP_ON",
+		"MAN_OVERTOP_ON",
+		"MAN_OVERTOP_OFF",
+	]);
+});
+
+test("PATCH /v1/devices/:id rejects an out-of-range override", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/devices/${fullDeviceId}`,
+		headers: { cookie: admin.cookie },
+		body: { riskLevelOverride: 5 },
+	});
+
+	expect(res.statusCode).toBe(400);
 });

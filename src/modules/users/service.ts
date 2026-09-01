@@ -75,6 +75,43 @@ function toUserResponse(user: UserRow): UserResponse {
 	};
 }
 
+export interface MeResponse {
+	user: UserResponse;
+	client_name: string;
+	role_name: string;
+	permissions: string[];
+}
+
+/**
+ * The calling user's own profile plus the authorization context the frontend
+ * needs for UI gating (client name, role name, permission names). The
+ * permission list is informational — routes still enforce permissions
+ * per-request via requirePermission().
+ */
+export async function getMe(
+	db: Kysely<DB>,
+	encryptionKey: string,
+	session: SessionSubject,
+	permissions: string[],
+): Promise<MeResponse> {
+	const user = await queries.findUserById(db, session.user_id, encryptionKey);
+	if (!user) throw new UserNotFoundError(session.user_id);
+
+	const [clientName, roleName] = await Promise.all([
+		queries.findClientName(db, session.client_id),
+		queries.findRoleName(db, session.role_id),
+	]);
+
+	return {
+		user: toUserResponse(user),
+		// client_id/role_id are NOT NULL FKs, so these only miss if the row
+		// was hard-deleted out from under the session.
+		client_name: clientName ?? "",
+		role_name: roleName ?? "",
+		permissions,
+	};
+}
+
 export async function listUsers(
 	db: Kysely<DB>,
 	encryptionKey: string,

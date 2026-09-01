@@ -157,6 +157,51 @@ test("GET /v1/users limits client managers to users in their client", async () =
 	expect(body.data.map((user) => user.id)).not.toContain(admin.id);
 });
 
+test("GET /v1/users/me returns 401 without a session", async () => {
+	const res = await app.inject({ method: "GET", url: "/v1/users/me" });
+	expect(res.statusCode).toBe(401);
+});
+
+test("GET /v1/users/me returns the caller's profile with names and permissions", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/users/me",
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<{
+		user: UserBody;
+		client_name: string;
+		role_name: string;
+		permissions: string[];
+	}>();
+	expect(body.user.id).toBe(admin.id);
+	expect(body.client_name).toBe("Torres & Associates");
+	expect(body.role_name).toBe("ADMIN");
+	expect(body.permissions).toContain("R_EXTERNAL_USERS");
+});
+
+test("GET /v1/users/me scopes to the caller, not their client's other users", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/users/me",
+		headers: { cookie: cityTechnician.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<{
+		user: UserBody;
+		client_name: string;
+		role_name: string;
+		permissions: string[];
+	}>();
+	expect(body.user.id).toBe(cityTechnician.id);
+	expect(body.client_name).toBe("City of Bryan");
+	expect(body.role_name).toBe("TECHNICIAN");
+	expect(body.permissions).not.toContain("R_EXTERNAL_USERS");
+});
+
 test("GET /v1/users/:id returns a same-client user for a client manager", async () => {
 	const res = await app.inject({
 		method: "GET",

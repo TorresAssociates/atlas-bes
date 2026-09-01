@@ -87,7 +87,36 @@ export function findUserByIdForClient(
 		.executeTakeFirst();
 }
 
-export async function userEmailExists(db: Kysely<DB>, email: string): Promise<boolean> {
+export async function findClientName(
+	db: Kysely<DB>,
+	clientId: number,
+): Promise<string | undefined> {
+	const client = await db
+		.selectFrom("client")
+		.select("name")
+		.where("id", "=", clientId)
+		.executeTakeFirst();
+
+	return client?.name;
+}
+
+export async function findRoleName(
+	db: Kysely<DB>,
+	roleId: number,
+): Promise<string | undefined> {
+	const role = await db
+		.selectFrom("role")
+		.select("name")
+		.where("id", "=", roleId)
+		.executeTakeFirst();
+
+	return role?.name;
+}
+
+export async function userEmailExists(
+	db: Kysely<DB>,
+	email: string,
+): Promise<boolean> {
 	const user = await db
 		.selectFrom("user")
 		.select("id")

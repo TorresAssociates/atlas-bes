@@ -89,6 +89,23 @@ export async function hasPermission(
 	return permissions.includes(name);
 }
 
+/**
+ * Every permission name held by the request's session (role permissions plus
+ * individual grants). Empty when there is no session or no database.
+ */
+export async function listRequestPermissions(
+	request: FastifyRequest,
+): Promise<PermissionName[]> {
+	const session = await getSession(request);
+	if (!session || !request.server.db) return [];
+
+	return listUserPermissionNames(
+		request.server.db,
+		session.user_id,
+		session.role_id,
+	);
+}
+
 export function requireSession() {
 	return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
 		const session = await getSession(request);

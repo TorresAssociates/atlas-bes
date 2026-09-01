@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 import type { DB, DeviceType, ProtocolType } from "@/db/types";
+import { recordControlAuditLog } from "../audit-logs/service";
 import type { SessionSubject } from "../auth/service";
 import type { DeviceDetailRow, DeviceSummaryRow } from "./queries";
 import * as queries from "./queries";
@@ -36,6 +37,9 @@ export interface UpdateDeviceInfoInput {
 export interface UpdateDeviceInput {
 	info?: UpdateDeviceInfoInput;
 	power?: { minVoltage: number; maxVoltage: number };
+	// A number sets a manual risk level override ("overtopping") that trumps the
+	// computed monitor risk; null clears it.
+	riskLevelOverride?: number | null;
 }
 
 export interface DeviceSummaryResponse {
@@ -48,7 +52,15 @@ export interface DeviceSummaryResponse {
 	active: boolean | null;
 	connected: boolean | null;
 	riskLevel: number | null;
+	riskLevelOverride: number | null;
+	riskLevelConfigRanges: RiskLevelConfigRangeResponse[];
 	displayName: string | null;
+}
+
+export interface RiskLevelConfigRangeResponse {
+	minValue: number;
+	maxValue: number;
+	riskLevel: number;
 }
 
 export interface DeviceRiskLevelResponse {
@@ -133,6 +145,12 @@ function toSummaryResponse(row: DeviceSummaryRow): DeviceSummaryResponse {
 		active: row.active,
 		connected: row.connected,
 		riskLevel: row.risk_level,
+		riskLevelOverride: row.risk_level_override,
+		riskLevelConfigRanges: row.risk_level_config_ranges.map((r) => ({
+			minValue: r.min_value,
+			maxValue: r.max_value,
+			riskLevel: r.risk_level,
+		})),
 		displayName: row.display_name,
 	};
 }
@@ -280,6 +298,19 @@ export async function updateDevice(
 				min_voltage: input.power.minVoltage,
 				max_voltage: input.power.maxVoltage,
 			});
+		}
+
+		if (input.riskLevelOverride === null) {
+			// Clearing when nothing is set is a no-op — no SCD churn, no audit entry.
+			const existing = await queries.findCurrentRiskLevelOverride(trx, id);
+			if (existing) {
+				await queries.archiveRiskLevelOverride(trx, id);
+				await recordControlAuditLog(trx, session.user_id, "MAN_OVERTOP_OFF", id);
+			}
+		} else if (input.riskLevelOverride !== undefined) {
+			await queries.archiveRiskLevelOverride(trx, id);
+			await queries.insertRiskLevelOverride(trx, id, input.riskLevelOverride);
+			await recordControlAuditLog(trx, session.user_id, "MAN_OVERTOP_ON", id);
 		}
 	});
 

@@ -87,6 +87,147 @@ beforeAll(async () => {
 		 VALUES ($1, 1), ($2, 2), ($3, 2)`,
 		[torresStationId, bryanStationId, bryanInactiveId],
 	);
+
+	// Risk fixtures for GET /v1/gauges/geojson. A range monitor whose latest
+	// measurement lands in a band is the simplest computable risk, so every
+	// device here uses one:
+	//   bryan station — device A computes risk 2; device B computes risk 4 but
+	//     carries a manual override of 1, so its effective risk is 1. The
+	//     override applies per device BEFORE the max, so bryan = MAX(2, 1) = 2
+	//     (B's override must not mask A, and B's computed 4 must not leak out).
+	//     An archived device with a risk-9 override must not count at all.
+	//   torres station — one device computing risk 2 with an override of 5;
+	//     the override wins, torres = 5.
+	//   bryan inactive station — no devices, risk NULL.
+	const riskDevices = await db.pool.query<{ id: number; serial_number: string }>(
+		`INSERT INTO device (serial_number, introduced)
+		 VALUES ('gauges-test-risk-a', '2026-01-01'), ('gauges-test-risk-b', '2026-01-01'),
+		        ('gauges-test-risk-archived', '2026-01-01'), ('gauges-test-risk-torres', '2026-01-01')
+		 RETURNING id, serial_number`,
+	);
+	const riskDeviceId = (serial: string) => {
+		const device = riskDevices.rows.find((row) => row.serial_number === serial);
+		if (!device) throw new Error(`device fixture ${serial} was not seeded`);
+		return device.id;
+	};
+	const deviceA = riskDeviceId("gauges-test-risk-a");
+	const deviceB = riskDeviceId("gauges-test-risk-b");
+	const deviceArchived = riskDeviceId("gauges-test-risk-archived");
+	const deviceTorres = riskDeviceId("gauges-test-risk-torres");
+	await db.pool.query(`UPDATE device SET archived = '2026-06-01' WHERE id = $1`, [
+		deviceArchived,
+	]);
+	await db.pool.query(
+		`INSERT INTO device_info (device_id, gauge_station_id, type, latitude, longitude, active)
+		 VALUES ($1, $5, 'datalogger', 30.67, -96.37, TRUE),
+		        ($2, $5, 'datalogger', 30.68, -96.37, TRUE),
+		        ($3, $5, 'datalogger', 30.69, -96.37, TRUE),
+		        ($4, $6, 'datalogger', 30.62, -96.32, TRUE)`,
+		[deviceA, deviceB, deviceArchived, deviceTorres, bryanStationId, torresStationId],
+	);
+
+	const seedRangeRisk = async (deviceId: number, riskLevel: number, value: number) => {
+		const channel = await db.pool.query<{ id: number }>(
+			`INSERT INTO channel (device_id, local_id, channel_type_id) VALUES ($1, 0, 1) RETURNING id`,
+			[deviceId],
+		);
+		const monitor = await db.pool.query<{ id: number }>(
+			`INSERT INTO risk_level_monitor (device_id, local_id, type_id) VALUES ($1, 0, 1) RETURNING id`,
+			[deviceId],
+		);
+		await db.pool.query(
+			`INSERT INTO risk_level_monitor_config (risk_level_monitor_id, priority) VALUES ($1, 1)`,
+			[monitor.rows[0]!.id],
+		);
+		await db.pool.query(
+			`INSERT INTO risk_level_monitor_channel (risk_level_monitor_id, channel_id) VALUES ($1, $2)`,
+			[monitor.rows[0]!.id, channel.rows[0]!.id],
+		);
+		await db.pool.query(
+			`INSERT INTO risk_level_monitor_config_range (risk_level_monitor_id, min_value, max_value, risk_level)
+			 VALUES ($1, 0, 100, $2)`,
+			[monitor.rows[0]!.id, riskLevel],
+		);
+		// The insert trigger on measurement_record maintains measurement_record_latest.
+		await db.pool.query(
+			`INSERT INTO measurement_record (date, channel_id, value) VALUES (NOW(), $1, $2)`,
+			[channel.rows[0]!.id, value],
+		);
+	};
+	await seedRangeRisk(deviceA, 2, 15);
+	await seedRangeRisk(deviceB, 4, 5);
+	await seedRangeRisk(deviceTorres, 2, 5);
+	await db.pool.query(
+		`INSERT INTO risk_level_monitor_config_override (device_id, risk_level)
+		 VALUES ($1, 1), ($2, 5), ($3, 9)`,
+		[deviceB, deviceTorres, deviceArchived],
+	);
+
+	// Live-status fixtures for GET /v1/gauges/status. Categories match the live
+	// schema ('water_level' / 'precipitation_increment').
+	//   bryan — device A: a water channel (scale 2, offset 0.5, raw 1.5 → 3.5 ft
+	//     converted) and a rain channel whose records exercise the window sum:
+	//     +5 two hours ago (inside the default 3h window, outside 1h), then
+	//     +0.5 / -0.75 / +0.25 in the last half hour (the negative clamps to 0).
+	//     Device A reports connected → the gauge is connected.
+	//   torres — its device reports NOT connected, and an extra INACTIVE device
+	//     reports connected but must not count. Its rain channel's only record
+	//     is 48h old, pinning rainfall (latest) = 5 with accumulation = 0.
+	//   bryan-inactive — only a connected FLASHER: connected stays null because
+	//     only dataloggers count, and every other status field is null too.
+	const statusInactive = await db.pool.query<{ id: number }>(
+		`INSERT INTO device (serial_number, introduced)
+		 VALUES ('gauges-test-status-inactive', '2026-01-01') RETURNING id`,
+	);
+	const statusFlasher = await db.pool.query<{ id: number }>(
+		`INSERT INTO device (serial_number, introduced)
+		 VALUES ('gauges-test-status-flasher', '2026-01-01') RETURNING id`,
+	);
+	await db.pool.query(
+		`INSERT INTO device_info (device_id, gauge_station_id, type, latitude, longitude, active)
+		 VALUES ($1, $2, 'datalogger', 30.63, -96.33, FALSE),
+		        ($3, $4, 'flasher', 30.69, -96.40, TRUE)`,
+		[statusInactive.rows[0]!.id, torresStationId, statusFlasher.rows[0]!.id, bryanInactiveId],
+	);
+	await db.pool.query(
+		`INSERT INTO device_connected (device_id, connected)
+		 VALUES ($1, TRUE), ($2, FALSE), ($3, TRUE), ($4, TRUE)`,
+		[deviceA, deviceTorres, statusInactive.rows[0]!.id, statusFlasher.rows[0]!.id],
+	);
+
+	const statusChannels = await db.pool.query<{ id: number; device_id: number; local_id: number }>(
+		`INSERT INTO channel (device_id, local_id, channel_type_id)
+		 VALUES ($1, 1, 1), ($1, 2, 1), ($2, 1, 1)
+		 RETURNING id, device_id, local_id`,
+		[deviceA, deviceTorres],
+	);
+	const statusChannelId = (deviceId: number, localId: number) => {
+		const channel = statusChannels.rows.find(
+			(row) => row.device_id === deviceId && row.local_id === localId,
+		);
+		if (!channel) throw new Error(`status channel fixture ${deviceId}/${localId} was not seeded`);
+		return channel.id;
+	};
+	const waterChannelId = statusChannelId(deviceA, 1);
+	const rainChannelId = statusChannelId(deviceA, 2);
+	const torresRainChannelId = statusChannelId(deviceTorres, 1);
+	await db.pool.query(
+		`INSERT INTO channel_config (channel_id, name, active, category, units, scale, "offset")
+		 VALUES ($1, 'Stage', TRUE, 'water_level', 'ft', 2, 0.5),
+		        ($2, 'Rain', TRUE, 'precipitation_increment', 'in', 1, 0),
+		        ($3, 'Rain', TRUE, 'precipitation_increment', 'in', 1, 0)`,
+		[waterChannelId, rainChannelId, torresRainChannelId],
+	);
+	await db.pool.query(
+		`INSERT INTO measurement_record (date, channel_id, value)
+		 VALUES (NOW() - INTERVAL '48 hours', $1, 5),
+		        (NOW() - INTERVAL '2 hours', $2, 5),
+		        (NOW() - INTERVAL '30 minutes', $2, 0.5),
+		        (NOW() - INTERVAL '20 minutes', $2, -0.75),
+		        (NOW() - INTERVAL '10 minutes', $2, 0.25),
+		        (NOW(), $3, 1.5)`,
+		[torresRainChannelId, rainChannelId, waterChannelId],
+	);
 });
 
 afterAll(async () => {
@@ -111,6 +252,251 @@ interface GaugeBody {
 interface GaugeListBody {
 	data: GaugeBody[];
 }
+
+interface GaugeFeatureBody {
+	type: "Feature";
+	id: number;
+	geometry: { type: "Point"; coordinates: [number, number] };
+	properties: Omit<GaugeBody, "id" | "latitude" | "longitude"> & {
+		riskLevel: number | null;
+	};
+}
+
+interface GaugeFeatureCollectionBody {
+	type: "FeatureCollection";
+	features: GaugeFeatureBody[];
+}
+
+test("GET /v1/gauges/geojson returns 401 without a session", async () => {
+	const res = await app.inject({ method: "GET", url: "/v1/gauges/geojson" });
+	expect(res.statusCode).toBe(401);
+});
+
+test("GET /v1/gauges/geojson returns features with gauge risk levels", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauges/geojson",
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<GaugeFeatureCollectionBody>();
+	expect(body.type).toBe("FeatureCollection");
+
+	// Device B's override (1) applies before the max, so it neither masks
+	// device A's computed 2 nor lets B's computed 4 through; the archived
+	// device's risk-9 override is ignored entirely.
+	const bryan = body.features.find((feature) => feature.id === bryanStationId)!;
+	expect(bryan).toEqual({
+		type: "Feature",
+		id: bryanStationId,
+		geometry: { type: "Point", coordinates: [-96.3698, 30.6744] },
+		properties: expect.objectContaining({
+			name: "gauges-test-bryan",
+			archived: null,
+			city: { id: 2, state: "TX", name: "Bryan" },
+			clients: [{ id: 2, name: "City of Bryan" }],
+			location: "Carter Creek",
+			publiclyVisible: false,
+			active: true,
+			riskLevel: 2,
+		}),
+	});
+
+	// The torres device's manual override (5) beats its computed risk (2).
+	const torres = body.features.find((feature) => feature.id === torresStationId)!;
+	expect(torres.properties.riskLevel).toBe(5);
+
+	// No devices → no risk level.
+	const inactive = body.features.find((feature) => feature.id === bryanInactiveId)!;
+	expect(inactive.properties.riskLevel).toBeNull();
+});
+
+test("GET /v1/gauges/geojson limits session users to their client's gauges", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauges/geojson",
+		headers: { cookie: clientManager.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const ids = res.json<GaugeFeatureCollectionBody>().features.map((feature) => feature.id);
+	expect(ids).toContain(bryanStationId);
+	expect(ids).not.toContain(torresStationId);
+});
+
+test("GET /v1/gauges/geojson hides inactive gauges from read-only users", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauges/geojson",
+		headers: { cookie: readOnly.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const ids = res.json<GaugeFeatureCollectionBody>().features.map((feature) => feature.id);
+	expect(ids).toContain(bryanStationId);
+	expect(ids).not.toContain(bryanInactiveId);
+});
+
+test("GET /v1/gauges/geojson?active=false rejects read-only users", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauges/geojson?active=false",
+		headers: { cookie: readOnly.cookie },
+	});
+
+	expect(res.statusCode).toBe(403);
+});
+
+interface GaugeStatusBody {
+	id: number;
+	riskLevel: number | null;
+	connected: boolean | null;
+	waterLevel: number | null;
+	waterLevelDate: string | null;
+	rainfall: number | null;
+	rainfallAccumulation: number | null;
+}
+
+interface GaugeStatusListBody {
+	data: GaugeStatusBody[];
+}
+
+test("GET /v1/gauges/status returns 401 without a session", async () => {
+	const res = await app.inject({ method: "GET", url: "/v1/gauges/status" });
+	expect(res.statusCode).toBe(401);
+});
+
+test("GET /v1/gauges/status returns live status with the default 3h rainfall window", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauges/status",
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<GaugeStatusListBody>();
+
+	// bryan: risk 2 (override-before-max, mirroring the geojson test), device A
+	// connected, water 1.5 * scale 2 + offset 0.5 = 3.5, latest rain increment
+	// 0.25, 3h accumulation 5 + 0.5 + 0 (clamped -0.75) + 0.25 = 5.75.
+	const bryan = body.data.find((status) => status.id === bryanStationId)!;
+	expect(bryan).toEqual({
+		id: bryanStationId,
+		riskLevel: 2,
+		connected: true,
+		waterLevel: 3.5,
+		waterLevelDate: expect.any(String),
+		rainfall: 0.25,
+		rainfallAccumulation: 5.75,
+	});
+	expect(new Date(bryan.waterLevelDate!).getTime()).not.toBeNaN();
+
+	// torres: override risk 5; its active device reports NOT connected and the
+	// inactive-but-connected device must not count; no water channel; the rain
+	// channel's only record is 48h old → latest 5 but 0 in the window.
+	const torres = body.data.find((status) => status.id === torresStationId)!;
+	expect(torres).toEqual({
+		id: torresStationId,
+		riskLevel: 5,
+		connected: false,
+		waterLevel: null,
+		waterLevelDate: null,
+		rainfall: 5,
+		rainfallAccumulation: 0,
+	});
+
+	// Its only device is a connected flasher: connected stays null because only
+	// dataloggers count, and with no monitors or channels everything else is
+	// null too (no rain channel → null, not 0).
+	const inactive = body.data.find((status) => status.id === bryanInactiveId)!;
+	expect(inactive).toEqual({
+		id: bryanInactiveId,
+		riskLevel: null,
+		connected: null,
+		waterLevel: null,
+		waterLevelDate: null,
+		rainfall: null,
+		rainfallAccumulation: null,
+	});
+});
+
+test("GET /v1/gauges/status?rainfallWindow=1 narrows the accumulation window", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauges/status?rainfallWindow=1",
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const bryan = res
+		.json<GaugeStatusListBody>()
+		.data.find((status) => status.id === bryanStationId)!;
+	// The +5 record two hours ago falls outside a 1h window.
+	expect(bryan.rainfallAccumulation).toBe(0.75);
+});
+
+test("GET /v1/gauges/status rejects rainfall windows outside the presets", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauges/status?rainfallWindow=5",
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(400);
+});
+
+test("GET /v1/gauges/status returns exactly the caller's geojson row set", async () => {
+	const [statusRes, geojsonRes] = await Promise.all([
+		app.inject({
+			method: "GET",
+			url: "/v1/gauges/status",
+			headers: { cookie: clientManager.cookie },
+		}),
+		app.inject({
+			method: "GET",
+			url: "/v1/gauges/geojson",
+			headers: { cookie: clientManager.cookie },
+		}),
+	]);
+
+	expect(statusRes.statusCode).toBe(200);
+	expect(geojsonRes.statusCode).toBe(200);
+	const statusIds = statusRes
+		.json<GaugeStatusListBody>()
+		.data.map((status) => status.id)
+		.sort((a, b) => a - b);
+	const geojsonIds = geojsonRes
+		.json<GaugeFeatureCollectionBody>()
+		.features.map((feature) => feature.id)
+		.sort((a, b) => a - b);
+	expect(statusIds).toEqual(geojsonIds);
+	expect(statusIds).toContain(bryanStationId);
+	expect(statusIds).not.toContain(torresStationId);
+});
+
+test("GET /v1/gauges/status hides inactive gauges from read-only users", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauges/status",
+		headers: { cookie: readOnly.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const ids = res.json<GaugeStatusListBody>().data.map((status) => status.id);
+	expect(ids).toContain(bryanStationId);
+	expect(ids).not.toContain(bryanInactiveId);
+});
+
+test("GET /v1/gauges/status?active=false rejects read-only users", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauges/status?active=false",
+		headers: { cookie: readOnly.cookie },
+	});
+
+	expect(res.statusCode).toBe(403);
+});
 
 test("GET /v1/gauges returns 401 without a session", async () => {
 	const res = await app.inject({ method: "GET", url: "/v1/gauges" });

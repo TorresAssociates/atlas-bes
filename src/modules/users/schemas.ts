@@ -30,5 +30,7 @@ export const UserListSchema = Type.Object({
 
 export const UserMeSchema = Type.Object({
 	user: UserSchema,
+	client_name: Type.String(),
+	role_name: Type.String(),
 	permissions: Type.Array(Type.String()),
 });

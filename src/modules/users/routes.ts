@@ -1,5 +1,10 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { hasPermission, requirePermission, requireSession } from "@/plugins/authorization";
+import {
+	hasPermission,
+	listRequestPermissions,
+	requirePermission,
+	requireSession,
+} from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
 import { getSession } from "../auth/service";
 import {
@@ -11,7 +16,7 @@ import {
 } from "./schemas";
 import {
 	deleteUser,
-	getCurrentUser,
+	getMe,
 	getUser,
 	listUsers,
 	UserAlreadyDeletedError,
@@ -45,6 +50,39 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
 		return reply.send(err);
 	});
+
+	// GET /v1/users/me
+	// The calling user's own profile + client/role names + permission names.
+	// Session-only — every authenticated user may read their own context.
+	app.get(
+		"/me",
+		{
+			preHandler: requireSession(),
+			schema: {
+				tags: ["users"],
+				response: {
+					200: UserMeSchema,
+					401: HttpErrorSchema,
+					404: HttpErrorSchema,
+				},
+			},
+		},
+		async (request) => {
+			const session = await getSession(request);
+			if (!session) {
+				throw app.httpErrors.unauthorized("authentication required");
+			}
+
+			const permissions = await listRequestPermissions(request);
+
+			return getMe(
+				getDb(),
+				app.config.ENCRYPTION_KEY,
+				session,
+				permissions,
+			);
+		},
+	);
 
 	//PATCH /v1/users/me/phone-number
 	app.patch(
@@ -105,30 +143,6 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 					canReadClientUsers: true,
 				}),
 			};
-		},
-	);
-
-	// GET /v1/users/me
-	app.get(
-		"/me",
-		{
-			preHandler: requireSession(),
-			schema: {
-				tags: ["users"],
-				response: {
-					200: UserMeSchema,
-					401: HttpErrorSchema,
-					404: HttpErrorSchema,
-				},
-			},
-		},
-		async (request) => {
-			const session = await getSession(request);
-			if (!session) {
-				throw app.httpErrors.unauthorized("authentication required");
-			}
-
-			return getCurrentUser(getDb(), app.config.ENCRYPTION_KEY, session);
 		},
 	);
 

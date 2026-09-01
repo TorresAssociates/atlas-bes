@@ -18,6 +18,7 @@ import type { DB } from "@/db/types";
 import { createEmnifyClient, type EmnifyClient } from "@/lib/emnify/EmnifyClient";
 import { createHologramClient, type HologramClient } from "@/lib/hologram/HologramClient";
 import { createMqtxClient, type MqtxClient } from "@/lib/mqtx/MqtxClient";
+import { createRainbowClient, type RainbowClient } from "@/lib/rainbow/RainbowClient";
 import { type AlertSNSClient, createAlertSNSClient } from "@/lib/sns/AlertSNSClient";
 
 declare module "fastify" {
@@ -28,6 +29,7 @@ declare module "fastify" {
 		emnify: EmnifyClient;
 		hologram: HologramClient;
 		mqtx: MqtxClient;
+		rainbow: RainbowClient;
 	}
 }
 
@@ -52,6 +54,8 @@ export interface BuildAppOptions {
 	emnify?: EmnifyClient;
 	/** MQTX client override for tests. Defaults to a signed real MQTX API client. */
 	mqtx?: MqtxClient;
+	/** Rainbow client override for tests. Defaults to a real Rainbow API client. */
+	rainbow?: RainbowClient;
 }
 
 const READINESS_PROBE_INTERVAL_MS = 5_000;
@@ -64,7 +68,24 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 	const app = Fastify({
 		// The logger must be configured at instantiation, before @fastify/env has
 		// validated LOG_LEVEL, so it reads the raw env var here.
-		logger: opts.logger === false ? false : { level: process.env.LOG_LEVEL ?? "info" },
+		logger:
+			opts.logger === false
+				? false
+				: {
+						level: process.env.LOG_LEVEL ?? "info",
+						serializers: {
+							// Fastify hands the res serializer its Reply (not the raw
+							// ServerResponse), so the originating request's method and
+							// url can ride along on the "request completed" line.
+							res(reply: { statusCode: number; request?: { method: string; url: string } }) {
+								return {
+									statusCode: reply.statusCode,
+									method: reply.request?.method,
+									url: reply.request?.url,
+								};
+							},
+						},
+					},
 	}).withTypeProvider<TypeBoxTypeProvider>();
 
 	await app.register(configPlugin);
@@ -142,6 +163,9 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 				region: app.config.AWS_REGION,
 			}),
 	);
+	app.decorate("rainbow", opts.rainbow ?? createRainbowClient({
+		apiToken: app.config.RAINBOW_API_TOKEN,
+	}));
 	if (createdPool) {
 		app.addHook("onClose", async (instance) => {
 			instance.log.info("shutdown: closing database pool");

@@ -5,10 +5,13 @@ import { HttpErrorSchema } from "@/schemas";
 import { getSession } from "../auth/service";
 import {
 	CreateGaugeBodySchema,
+	GaugeFeatureCollectionSchema,
 	GaugeIdParamsSchema,
 	GaugeListQuerySchema,
 	GaugeListSchema,
 	GaugeSchema,
+	GaugeStatusListSchema,
+	GaugeStatusQuerySchema,
 	UpdateGaugeBodySchema,
 } from "./schemas";
 import {
@@ -19,7 +22,9 @@ import {
 	GaugeNameConflictError,
 	GaugeNotFoundError,
 	getGauge,
+	listGaugeStatuses,
 	listGauges,
+	listGaugesGeoJson,
 	updateGauge,
 } from "./service";
 
@@ -70,6 +75,64 @@ const gaugeRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
 			return {
 				data: await listGauges(getDb(), session, await readAccess(request), request.query),
+			};
+		},
+	);
+
+	// GET /v1/gauges/geojson — the same authorized row set as GET /v1/gauges,
+	// projected as a GeoJSON FeatureCollection with each gauge's highest
+	// effective device risk level. (The static segment outranks /:id in
+	// find-my-way, so there is no routing conflict.)
+	app.get(
+		"/geojson",
+		{
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
+			schema: {
+				tags: ["gauges"],
+				querystring: GaugeListQuerySchema,
+				response: {
+					200: GaugeFeatureCollectionSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+				},
+			},
+		},
+		async (request) => {
+			const session = await getSession(request);
+			if (!session) throw app.httpErrors.unauthorized("authentication required");
+
+			return listGaugesGeoJson(getDb(), session, await readAccess(request), request.query);
+		},
+	);
+
+	// GET /v1/gauges/status — volatile per-gauge marker data (risk, connectivity,
+	// latest readings, windowed rainfall). Same authorized row set as / and
+	// /geojson; the frontend polls this and joins to geojson features by id.
+	app.get(
+		"/status",
+		{
+			preHandler: requirePermission("R_CLIENT_DEVICES", "R_EXTERNAL_DEVICES"),
+			schema: {
+				tags: ["gauges"],
+				querystring: GaugeStatusQuerySchema,
+				response: {
+					200: GaugeStatusListSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+				},
+			},
+		},
+		async (request) => {
+			const session = await getSession(request);
+			if (!session) throw app.httpErrors.unauthorized("authentication required");
+
+			return {
+				data: await listGaugeStatuses(
+					getDb(),
+					session,
+					await readAccess(request),
+					request.query,
+				),
 			};
 		},
 	);

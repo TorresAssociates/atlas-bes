@@ -181,6 +181,20 @@ export async function recordInviteAuditLog(
 	await recordUserAuditLog(db, actorUserId, actionKey, actorUserId);
 }
 
+export async function recordControlAuditLog(
+	db: Kysely<DB>,
+	actorUserId: string,
+	actionKey: string,
+	deviceId: number,
+): Promise<void> {
+	const action = await getActionByKey(db, actionKey);
+	await queries.insertControlAuditLog(db, {
+		log_action_id: action.id,
+		device_id: deviceId,
+		actor_user_id: actorUserId,
+	});
+}
+
 export async function recordRolePermissionsAuditLog(
 	db: Kysely<DB>,
 	actorUserId: string,
@@ -323,7 +337,7 @@ export async function createRolesPermsAuditLog(
 		permissionId = permission.id;
 	}
 
-	const added = input.added ?? false;	
+	const added = input.added ?? false;
 	const inserted = await queries.insertRolePermissionsAuditLog(db, {
 		log_action_id: action.id,
 		actor_user_id: session.user_id,

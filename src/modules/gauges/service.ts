@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
 import type { SessionSubject } from "../auth/service";
-import type { GaugeStationRow } from "./queries";
+import type { GaugeStationRiskRow, GaugeStationRow, GaugeStationStatusRow } from "./queries";
 import * as queries from "./queries";
 
 export interface GaugeListInput {
@@ -58,6 +58,44 @@ export interface GaugeResponse {
 	publiclyVisible: boolean;
 	active: boolean;
 }
+
+export interface GaugeFeatureResponse {
+	type: "Feature";
+	id: number;
+	geometry: { type: "Point"; coordinates: [number, number] };
+	properties: {
+		name: string;
+		introduced: string;
+		archived: string | null;
+		city: { id: number; state: string; name: string };
+		clients: { id: number; name: string }[];
+		location: string;
+		publiclyVisible: boolean;
+		active: boolean;
+		riskLevel: number | null;
+	};
+}
+
+export interface GaugeFeatureCollectionResponse {
+	type: "FeatureCollection";
+	features: GaugeFeatureResponse[];
+}
+
+export interface GaugeStatusInput extends GaugeListInput {
+	rainfallWindow?: number;
+}
+
+export interface GaugeStatusResponse {
+	id: number;
+	riskLevel: number | null;
+	connected: boolean | null;
+	waterLevel: number | null;
+	waterLevelDate: string | null;
+	rainfall: number | null;
+	rainfallAccumulation: number | null;
+}
+
+export const DEFAULT_RAINFALL_WINDOW_HOURS = 3;
 
 export class GaugeNotFoundError extends Error {
 	constructor(gaugeId: number | string) {
@@ -118,25 +156,99 @@ function toGaugeResponse(row: GaugeStationRow): GaugeResponse {
 	};
 }
 
+// Shared by listGauges and listGaugesGeoJson so the visibility rules cannot
+// drift between the two list projections.
+function resolveActiveFilter(access: GaugeReadAccess, input: GaugeListInput): boolean | undefined {
+	if (access.canViewInactive) return input.active;
+	if (input.active === false)
+		throw new GaugeAccessDeniedError("not allowed to view inactive gauge stations");
+	// Read-only users are implicitly limited to active gauges.
+	return true;
+}
+
 export async function listGauges(
 	db: Kysely<DB>,
 	session: SessionSubject,
 	access: GaugeReadAccess,
 	input: GaugeListInput = {},
 ): Promise<GaugeResponse[]> {
-	let active = input.active;
-	if (!access.canViewInactive) {
-		if (active === false)
-			throw new GaugeAccessDeniedError("not allowed to view inactive gauge stations");
-		// Read-only users are implicitly limited to active gauges.
-		active = true;
-	}
-
-	const filters = { ...input, active };
+	const filters = { ...input, active: resolveActiveFilter(access, input) };
 	const rows = access.canReadExternal
 		? await queries.listGaugeStations(db, filters)
 		: await queries.listGaugeStationsForClient(db, session.client_id, filters);
 	return rows.map(toGaugeResponse);
+}
+
+function toGaugeFeature(row: GaugeStationRiskRow): GaugeFeatureResponse {
+	return {
+		type: "Feature",
+		id: row.id,
+		// GeoJSON is longitude-first.
+		geometry: { type: "Point", coordinates: [row.longitude, row.latitude] },
+		properties: {
+			name: row.name,
+			introduced: new Date(row.introduced).toISOString(),
+			archived: row.archived === null ? null : new Date(row.archived).toISOString(),
+			city: { id: row.city_id, state: row.city_state, name: row.city_name },
+			clients: row.clients,
+			location: row.location,
+			publiclyVisible: row.publicly_visible,
+			active: row.active,
+			riskLevel: row.risk_level,
+		},
+	};
+}
+
+export async function listGaugesGeoJson(
+	db: Kysely<DB>,
+	session: SessionSubject,
+	access: GaugeReadAccess,
+	input: GaugeListInput = {},
+): Promise<GaugeFeatureCollectionResponse> {
+	const filters = { ...input, active: resolveActiveFilter(access, input) };
+	const rows = access.canReadExternal
+		? await queries.listGaugeStationsWithRisk(db, filters)
+		: await queries.listGaugeStationsWithRiskForClient(db, session.client_id, filters);
+	return { type: "FeatureCollection", features: rows.map(toGaugeFeature) };
+}
+
+function toGaugeStatus(row: GaugeStationStatusRow): GaugeStatusResponse {
+	return {
+		id: row.id,
+		riskLevel: row.risk_level,
+		connected: row.connected,
+		waterLevel: row.water_level,
+		waterLevelDate:
+			row.water_level_date === null ? null : new Date(row.water_level_date).toISOString(),
+		rainfall: row.rainfall,
+		rainfallAccumulation: row.rainfall_accumulation,
+	};
+}
+
+// Same authorized row set as listGauges/listGaugesGeoJson (shared filters and
+// resolveActiveFilter), so a status row exists for exactly the gauges the
+// caller sees in geojson.
+export async function listGaugeStatuses(
+	db: Kysely<DB>,
+	session: SessionSubject,
+	access: GaugeReadAccess,
+	input: GaugeStatusInput = {},
+): Promise<GaugeStatusResponse[]> {
+	const windowHours = input.rainfallWindow ?? DEFAULT_RAINFALL_WINDOW_HOURS;
+	const filters = {
+		cityId: input.cityId,
+		includeArchived: input.includeArchived,
+		active: resolveActiveFilter(access, input),
+	};
+	const rows = access.canReadExternal
+		? await queries.listGaugeStationStatuses(db, windowHours, filters)
+		: await queries.listGaugeStationStatusesForClient(
+				db,
+				session.client_id,
+				windowHours,
+				filters,
+			);
+	return rows.map(toGaugeStatus);
 }
 
 export async function getGauge(

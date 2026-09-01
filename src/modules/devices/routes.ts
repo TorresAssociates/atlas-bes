@@ -100,8 +100,9 @@ const deviceRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		},
 	);
 
-	// PATCH /v1/devices/:id — info and power only; everything else is reported
-	// by the device itself. Creation lives in the (future) register module.
+	// PATCH /v1/devices/:id — info, power, and the manual risk level override;
+	// everything else is reported by the device itself. Creation lives in the
+	// (future) register module.
 	app.patch(
 		"/:id",
 		{
