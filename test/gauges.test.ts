@@ -119,10 +119,10 @@ beforeAll(async () => {
 	]);
 	await db.pool.query(
 		`INSERT INTO device_info (device_id, gauge_station_id, type, latitude, longitude, active)
-		 VALUES ($1, $5, 'datalogger', 30.67, -96.37, TRUE),
-		        ($2, $5, 'datalogger', 30.68, -96.37, TRUE),
-		        ($3, $5, 'datalogger', 30.69, -96.37, TRUE),
-		        ($4, $6, 'datalogger', 30.62, -96.32, TRUE)`,
+		 VALUES ($1, $5, 'gauge', 30.67, -96.37, TRUE),
+		        ($2, $5, 'gauge', 30.68, -96.37, TRUE),
+		        ($3, $5, 'gauge', 30.69, -96.37, TRUE),
+		        ($4, $6, 'gauge', 30.62, -96.32, TRUE)`,
 		[deviceA, deviceB, deviceArchived, deviceTorres, bryanStationId, torresStationId],
 	);
 

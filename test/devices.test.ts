@@ -114,13 +114,13 @@ beforeAll(async () => {
 		   (device_id, gauge_station_id, type, page_version, activation_date, warranty_end_date,
 		    latitude, longitude, active, display_name, introduced, archived)
 		 VALUES
-		   ($1, $2, 'datalogger', 'v1', '2026-01-15', '2027-01-15', 30.0, -96.0, TRUE,
+		   ($1, $2, 'gauge', 'v1', '2026-01-15', '2027-01-15', 30.0, -96.0, TRUE,
 		    'Legacy Logger', '2026-01-01', '2026-03-01'),
-		   ($1, $2, 'datalogger', 'v2', '2026-01-15', '2027-01-15', 30.6187, -96.3155, TRUE,
+		   ($1, $2, 'gauge', 'v2', '2026-01-15', '2027-01-15', 30.6187, -96.3155, TRUE,
 		    'Main Logger', '2026-03-01', NULL),
 		   ($3, $4, 'camera', NULL, NULL, NULL, 30.68, -96.37, TRUE, 'Intersection Camera', '2026-01-01', NULL),
-		   ($5, $4, 'datalogger', NULL, NULL, NULL, 30.69, -96.38, FALSE, NULL, '2026-01-01', NULL),
-		   ($6, $2, 'datalogger', NULL, NULL, NULL, 30.60, -96.30, TRUE, NULL, '2026-01-01', NULL)`,
+		   ($5, $4, 'gauge', NULL, NULL, NULL, 30.69, -96.38, FALSE, NULL, '2026-01-01', NULL),
+		   ($6, $2, 'gauge', NULL, NULL, NULL, 30.60, -96.30, TRUE, NULL, '2026-01-01', NULL)`,
 		[
 			fullDeviceId,
 			torresStationId,
@@ -256,7 +256,7 @@ beforeAll(async () => {
 	priorityDeviceId = must(priorityDevice.rows[0], "priority device fixture was not seeded").id;
 	await db.pool.query(
 		`INSERT INTO device_info (device_id, gauge_station_id, type, latitude, longitude, active, display_name)
-		 VALUES ($1, $2, 'datalogger', 30.62, -96.32, TRUE, 'Priority Logger')`,
+		 VALUES ($1, $2, 'gauge', 30.62, -96.32, TRUE, 'Priority Logger')`,
 		[priorityDeviceId, torresStationId],
 	);
 	const priorityChannels = await db.pool.query<{ id: number; local_id: number }>(
@@ -396,7 +396,7 @@ test("GET /v1/devices returns the summary shape with the computed risk level", a
 	expect(full).toEqual({
 		id: fullDeviceId,
 		serialNumber: "devices-test-full",
-		type: "datalogger",
+		type: "gauge",
 		gaugeStationId: torresStationId,
 		latitude: 30.6187,
 		longitude: -96.3155,
@@ -551,7 +551,7 @@ test("GET /v1/devices/:id returns the full detail shape", async () => {
 		expect.objectContaining({
 			id: fullDeviceId,
 			serialNumber: "devices-test-full",
-			type: "datalogger",
+			type: "gauge",
 			gaugeStationId: torresStationId,
 			latitude: 30.6187,
 			longitude: -96.3155,

@@ -88,7 +88,7 @@ beforeAll(async () => {
 	inactiveDeviceId = deviceId("measurements-test-inactive");
 	await db.pool.query(
 		`INSERT INTO device_info (device_id, gauge_station_id, type, active)
-		 VALUES ($1, $2, 'datalogger', TRUE), ($3, $4, 'datalogger', TRUE), ($5, $2, 'datalogger', FALSE)`,
+		 VALUES ($1, $2, 'gauge', TRUE), ($3, $4, 'gauge', TRUE), ($5, $2, 'gauge', FALSE)`,
 		[dataDeviceId, bryanStationId, torresDeviceId, torresStationId, inactiveDeviceId],
 	);
 

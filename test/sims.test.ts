@@ -5,6 +5,7 @@ import type { HologramClient } from "@/lib/hologram/HologramClient";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
 import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
+import { seedDeviceFixtures } from "./helpers/fixtures";
 
 setDefaultTimeout(120_000);
 
@@ -99,6 +100,7 @@ async function seedSim(input: {
 beforeAll(async () => {
 	stubConfigEnv();
 	db = await startTestDatabase();
+	await seedDeviceFixtures(db.pool);
 	app = await buildApp({
 		pool: db.pool,
 		logger: false,
@@ -271,7 +273,7 @@ test("POST /v1/sims/activate activates all inactive SIMs for an IMEI", async () 
 		headers: { cookie: clientManager.cookie },
 		body: {
 			imei: "123456789012345",
-			boxType: "datalogger",
+			boxType: "gauge",
 			gaugeId: "bryan-test-gauge",
 		},
 	});
@@ -288,7 +290,7 @@ test("POST /v1/sims/activate activates all inactive SIMs for an IMEI", async () 
 	expect(emnifyActivations).toContainEqual({
 		iccid: "89010000000000000002",
 		bic: "BIC1234567890123",
-		box: { serialNumber: "bryan-test-device", boxTypeId: "datalogger" },
+		box: { serialNumber: "bryan-test-device", boxTypeId: "gauge" },
 	});
 
 	const listRes = await app.inject({
@@ -312,7 +314,7 @@ test("POST /v1/sims/activate hides another client's device from client writers",
 		headers: { cookie: clientManager.cookie },
 		body: {
 			imei: "555555555555555",
-			boxType: "datalogger",
+			boxType: "gauge",
 			gaugeId: "college-station-test-gauge",
 		},
 	});

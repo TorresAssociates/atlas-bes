@@ -4,7 +4,7 @@ import { Nullable } from "@/schemas";
 export const SimProviderSchema = Type.Union([Type.Literal("hologram"), Type.Literal("emnify")]);
 
 export const DeviceTypeSchema = Type.Union([
-	Type.Literal("datalogger"),
+	Type.Literal("gauge"),
 	Type.Literal("flasher"),
 	Type.Literal("barrier_arm"),
 	Type.Literal("camera"),

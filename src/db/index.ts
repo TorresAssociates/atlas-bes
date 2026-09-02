@@ -205,15 +205,25 @@ export async function createDatabaseClient(
 //
 // Deliberately NO CamelCasePlugin: the schema is snake_case and so is the
 // API. There is no case conversion layer anywhere.
-export function createDb(pool: DatabasePool): Kysely<DB> {
+export interface QueryErrorLogger {
+	error(obj: unknown, msg?: string): void;
+}
+
+// Failed queries log through the caller's logger (app.log) rather than the
+// console, so tests built with logger: false stay quiet — some suites
+// deliberately trigger constraint violations that services map to 409s.
+export function createDb(pool: DatabasePool, logger?: QueryErrorLogger): Kysely<DB> {
 	return new Kysely<DB>({
 		dialect: new PostgresDialect({ pool: pool as pg.Pool }),
 		log(event) {
 			if (event.level === "error") {
-				console.error(
-					`[sql] failed: ${event.query.sql}`,
-					event.query.parameters,
-					event.error,
+				(logger ?? console).error(
+					{
+						err: event.error,
+						sql: event.query.sql,
+						parameters: event.query.parameters,
+					},
+					"[sql] query failed",
 				);
 			}
 		},

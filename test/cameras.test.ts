@@ -4,6 +4,7 @@ import type { MqtxClient } from "@/lib/mqtx/MqtxClient";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
 import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
+import { seedDeviceFixtures } from "./helpers/fixtures";
 
 setDefaultTimeout(120_000);
 
@@ -135,6 +136,7 @@ async function insertCameraFixture(input: {
 beforeAll(async () => {
 	stubConfigEnv();
 	db = await startTestDatabase();
+	await seedDeviceFixtures(db.pool);
 	app = await buildApp({ pool: db.pool, logger: false, mqtx: fakeMqtx });
 
 	admin = await signUpTestUser(app, {

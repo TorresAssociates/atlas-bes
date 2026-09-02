@@ -139,7 +139,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 	app.decorate("pool", pool);
 	// Kysely rides on the same pg pool (no separate connections, no lifecycle
 	// of its own — closing the pool is enough). Modules query through app.db.
-	app.decorate("db", pool ? createDb(pool) : null);
+	app.decorate("db", pool ? createDb(pool, app.log) : null);
 	app.decorate("alertSns", opts.alertSns ?? createAlertSNSClient(app.config.AWS_REGION));
 	app.decorate(
 		"hologram",

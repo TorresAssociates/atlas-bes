@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
 import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
+import { seedDeviceFixtures } from "./helpers/fixtures";
 
 setDefaultTimeout(120_000);
 
@@ -32,6 +33,7 @@ interface AssetTypeListBody {
 beforeAll(async () => {
 	stubConfigEnv();
 	db = await startTestDatabase();
+	await seedDeviceFixtures(db.pool);
 	app = await buildApp({ pool: db.pool, logger: false });
 
 	admin = await signUpTestUser(app, {

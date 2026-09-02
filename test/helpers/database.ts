@@ -151,7 +151,9 @@ export function stubConfigEnv(): void {
 	process.env.BETTER_AUTH_SECRET ??= "test-secret";
 	process.env.ENCRYPTION_KEY ??= "test-encryption-key";
 	process.env.BETTER_AUTH_URL ??= "http://localhost:8000";
-	process.env.FRONTEND_ORIGIN ??= "http://localhost:5173";
+	// Force-assigned (not ??=) so a developer's .env FRONTEND_ORIGIN (which Bun
+	// auto-loads) can't leak into the CORS tests, which assert this exact origin.
+	process.env.FRONTEND_ORIGIN = "http://localhost:5173";
 	process.env.HOLOGRAM_ORG_ID ??= "123";
 	process.env.HOLOGRAM_API_KEY ??= "test-hologram-key";
 	process.env.EMNIFY_APPLICATION_TOKEN ??= "test-emnify-token";

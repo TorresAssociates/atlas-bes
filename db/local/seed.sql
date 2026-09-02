@@ -150,212 +150,69 @@ INSERT INTO "role_permission" ("role_id", "permission_id") VALUES
     (4, 18),
     (4, 19),
     (4, 20)
-ON CONFLICT ON CONSTRAINT "unique_role_id_permission_id"
+ON CONFLICT ON CONSTRAINT "role_permission_role_id_permission_id_key"
 DO NOTHING;
 
------------------------
----- Gauge Station ----
------------------------
+---------------
+---- Alert ----
+---------------
 
-INSERT INTO "gauge_station" ("id", "name") VALUES
-    (1, 'bryan-test-gauge'),
-    (2, 'college-station-test-gauge')
-ON CONFLICT("id")
-DO UPDATE SET
-    "name" = EXCLUDED."name",
-    "archived" = NULL;
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"gauge_station"', 'id'), (SELECT max("id") FROM "gauge_station"));
-
-INSERT INTO "gauge_station_info" ("id", "gauge_station_id", "city_id", "location", "latitude", "longitude") VALUES
-    (1, 1, 2, 'Bryan Alert Test Gauge', 30.6744, -96.3700),
-    (2, 2, 1, 'College Station Alert Test Gauge', 30.6279, -96.3344)
-ON CONFLICT("id")
-DO UPDATE SET
-    "gauge_station_id" = EXCLUDED."gauge_station_id",
-    "city_id" = EXCLUDED."city_id",
-    "location" = EXCLUDED."location",
-    "latitude" = EXCLUDED."latitude",
-    "longitude" = EXCLUDED."longitude",
-    "archived" = NULL;
+INSERT INTO "alert" ("client_id", "type", "level") VALUES
+    (NULL, 'overtop', 'gauge_station'),
+    (NULL, 'disconnect', 'device'),
+    (NULL, 'low_battery', 'device'),
+    (NULL, 'felled', 'device'),
+    (NULL, 'low_storage', 'device');
 
 -- Explicit-id inserts don't advance the identity sequence; move it past the
 -- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"gauge_station_info"', 'id'), (SELECT max("id") FROM "gauge_station_info"));
+SELECT setval(pg_get_serial_sequence('"alert"', 'id'), (SELECT max("id") FROM "alert"));
 
-INSERT INTO "client_gauge_station" ("id", "gauge_station_id", "client_id") VALUES
-    (1, 1, 2),
-    (2, 2, 1)
-ON CONFLICT("id")
-DO UPDATE SET
-    "gauge_station_id" = EXCLUDED."gauge_station_id",
-    "client_id" = EXCLUDED."client_id";
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"client_gauge_station"', 'id'), (SELECT max("id") FROM "client_gauge_station"));
-
-----------------
----- Device ----
-----------------
-
-INSERT INTO "device" ("id", "serial_number") VALUES
-    (1, 'bryan-test-device'),
-    (2, 'college-station-test-device')
-ON CONFLICT("serial_number")
-DO UPDATE SET
-    "id" = EXCLUDED."id",
-    "archived" = NULL;
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"device"', 'id'), (SELECT max("id") FROM "device"));
-
-INSERT INTO "device_info" ("id", "device_id", "gauge_station_id", "type", "active", "latitude", "longitude") VALUES
-    (1, 1, 1, 'datalogger', TRUE, 30.6744, -96.3700),
-    (2, 2, 2, 'datalogger', TRUE, 30.6279, -96.3344)
-ON CONFLICT("id")
-DO UPDATE SET
-    "device_id" = EXCLUDED."device_id",
-    "gauge_station_id" = EXCLUDED."gauge_station_id",
-    "type" = EXCLUDED."type",
-    "active" = EXCLUDED."active",
-    "latitude" = EXCLUDED."latitude",
-    "longitude" = EXCLUDED."longitude",
-    "archived" = NULL;
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"device_info"', 'id'), (SELECT max("id") FROM "device_info"));
-
------------------
----- Channel ----
------------------
-
-INSERT INTO "channel" ("id", "device_id", "local_id", "channel_type_id") VALUES
-    (1, 1, 1, 1),
-    (2, 1, 2, 1),
-    (3, 2, 1, 1),
-    (4, 2, 2, 1)
-ON CONFLICT("id")
-DO UPDATE SET
-    "device_id" = EXCLUDED."device_id",
-    "local_id" = EXCLUDED."local_id",
-    "channel_type_id" = EXCLUDED."channel_type_id",
-    "archived" = NULL;
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"channel"', 'id'), (SELECT max("id") FROM "channel"));
-
-INSERT INTO "channel_config" ("id", "channel_id", "name", "active", "category", "units", "scale", "offset") VALUES
-    (1, 1, 'Stage', TRUE, 'water', 'ft', 1, 0),
-    (2, 2, 'Rain', TRUE, 'rain', 'in', 1, 0),
-    (3, 3, 'Stage', TRUE, 'water', 'ft', 1, 0),
-    (4, 4, 'Battery', TRUE, 'power', 'V', 1, 0)
-ON CONFLICT("id")
-DO UPDATE SET
-    "channel_id" = EXCLUDED."channel_id",
-    "name" = EXCLUDED."name",
-    "active" = EXCLUDED."active",
-    "category" = EXCLUDED."category",
-    "units" = EXCLUDED."units",
-    "scale" = EXCLUDED."scale",
-    "offset" = EXCLUDED."offset",
-    "archived" = NULL;
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"channel_config"', 'id'), (SELECT max("id") FROM "channel_config"));
-
-INSERT INTO "channel_config_display" ("id", "channel_id", "display_index") VALUES
-    (1, 1, 1),
-    (2, 2, 2),
-    (3, 3, 1),
-    (4, 4, 2)
-ON CONFLICT("id")
-DO UPDATE SET
-    "channel_id" = EXCLUDED."channel_id",
-    "display_index" = EXCLUDED."display_index",
-    "archived" = NULL;
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"channel_config_display"', 'id'), (SELECT max("id") FROM "channel_config_display"));
-
-INSERT INTO "channel_config_internal_power_sensor" ("id", "channel_id", "measurement_type") VALUES
-    (1, 4, 'voltage')
-ON CONFLICT("id")
-DO UPDATE SET
-    "channel_id" = EXCLUDED."channel_id",
-    "measurement_type" = EXCLUDED."measurement_type",
-    "archived" = NULL;
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"channel_config_internal_power_sensor"', 'id'), (SELECT max("id") FROM "channel_config_internal_power_sensor"));
-
-INSERT INTO "channel_config_sdi12" ("id", "channel_id", "address", "measurement_set", "measurement_index") VALUES
-    (1, 1, '0', 0, 0),
-    (2, 3, '0', 0, 0)
-ON CONFLICT("id")
-DO UPDATE SET
-    "channel_id" = EXCLUDED."channel_id",
-    "address" = EXCLUDED."address",
-    "measurement_set" = EXCLUDED."measurement_set",
-    "measurement_index" = EXCLUDED."measurement_index",
-    "archived" = NULL;
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"channel_config_sdi12"', 'id'), (SELECT max("id") FROM "channel_config_sdi12"));
-
-INSERT INTO "channel_config_accumulation" ("id", "channel_id", "source_local_id", "drain_const") VALUES
-    (1, 2, 1, 0)
-ON CONFLICT("id")
-DO UPDATE SET
-    "channel_id" = EXCLUDED."channel_id",
-    "source_local_id" = EXCLUDED."source_local_id",
-    "drain_const" = EXCLUDED."drain_const",
-    "archived" = NULL;
-
--- Explicit-id inserts don't advance the identity sequence; move it past the
--- highest seeded id so future inserts don't collide
-SELECT setval(pg_get_serial_sequence('"channel_config_accumulation"', 'id'), (SELECT max("id") FROM "channel_config_accumulation"));
+INSERT INTO "alert_info" ("alert_id", "notification_type", "send_message", "retract_message") VALUES
+    (1, 'email', 'FLOOD ALERT: High water likely at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', 'FLOOD ALERT: High water has receded at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})'),
+    (1, 'sms', 'FLOOD ALERT: High water likely at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', 'FLOOD ALERT: High water has receded at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})'),
+    (2, 'email', 'MAINTENANCE ALERT: Disconnected device ${device_serial_number} detected at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', NULL),
+    (2, 'sms', 'MAINTENANCE ALERT: Disconnected device ${device_serial_number} detected at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', NULL),
+    (3, 'email', 'MAINTENANCE ALERT: Low battery voltage detected for device ${device_serial_number} at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', NULL),
+    (3, 'sms', 'MAINTENANCE ALERT: Low battery voltage detected for device ${device_serial_number} at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', NULL),
+    (4, 'email', 'MAINTENANCE ALERT: Tilt threshold exceeded for device ${device_serial_number} at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', NULL),
+    (4, 'sms', 'MAINTENANCE ALERT: Tilt threshold exceeded for device ${device_serial_number} at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', NULL),
+    (5, 'email', 'MAINTENANCE ALERT: Low storage detected for device ${device_serial_number} at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', NULL),
+    (5, 'sms', 'MAINTENANCE ALERT: Low storage detected for device ${device_serial_number} at ${gauge_station_location} (Gauge Sta. ID: ${gauge_station_name})', NULL);
 
 ----------------------------------------
 ---- Universal Measurement Category ----
 ----------------------------------------
 
 INSERT INTO "universal_measurement_category" ("id", "category") VALUES
-    (1, 'battery_voltage'),
-    (2, 'current_draw'),
-    (3, 'power_draw'),
+    (1, 'input_voltage'),
+    (2, 'input_current_draw'),
+    (3, 'input_power_draw'),
     (4, 'rssi'),
-    (5, 'storage_used'),
-    (6, 'alignment'),
-    (7, 'active_sim_index'),
+    (5, 'rsrp'),
+    (6, 'rsrq'),
+    (7, 'aux_output_state'),
     (8, 'aux_output_source'),
-    (9, 'water_level'),
-    (10, 'precipitation_accumulation'),
+    (9, 'total_storage_used'),
+    (10, 'water_level'),
     (11, 'precipitation_increment'),
-    (12, 'air_pressure'),
-    (13, 'relative_humidity'),
-    (14, 'water_depth'),
-    (15, 'total_dropped_packets'),
-    (16, 'total_dropped_data'),
-    (17, 'service_connection_drops'),
-    (18, 'network_connection_drops'),
-    (19, 'total_connection_failures'),
-    (20, 'water_velocity'),
-    (21, 'water_stage')
+    (12, 'precipitation_accumulation'),
+    (13, 'alignment'),
+    (14, 'total_dropped_packets'),
+    (15, 'total_dropped_data'),
+    (16, 'server_connection_drops'),
+    (17, 'network_connection_drops'),
+    (18, 'total_connection_failures'),
+    (19, 'active_sim_index'),
+    (20, 'air_temperature'),
+    (21, 'air_pressure'),
+    (22, 'relative_humidity'),
+    (23, 'water_velocity')
     -- ('TIME_SINCE_OG_TRANSMISSION'),
     -- ('WATER_TEMP'),
     -- ('WATER_CONDUCTANCE'),
     -- ('PRECIPITATION_ACCUMULATION_TOTAL'),
-    -- ('RISK_LEVEL'),
+    -- ('RISK_LEVEL'), // Not used anymore
 ON CONFLICT("id")
 DO UPDATE SET
     "category" = EXCLUDED."category";
@@ -363,6 +220,81 @@ DO UPDATE SET
 -- Explicit-id inserts don't advance the identity sequence; move it past the
 -- highest seeded id so future inserts don't collide
 SELECT setval(pg_get_serial_sequence('"universal_measurement_category"', 'id'), (SELECT max("id") FROM "universal_measurement_category"));
+
+-----------------------
+---- Product/Model ----
+-----------------------
+
+INSERT INTO "product" ("id", "hardware_string", "name", "description") VALUES
+    (1, 'bfews,1', 'BFEWS Gauge', 'This is the gauge box for the BFEWS flood warning system.'),
+    (2, 'bfews,2', 'BFEWS Flasher', 'This is the flaser box for the BFEWS flood warning system.'),
+    (3, 'bfews,3', 'BFEWS Camera', 'This is the camera box for the BFEWS flood warning system.'),
+    (4, 'brainbox1,0', 'bRainBox Dev', 'This is the development device for the bRainBox.'),
+    (5, 'brainbox1,1', 'bRainBox', 'This is the main datalogger device for ATLAS system.'),
+    (6, 'rainwatch1,0', 'RainWatch Dev', 'This is the development device used for RainWatch camera development.'),
+    (7, 'rainwatch1,1', 'RainWatch', 'This is the main camera device used for the ATLAS system.')
+ON CONFLICT("id")
+DO UPDATE SET
+    "hardware_string" = EXCLUDED."hardware_string",
+    "name" = EXCLUDED."name",
+    "description" = EXCLUDED."description";
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"product"', 'id'), (SELECT max("id") FROM "product"));
+
+INSERT INTO "model" ("id", "product_id", "number", "description") VALUES
+    (1, 1, 'DL1', 'The datalogger used for the system that uses a pressure transducer.'),
+    (2, 2, 'FL1', 'The flasher for the system.'),
+    (3, 1, 'DL2', 'The datalogger variant that was modified to use an ultrasonic sensor.'),
+    (4, 3, 'CA1', 'The camera used by the system.'),
+    (5, 4, 'BB1', 'The test ATLAS datalogger'),
+    (6, 5, 'BB1', 'The stable production version of the ATLAS dataloggers.'),
+    (7, 6, 'CA1', 'This is the development model used for the ATLAS cameras.'),
+    (8, 7, 'CA1', 'The stable production version of ATLAS cameras.')
+ON CONFLICT ON CONSTRAINT "model_product_id_number_key"
+DO NOTHING;
+
+-- Explicit-id inserts don't advance the identity sequence; move it past the
+-- highest seeded id so future inserts don't collide
+SELECT setval(pg_get_serial_sequence('"model"', 'id'), (SELECT max("id") FROM "model"));
+
+INSERT INTO "hardware_version" ("model_id", "version", "date", "note", "source") VALUES
+    (1, '1.0.0', '2022-01-01T00:00:00', 'Oringal BFEWS datalogger hardware', ''), -- BFEWS,Datalogger,2,1,0,0
+    (2, '1.0.0', '2022-01-01T00:00:00', 'Oringal BFEWS flasher hardware', ''), -- BFEWS,Flasher,3,1,0,0
+    (3, '1.0.0', '2023-01-01T00:00:00', 'BFEWS datalogger hardware designed to work with an ultrasonic sensor', ''), -- BFEWS Ultrasonic sensor
+    (4, '1.0.0', '2024-01-01T00:00:00', 'BFEWS datalogger hardware designed to work with a camera', ''), -- BFEWS Camera
+    (5, '0.0.1', '2024-11-25T00:00:00', 'Initial test box or trying out new design.', ''), -- for the one test box with the mpu6050
+    (6, '1.0.0', '2025-02-01 00:00:00', 'Initial design. First 3-5 test circuit boards with issues.', ''), -- for the first 3-5 test ones with circuit board issues
+    (6, '1.0.1', '2025-05-01 00:00:00', 'Updated power circuit, sdi12 power control, moved power leds, inverted + debouncing switch. USB to UART chips came DOA and required manual fixing.', ''), -- first batch with non-functional usb ports
+    (6, '1.1.0', '2025-09-24T20:21:37.491412', 'Removed USBs with pins for flashing. Fixed debouncing pin terminals. Added low side switch for aux ports. Used the wrong type of mosfet for the aux output had to short aux - to ground to fix.', ''), -- for the second batch just needing the solder to fix the aux out
+    (7, '0.0.1', '2026-06-01T00:00:00.000', 'First development version of the new camera for the ATLAS system.', ''),
+    (8, '1.0.0', '2026-07-09T14:00:00.000', 'Initial design and deployment of camera for testing with ATLAS.', '')
+ON CONFLICT ON CONSTRAINT "hardware_version_model_id_version_key"
+DO NOTHING;
+
+INSERT INTO "firmware_version" ("model_id", "version", "date", "note", "source") VALUES
+    (1, '1.0.0', '2022-01-01T00:00:00', 'Oringal BFEWS datalogger firmware', ''),
+    (2, '1.0.0', '2022-01-01T00:00:00', 'Oringal BFEWS flasher firmware', ''),
+    (3, '1.0.0', '2023-01-01T00:00:00', 'BFEWS datalogger firmware modified to work with an ultrasonic sensor', ''),
+    (4, '1.0.0', '2024-01-01T00:00:00', 'BFEWS datalogger firmware modified to work with a camera', ''),
+    (5, '0.0.1', '2024-11-25T00:00:00', 'Initial test box firmware', ''),
+    (6, '0.1.1', '2025-05-01T00:00:00', 'Release firmware', ''),
+    (6, '0.1.2', '2025-07-01T14:58:46.91862', 'BMA253 channel fix', ''),
+    (6, '0.1.3', '2025-07-17T20:25:02.594662', 'Launch SDI12 Fix', ''),
+    (6, '0.1.4', '2025-07-25T14:30:46.525895', 'Added SDI12 CLI and fixed BMA253 wakeup', ''),
+    (6, '0.2.0', '2025-08-14T15:47:05.004939', 'Added support for barrier arm/pulse output. Added dynamic memory guards to launched task functions, single pulse for aux output, fixed updated SDI12 measurement taking', ''),
+    (6, '0.2.1', '2025-09-23T13:19:15.555919', 'Wifi interface rebuild to stop crashing. Added 100ms wait before loop.', ''),
+    (6, '0.3.0', '2025-10-31T13:47:20.451136', 'MQTT API 3.0 used. Improved SDI12 stability. Added sensor error reporting. Setup framework for better startup.', ''),
+    (6, '0.3.1', '2025-11-18T23:04:56.10524', 'Fixed alerting when null was returned. Improved SDI12 consistency and wifi stability. Fixed flashing manual control levels.', ''),
+    (6, '0.3.2', '2025-12-12T22:39:16.677327', 'Fixed accumulationOverTime. Added aux button control on init. Updated MQTT library and made more reliable and DNS library.', ''),
+    (6, '0.3.3', '2026-01-22T22:22:09.869737', 'Beta Version: added hardware UART sdi12, addressed memory issues, fixed multi-monitored code support', ''),
+    (6, '0.3.4', '2026-02-11T22:09:15.546974', 'Testing Version: improved stability of the wifi interface', ''),
+    (6, '0.3.5', '2026-07-08T16:02:55.806395', 'Testing Version: New MQTT library (should fix corrupted packets)', ''),
+    (7, '0.0.1', '2026-06-01T00:00:00.000', 'Initial firmware for testing the camera.', ''),
+    (8, '1.0.0', '2026-07-09T14:00:00.000', 'Initial firmware working with the ATLAS including basic flooded car detection.', '')
+ON CONFLICT ON CONSTRAINT "firmware_version_model_id_version_key"
+DO NOTHING;
 
 ---------------------------
 ---- Audit Log Actions ----
@@ -563,5 +495,5 @@ INSERT INTO "seasonal_report_type_question" ("seasonal_report_type_id", "seasona
     (1,21),
     (1,22),
     (1,23)
-ON CONFLICT ON CONSTRAINT "unique_seasonal_report_type_id_seasonal_report_question_id"
+ON CONFLICT ON CONSTRAINT "seasonal_report_type_question_seasonal_report_type_id_seaso_key"
 DO NOTHING;
