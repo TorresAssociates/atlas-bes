@@ -2,7 +2,7 @@ import { expressionBuilder, type Kysely, type RawBuilder, sql } from "kysely";
 import { jsonArrayFrom } from "kysely/helpers/postgres";
 import type { DB } from "@/db/types";
 
-export interface GaugeListFilters {
+export interface GaugeStationListFilters {
 	cityId?: number;
 	includeArchived?: boolean;
 	active?: boolean;
@@ -10,7 +10,7 @@ export interface GaugeListFilters {
 
 // The full read shape: gauge_station joined with its current (archived IS NULL)
 // gauge_station_info row and that row's city, plus the linked clients.
-function gaugeSelect(db: Kysely<DB>) {
+function gaugeStationSelect(db: Kysely<DB>) {
 	return db
 		.selectFrom("gauge_station")
 		.innerJoin("gauge_station_info", (join) =>
@@ -44,11 +44,11 @@ function gaugeSelect(db: Kysely<DB>) {
 		]);
 }
 
-type GaugeSelect = ReturnType<typeof gaugeSelect>;
+type GaugeStationSelect = ReturnType<typeof gaugeStationSelect>;
 
-export type GaugeStationRow = Awaited<ReturnType<GaugeSelect["execute"]>>[number];
+export type GaugeStationRow = Awaited<ReturnType<GaugeStationSelect["execute"]>>[number];
 
-function applyGaugeFilters(query: GaugeSelect, filters: GaugeListFilters): GaugeSelect {
+function applyGaugeStationFilters(query: GaugeStationSelect, filters: GaugeStationListFilters): GaugeStationSelect {
 	if (!filters.includeArchived) query = query.where("gauge_station.archived", "is", null);
 	if (filters.cityId !== undefined)
 		query = query.where("gauge_station_info.city_id", "=", filters.cityId);
@@ -57,7 +57,7 @@ function applyGaugeFilters(query: GaugeSelect, filters: GaugeListFilters): Gauge
 	return query;
 }
 
-function linkedToClient(query: GaugeSelect, clientId: number): GaugeSelect {
+function linkedToClient(query: GaugeStationSelect, clientId: number): GaugeStationSelect {
 	return query.where(({ exists, selectFrom }) =>
 		exists(
 			selectFrom("client_gauge_station")
@@ -68,7 +68,7 @@ function linkedToClient(query: GaugeSelect, clientId: number): GaugeSelect {
 	);
 }
 
-// --- gauge risk level --------------------------------------------------------
+// --- gauge station risk level --------------------------------------------------------
 // Self-contained copy of the per-device risk building blocks in
 // src/modules/devices/queries.ts (riskLevelCase / deviceRiskLevel /
 // deviceRiskLevelOverrideValue / deviceEffectiveRiskLevel) — modules stay
@@ -173,13 +173,13 @@ function deviceEffectiveRiskLevel() {
 	>`COALESCE((${deviceRiskLevelOverrideValue()}), (${deviceRiskLevel()}))`;
 }
 
-// The gauge's headline risk: MAX across its current (unarchived) devices of
+// The gauge station's headline risk: MAX across its current (unarchived) devices of
 // each device's effective risk. The override is applied per device *before*
 // the MAX so a manual override on one device can never mask a higher risk on a
 // sibling device (lift stations carry two sensors). Inactive devices still
-// count — deactivation is a maintenance flag, not a risk statement. Gauges
+// count — deactivation is a maintenance flag, not a risk statement. Gauge stations
 // with no devices or no computable risk yield NULL.
-function gaugeRiskLevel() {
+function gaugeStationRiskLevel() {
 	const eb = expressionBuilder<DB, "gauge_station">();
 	return eb
 		.selectFrom("device")
@@ -193,14 +193,14 @@ function gaugeRiskLevel() {
 
 export function listGaugeStations(
 	db: Kysely<DB>,
-	filters: GaugeListFilters = {},
+	filters: GaugeStationListFilters = {},
 ): Promise<GaugeStationRow[]> {
-	return applyGaugeFilters(gaugeSelect(db), filters).orderBy("gauge_station.name").execute();
+	return applyGaugeStationFilters(gaugeStationSelect(db), filters).orderBy("gauge_station.name").execute();
 }
 
-export function listGaugeStationsWithRisk(db: Kysely<DB>, filters: GaugeListFilters = {}) {
-	return applyGaugeFilters(gaugeSelect(db), filters)
-		.select(gaugeRiskLevel().as("risk_level"))
+export function listGaugeStationsWithRisk(db: Kysely<DB>, filters: GaugeStationListFilters = {}) {
+	return applyGaugeStationFilters(gaugeStationSelect(db), filters)
+		.select(gaugeStationRiskLevel().as("risk_level"))
 		.orderBy("gauge_station.name")
 		.execute();
 }
@@ -208,10 +208,10 @@ export function listGaugeStationsWithRisk(db: Kysely<DB>, filters: GaugeListFilt
 export function listGaugeStationsWithRiskForClient(
 	db: Kysely<DB>,
 	clientId: number,
-	filters: GaugeListFilters = {},
+	filters: GaugeStationListFilters = {},
 ) {
-	return applyGaugeFilters(linkedToClient(gaugeSelect(db), clientId), filters)
-		.select(gaugeRiskLevel().as("risk_level"))
+	return applyGaugeStationFilters(linkedToClient(gaugeStationSelect(db), clientId), filters)
+		.select(gaugeStationRiskLevel().as("risk_level"))
 		.orderBy("gauge_station.name")
 		.execute();
 }
@@ -221,9 +221,9 @@ export type GaugeStationRiskRow = Awaited<ReturnType<typeof listGaugeStationsWit
 export function listGaugeStationsForClient(
 	db: Kysely<DB>,
 	clientId: number,
-	filters: GaugeListFilters = {},
+	filters: GaugeStationListFilters = {},
 ): Promise<GaugeStationRow[]> {
-	return applyGaugeFilters(linkedToClient(gaugeSelect(db), clientId), filters)
+	return applyGaugeStationFilters(linkedToClient(gaugeStationSelect(db), clientId), filters)
 		.orderBy("gauge_station.name")
 		.execute();
 }
@@ -232,7 +232,7 @@ export function findGaugeStationById(
 	db: Kysely<DB>,
 	id: number,
 ): Promise<GaugeStationRow | undefined> {
-	return gaugeSelect(db).where("gauge_station.id", "=", id).executeTakeFirst();
+	return gaugeStationSelect(db).where("gauge_station.id", "=", id).executeTakeFirst();
 }
 
 export function findGaugeStationByIdForClient(
@@ -240,7 +240,7 @@ export function findGaugeStationByIdForClient(
 	id: number,
 	clientId: number,
 ): Promise<GaugeStationRow | undefined> {
-	return linkedToClient(gaugeSelect(db), clientId)
+	return linkedToClient(gaugeStationSelect(db), clientId)
 		.where("gauge_station.id", "=", id)
 		.executeTakeFirst();
 }
@@ -249,7 +249,7 @@ export function findGaugeStationByName(
 	db: Kysely<DB>,
 	name: string,
 ): Promise<GaugeStationRow | undefined> {
-	return gaugeSelect(db).where("gauge_station.name", "=", name).executeTakeFirst();
+	return gaugeStationSelect(db).where("gauge_station.name", "=", name).executeTakeFirst();
 }
 
 export function findGaugeStationByNameForClient(
@@ -257,7 +257,7 @@ export function findGaugeStationByNameForClient(
 	name: string,
 	clientId: number,
 ): Promise<GaugeStationRow | undefined> {
-	return linkedToClient(gaugeSelect(db), clientId)
+	return linkedToClient(gaugeStationSelect(db), clientId)
 		.where("gauge_station.name", "=", name)
 		.executeTakeFirst();
 }

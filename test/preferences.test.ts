@@ -77,7 +77,7 @@ test("PATCH /v1/preferences/me updates JSON and text preferences", async () => {
 		headers: { cookie: user.cookie },
 		body: {
 			map_style: "satellite",
-			layers_on_load: ["rain", "gauges"],
+			layers_on_load: ["rain", "gaugeStations"],
 			favorite: { drawer: ["alerts", "map"] },
 			theme: "dark",
 			data_vis_preset: { range: "24h", series: ["rainfall"] },
@@ -89,7 +89,7 @@ test("PATCH /v1/preferences/me updates JSON and text preferences", async () => {
 		expect.objectContaining({
 			user_id: user.id,
 			map_style: "satellite",
-			layers_on_load: ["rain", "gauges"],
+			layers_on_load: ["rain", "gaugeStations"],
 			favorite: { drawer: ["alerts", "map"] },
 			theme: "dark",
 			data_vis_preset: { range: "24h", series: ["rainfall"] },

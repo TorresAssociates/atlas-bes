@@ -28,7 +28,7 @@ export interface SimResponse {
 	isActivated: boolean;
 	isPaused: boolean;
 	boxSerialNumber: string | null;
-	gaugeName: string | null;
+	gaugeStationName: string | null;
 	deviceId?: number;
 	bic?: string;
 }
@@ -58,7 +58,7 @@ export interface UpdateSimImeiResponse {
 export interface ActivateSimsInput {
 	imei: string;
 	boxType: DB["device_info"]["type"];
-	gaugeId: string;
+	gaugeStationId: string;
 }
 
 export interface ActivateSimsResponse {
@@ -101,10 +101,10 @@ export class SimDeviceNotFoundError extends Error {
 	}
 }
 
-export class SimGaugeNotFoundError extends Error {
-	constructor(gaugeName: string) {
-		super(`Gauge ${gaugeName} not found`);
-		this.name = "SimGaugeNotFoundError";
+export class SimGaugeStationNotFoundError extends Error {
+	constructor(gaugeStationName: string) {
+		super(`Gauge Station ${gaugeStationName} not found`);
+		this.name = "SimGaugeStationNotFoundError";
 	}
 }
 
@@ -135,7 +135,7 @@ function toSimResponse(row: SimAggregateRow): SimResponse {
 		isActivated: row.info?.activated ?? false,
 		isPaused: row.info?.paused ?? false,
 		boxSerialNumber: row.device?.serial_number ?? null,
-		gaugeName: row.device?.gauge_station_name ?? null,
+		gaugeStationName: row.device?.gauge_station_name ?? null,
 	};
 	if (row.hologram?.device_id !== null && row.hologram?.device_id !== undefined)
 		response.deviceId = row.hologram.device_id;
@@ -184,17 +184,17 @@ async function ensureDeviceAccess(
 	if (!visible) throw new SimAccessDeniedError();
 }
 
-async function ensureGaugeAccess(
+async function ensureGaugeStationAccess(
 	db: Kysely<DB>,
 	session: SessionSubject,
 	access: SimWriteAccess,
-	gaugeName: string,
+	gaugeStationName: string,
 ): Promise<number> {
-	const gauge = access.canWriteExternal
-		? await queries.findGaugeStationByName(db, gaugeName)
-		: await queries.findGaugeStationByNameForClient(db, gaugeName, session.client_id);
-	if (!gauge) throw new SimGaugeNotFoundError(gaugeName);
-	return gauge.id;
+	const gaugeStation = access.canWriteExternal
+		? await queries.findGaugeStationByName(db, gaugeStationName)
+		: await queries.findGaugeStationByNameForClient(db, gaugeStationName, session.client_id);
+	if (!gaugeStation) throw new SimGaugeStationNotFoundError(gaugeStationName);
+	return gaugeStation.id;
 }
 
 export async function listSims(
@@ -289,7 +289,7 @@ export async function activateSims(
 	);
 	if (!device) throw new SimDeviceNotFoundError();
 	await ensureDeviceAccess(db, session, access, device);
-	const gaugeStationId = await ensureGaugeAccess(db, session, access, input.gaugeId);
+	const gaugeStationId = await ensureGaugeStationAccess(db, session, access, input.gaugeStationId);
 
 	for (const sim of sims) {
 		const [info, hologram, emnify] = await Promise.all([

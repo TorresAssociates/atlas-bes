@@ -16,7 +16,7 @@ export const CitySchema = Type.Object({
 
 // A gauge station joined with its current (archived IS NULL) gauge_station_info
 // row. `clients` is an array because client_gauge_station is many-to-many.
-export const GaugeSchema = Type.Object({
+export const GaugeStationSchema = Type.Object({
 	id: Type.Integer(),
 	name: Type.String(),
 	introduced: Type.String({ format: "date-time" }),
@@ -30,23 +30,23 @@ export const GaugeSchema = Type.Object({
 	active: Type.Boolean(),
 });
 
-export const GaugeListSchema = Type.Object({
-	data: Type.Array(GaugeSchema),
+export const GaugeStationListSchema = Type.Object({
+	data: Type.Array(GaugeStationSchema),
 });
 
-// GeoJSON (RFC 7946) shapes for GET /v1/gauges/geojson. Coordinates are
+// GeoJSON (RFC 7946) shapes for GET /v1/gaugeStations/geojson. Coordinates are
 // [longitude, latitude]. The feature `id` sits on the Feature itself so
 // MapLibre feature-state can key off it, and `riskLevel` is a top-level
 // property so style expressions can ["get"] it directly.
-export const GaugePointGeometrySchema = Type.Object({
+export const GaugeStationPointGeometrySchema = Type.Object({
 	type: Type.Literal("Point"),
 	coordinates: Type.Tuple([Type.Number(), Type.Number()]),
 });
 
-// GaugeSchema minus latitude/longitude (they live in the geometry) plus the
-// highest effective risk level across the gauge's devices (null when none of
+// GaugeStationSchema minus latitude/longitude (they live in the geometry) plus the
+// highest effective risk level across the gauge station's devices (null when none of
 // its devices yields a risk value).
-export const GaugeFeaturePropertiesSchema = Type.Object({
+export const GaugeStationFeaturePropertiesSchema = Type.Object({
 	name: Type.String(),
 	introduced: Type.String({ format: "date-time" }),
 	archived: Nullable(Type.String({ format: "date-time" })),
@@ -58,25 +58,25 @@ export const GaugeFeaturePropertiesSchema = Type.Object({
 	riskLevel: Nullable(Type.Number()),
 });
 
-export const GaugeFeatureSchema = Type.Object({
+export const GaugeStationFeatureSchema = Type.Object({
 	type: Type.Literal("Feature"),
 	id: Type.Integer(),
-	geometry: GaugePointGeometrySchema,
-	properties: GaugeFeaturePropertiesSchema,
+	geometry: GaugeStationPointGeometrySchema,
+	properties: GaugeStationFeaturePropertiesSchema,
 });
 
-export const GaugeFeatureCollectionSchema = Type.Object({
+export const GaugeStationFeatureCollectionSchema = Type.Object({
 	type: Type.Literal("FeatureCollection"),
-	features: Type.Array(GaugeFeatureSchema),
+	features: Type.Array(GaugeStationFeatureSchema),
 });
 
-export const GaugeIdParamsSchema = Type.Object({
+export const GaugeStationIdParamsSchema = Type.Object({
 	id: Type.Integer({ minimum: 1 }),
 });
 
-// active=false (the maintenance view of hidden gauges) requires the write
-// permission matching the read scope; see GaugeReadAccess in service.ts.
-export const GaugeListQuerySchema = Type.Partial(
+// active=false (the maintenance view of hidden gauge stations) requires the write
+// permission matching the read scope; see GaugeStationReadAccess in service.ts.
+export const GaugeStationListQuerySchema = Type.Partial(
 	Type.Object({
 		cityId: Type.Integer({ minimum: 1 }),
 		includeArchived: Type.Boolean(),
@@ -85,7 +85,7 @@ export const GaugeListQuerySchema = Type.Partial(
 );
 
 // name is varchar(32), location varchar(128) in the schema.
-export const CreateGaugeBodySchema = Type.Object({
+export const CreateGaugeStationBodySchema = Type.Object({
 	name: Type.String({ minLength: 1, maxLength: 32 }),
 	clientId: Type.Integer({ minimum: 1 }),
 	cityId: Type.Integer({ minimum: 1 }),
@@ -96,7 +96,7 @@ export const CreateGaugeBodySchema = Type.Object({
 	active: Type.Optional(Type.Boolean()),
 });
 
-export const UpdateGaugeBodySchema = Type.Partial(
+export const UpdateGaugeStationBodySchema = Type.Partial(
 	Type.Object({
 		name: Type.String({ minLength: 1, maxLength: 32 }),
 		cityId: Type.Integer({ minimum: 1 }),

@@ -3,7 +3,7 @@ import type { AlertLevel, DB, NotificationType } from "@/db/types";
 import type { AlertSNSClient } from "@/lib/sns/AlertSNSClient";
 import { SNSSubscriptionNotFoundError, SNSUnknownError } from "@/lib/sns/errors";
 import type { SessionSubject } from "../auth/service";
-import { GaugeNotFoundError, getGauge, getGaugeByName } from "../gauges/service";
+import { GaugeStationNotFoundError, getGaugeStation, getGaugeStationByName } from "../gauge-stations/service";
 import type {
 	AlertSubscriptionDetailRow,
 	AlertSubscriptionForUnsubscribe,
@@ -22,7 +22,7 @@ export interface AlertSubscriptionAccess {
 	canSendExternalAlert: boolean;
 }
 
-export interface SubscribeGaugeAlertInput {
+export interface SubscribeGaugeStationAlertInput {
 	gauge_station_id?: number;
 	gauge_station_name?: string;
 	alert_type: string;
@@ -212,14 +212,14 @@ async function subscribeSmsIfNeeded(
 	}
 }
 
-export async function subscribeGaugeAlert(
+export async function subscribeGaugeStationAlert(
 	db: Kysely<DB>,
 	sns: AlertSNSClient,
 	encryptionKey: string,
 	session: SessionSubject,
 	access: AlertSubscriptionAccess,
 	targetUserId: string,
-	input: SubscribeGaugeAlertInput,
+	input: SubscribeGaugeStationAlertInput,
 ): Promise<AlertSubscriptionResponse> {
 	const notificationType = resolveNotificationType(input);
 	ensureNotificationPermission(access, notificationType);
@@ -352,7 +352,7 @@ export async function unsubscribeFromTestAlertTopic(
 	}
 }
 
-export async function listGaugeAlertSubscriptions(
+export async function listGaugeStationAlertSubscriptions(
 	db: Kysely<DB>,
 	encryptionKey: string,
 	session: SessionSubject,
@@ -384,7 +384,7 @@ export async function listDeviceAlertSubscriptions(
 	).map(toAlertSubscriptionDetailResponse);
 }
 
-export async function deleteGaugeAlertSubscriptions(
+export async function deleteGaugeStationAlertSubscriptions(
 	db: Kysely<DB>,
 	sns: AlertSNSClient,
 	encryptionKey: string,
@@ -501,7 +501,7 @@ async function unsubscribeSmsIfNeeded(
 
 async function resolveGaugeStation(
 	db: Kysely<DB>,
-	input: SubscribeGaugeAlertInput,
+	input: SubscribeGaugeStationAlertInput,
 	options: { clientId: number; canReadExternal: boolean },
 ): Promise<GaugeStationTarget> {
 	const targetSession: SessionSubject = {
@@ -515,22 +515,22 @@ async function resolveGaugeStation(
 	};
 
 	try {
-		const gauge =
+		const gaugeStation =
 			input.gauge_station_id !== undefined
-				? await getGauge(db, input.gauge_station_id, targetSession, access)
+				? await getGaugeStation(db, input.gauge_station_id, targetSession, access)
 				: input.gauge_station_name !== undefined
-					? await getGaugeByName(db, input.gauge_station_name, targetSession, access)
+					? await getGaugeStationByName(db, input.gauge_station_name, targetSession, access)
 					: null;
 
-		if (!gauge) {
+		if (!gaugeStation) {
 			throw new AlertSubscriptionInputError(
 				"gauge_station_id or gauge_station_name is required",
 			);
 		}
 
-		return { id: gauge.id, name: gauge.name };
+		return { id: gaugeStation.id, name: gaugeStation.name };
 	} catch (error) {
-		if (error instanceof GaugeNotFoundError) {
+		if (error instanceof GaugeStationNotFoundError) {
 			throw new AlertSubscriptionTargetNotFoundError("gauge_station");
 		}
 		throw error;

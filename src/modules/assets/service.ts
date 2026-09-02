@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
 import type { SessionSubject } from "../auth/service";
-import { GaugeNotFoundError, getGauge } from "../gauges/service";
+import { GaugeStationNotFoundError, getGaugeStation } from "../gauge-stations/service";
 import type { AssetRow } from "./queries";
 import * as queries from "./queries";
 
@@ -120,12 +120,12 @@ async function ensureGaugeStationAccess(
 	gaugeStationId: number,
 ): Promise<void> {
 	try {
-		await getGauge(db, gaugeStationId, session, {
+		await getGaugeStation(db, gaugeStationId, session, {
 			canReadExternal: access.canWriteExternal,
 			canViewInactive: true,
 		});
 	} catch (error) {
-		if (error instanceof GaugeNotFoundError) {
+		if (error instanceof GaugeStationNotFoundError) {
 			throw new AssetGaugeStationNotFoundError(gaugeStationId);
 		}
 		throw error;

@@ -5,8 +5,8 @@ export const AlertSubscriptionUserParamsSchema = Type.Object({
 	userId: Type.String({ minLength: 1 }),
 });
 
-export const DeleteGaugeAlertSubscriptionQuerySchema = Type.Object({
-	gaugeSubscriptionId: Type.Optional(Type.Integer({ minimum: 1 })),
+export const DeleteGaugeStationAlertSubscriptionQuerySchema = Type.Object({
+	gaugeStationSubscriptionId: Type.Optional(Type.Integer({ minimum: 1 })),
 });
 
 export const DeleteDeviceAlertSubscriptionQuerySchema = Type.Object({
@@ -42,7 +42,7 @@ export const AlertSubscriptionDeleteSchema = Type.Object({
 	data: Type.Array(AlertSubscriptionSchema),
 });
 
-export const GaugeAlertSubscriptionBodySchema = Type.Object({
+export const GaugeStationAlertSubscriptionBodySchema = Type.Object({
 	gauge_station_id: Type.Optional(Type.Integer({ minimum: 1 })),
 	gauge_station_name: Type.Optional(Type.String({ minLength: 1 })),
 	alert_type: Type.String({ minLength: 1, maxLength: 16 }),

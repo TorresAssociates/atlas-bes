@@ -76,7 +76,7 @@ afterAll(async () => {
 	await db?.stop();
 });
 
-test("GET /v1/assets limits client readers to assets on their gauges", async () => {
+test("GET /v1/assets limits client readers to assets on their gaugeStations", async () => {
 	const res = await app.inject({
 		method: "GET",
 		url: "/v1/assets",
@@ -168,14 +168,14 @@ test("POST /v1/assets rejects a client writer using another client's asset type"
 	expect(res.statusCode).toBe(403);
 });
 
-test("POST /v1/assets rejects a client writer using another client's gauge", async () => {
+test("POST /v1/assets rejects a client writer using another client's gaugeStation", async () => {
 	const res = await app.inject({
 		method: "POST",
 		url: "/v1/assets",
 		headers: { cookie: cityManager.cookie },
 		body: {
 			asset_type_id: clientAssetTypeId,
-			serial_number: "wrong-gauge-asset",
+			serial_number: "wrong-gaugeStation-asset",
 			creation_date: "2026-02-03T00:00:00.000Z",
 			gauge_station_id: 2,
 		},

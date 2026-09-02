@@ -4,27 +4,27 @@ import type { SessionSubject } from "../auth/service";
 import type { GaugeStationRiskRow, GaugeStationRow } from "./queries";
 import * as queries from "./queries";
 
-export interface GaugeListInput {
+export interface GaugeStationListInput {
 	cityId?: number;
 	includeArchived?: boolean;
 	active?: boolean;
 }
 
 // R_EXTERNAL_DEVICES / W_EXTERNAL_DEVICES holders operate across all clients;
-// otherwise access is scoped to gauges linked to the session's own client.
+// otherwise access is scoped to gauge stations linked to the session's own client.
 // canViewInactive is the matching write permission for the read scope
 // (W_EXTERNAL_DEVICES when reading externally, W_CLIENT_DEVICES otherwise):
-// inactive gauges are a maintenance view, hidden from read-only users.
-export interface GaugeReadAccess {
+// inactive gauge stations are a maintenance view, hidden from read-only users.
+export interface GaugeStationReadAccess {
 	canReadExternal: boolean;
 	canViewInactive: boolean;
 }
 
-export interface GaugeWriteAccess {
+export interface GaugeStationWriteAccess {
 	canWriteExternal: boolean;
 }
 
-export interface CreateGaugeInput {
+export interface CreateGaugeStationInput {
 	name: string;
 	clientId: number;
 	cityId: number;
@@ -35,7 +35,7 @@ export interface CreateGaugeInput {
 	active?: boolean;
 }
 
-export interface UpdateGaugeInput {
+export interface UpdateGaugeStationInput {
 	name?: string;
 	cityId?: number;
 	location?: string;
@@ -45,7 +45,7 @@ export interface UpdateGaugeInput {
 	active?: boolean;
 }
 
-export interface GaugeResponse {
+export interface GaugeStationResponse {
 	id: number;
 	name: string;
 	introduced: string;
@@ -59,7 +59,7 @@ export interface GaugeResponse {
 	active: boolean;
 }
 
-export interface GaugeFeatureResponse {
+export interface GaugeStationFeatureResponse {
 	type: "Feature";
 	id: number;
 	geometry: { type: "Point"; coordinates: [number, number] };
@@ -76,43 +76,43 @@ export interface GaugeFeatureResponse {
 	};
 }
 
-export interface GaugeFeatureCollectionResponse {
+export interface GaugeStationFeatureCollectionResponse {
 	type: "FeatureCollection";
-	features: GaugeFeatureResponse[];
+	features: GaugeStationFeatureResponse[];
 }
 
-export class GaugeNotFoundError extends Error {
-	constructor(gaugeId: number | string) {
-		super(`gauge station ${gaugeId} does not exist`);
-		this.name = "GaugeNotFoundError";
+export class GaugeStationNotFoundError extends Error {
+	constructor(gaugeStationId: number | string) {
+		super(`gauge station ${gaugeStationId} does not exist`);
+		this.name = "GaugeStationNotFoundError";
 	}
 }
 
-export class GaugeNameConflictError extends Error {
+export class GaugeStationNameConflictError extends Error {
 	constructor(name: string) {
 		super(`gauge station named "${name}" already exists`);
-		this.name = "GaugeNameConflictError";
+		this.name = "GaugeStationNameConflictError";
 	}
 }
 
-export class GaugeAccessDeniedError extends Error {
+export class GaugeStationAccessDeniedError extends Error {
 	constructor(message = "not allowed to manage gauge stations for other clients") {
 		super(message);
-		this.name = "GaugeAccessDeniedError";
+		this.name = "GaugeStationAccessDeniedError";
 	}
 }
 
-export class GaugeCityNotFoundError extends Error {
+export class GaugeStationCityNotFoundError extends Error {
 	constructor(cityId: number) {
 		super(`city ${cityId} does not exist`);
-		this.name = "GaugeCityNotFoundError";
+		this.name = "GaugeStationCityNotFoundError";
 	}
 }
 
-export class GaugeClientNotFoundError extends Error {
+export class GaugeStationClientNotFoundError extends Error {
 	constructor(clientId: number) {
 		super(`client ${clientId} does not exist`);
-		this.name = "GaugeClientNotFoundError";
+		this.name = "GaugeStationClientNotFoundError";
 	}
 }
 
@@ -124,7 +124,7 @@ function isUniqueViolation(error: unknown): boolean {
 	);
 }
 
-function toGaugeResponse(row: GaugeStationRow): GaugeResponse {
+function toGaugeStationResponse(row: GaugeStationRow): GaugeStationResponse {
 	return {
 		id: row.id,
 		name: row.name,
@@ -140,30 +140,30 @@ function toGaugeResponse(row: GaugeStationRow): GaugeResponse {
 	};
 }
 
-// Shared by listGauges and listGaugesGeoJson so the visibility rules cannot
+// Shared by listGaugeStations and listGaugeStationsGeoJson so the visibility rules cannot
 // drift between the two list projections.
-function resolveActiveFilter(access: GaugeReadAccess, input: GaugeListInput): boolean | undefined {
+function resolveActiveFilter(access: GaugeStationReadAccess, input: GaugeStationListInput): boolean | undefined {
 	if (access.canViewInactive) return input.active;
 	if (input.active === false)
-		throw new GaugeAccessDeniedError("not allowed to view inactive gauge stations");
-	// Read-only users are implicitly limited to active gauges.
+		throw new GaugeStationAccessDeniedError("not allowed to view inactive gauge stations");
+	// Read-only users are implicitly limited to active gauge stations.
 	return true;
 }
 
-export async function listGauges(
+export async function listGaugeStations(
 	db: Kysely<DB>,
 	session: SessionSubject,
-	access: GaugeReadAccess,
-	input: GaugeListInput = {},
-): Promise<GaugeResponse[]> {
+	access: GaugeStationReadAccess,
+	input: GaugeStationListInput = {},
+): Promise<GaugeStationResponse[]> {
 	const filters = { ...input, active: resolveActiveFilter(access, input) };
 	const rows = access.canReadExternal
 		? await queries.listGaugeStations(db, filters)
 		: await queries.listGaugeStationsForClient(db, session.client_id, filters);
-	return rows.map(toGaugeResponse);
+	return rows.map(toGaugeStationResponse);
 }
 
-function toGaugeFeature(row: GaugeStationRiskRow): GaugeFeatureResponse {
+function toGaugeStationFeature(row: GaugeStationRiskRow): GaugeStationFeatureResponse {
 	return {
 		type: "Feature",
 		id: row.id,
@@ -183,61 +183,61 @@ function toGaugeFeature(row: GaugeStationRiskRow): GaugeFeatureResponse {
 	};
 }
 
-export async function listGaugesGeoJson(
+export async function listGaugeStationsGeoJson(
 	db: Kysely<DB>,
 	session: SessionSubject,
-	access: GaugeReadAccess,
-	input: GaugeListInput = {},
-): Promise<GaugeFeatureCollectionResponse> {
+	access: GaugeStationReadAccess,
+	input: GaugeStationListInput = {},
+): Promise<GaugeStationFeatureCollectionResponse> {
 	const filters = { ...input, active: resolveActiveFilter(access, input) };
 	const rows = access.canReadExternal
 		? await queries.listGaugeStationsWithRisk(db, filters)
 		: await queries.listGaugeStationsWithRiskForClient(db, session.client_id, filters);
-	return { type: "FeatureCollection", features: rows.map(toGaugeFeature) };
+	return { type: "FeatureCollection", features: rows.map(toGaugeStationFeature) };
 }
 
-export async function getGauge(
+export async function getGaugeStation(
 	db: Kysely<DB>,
 	id: number,
 	session: SessionSubject,
-	access: GaugeReadAccess,
-): Promise<GaugeResponse> {
+	access: GaugeStationReadAccess,
+): Promise<GaugeStationResponse> {
 	const row = access.canReadExternal
 		? await queries.findGaugeStationById(db, id)
 		: await queries.findGaugeStationByIdForClient(db, id, session.client_id);
-	// Inactive gauges stay hidden from read-only users, matching listGauges.
-	if (!row || (!row.active && !access.canViewInactive)) throw new GaugeNotFoundError(id);
-	return toGaugeResponse(row);
+	// Inactive gauge stations stay hidden from read-only users, matching listGaugeStations.
+	if (!row || (!row.active && !access.canViewInactive)) throw new GaugeStationNotFoundError(id);
+	return toGaugeStationResponse(row);
 }
 
-export async function getGaugeByName(
+export async function getGaugeStationByName(
 	db: Kysely<DB>,
 	name: string,
 	session: SessionSubject,
-	access: GaugeReadAccess,
-): Promise<GaugeResponse> {
+	access: GaugeStationReadAccess,
+): Promise<GaugeStationResponse> {
 	const row = access.canReadExternal
 		? await queries.findGaugeStationByName(db, name)
 		: await queries.findGaugeStationByNameForClient(db, name, session.client_id);
-	if (!row || (!row.active && !access.canViewInactive)) throw new GaugeNotFoundError(name);
-	return toGaugeResponse(row);
+	if (!row || (!row.active && !access.canViewInactive)) throw new GaugeStationNotFoundError(name);
+	return toGaugeStationResponse(row);
 }
 
-export async function createGauge(
+export async function createGaugeStation(
 	db: Kysely<DB>,
 	session: SessionSubject,
-	access: GaugeWriteAccess,
-	input: CreateGaugeInput,
-): Promise<GaugeResponse> {
+	access: GaugeStationWriteAccess,
+	input: CreateGaugeStationInput,
+): Promise<GaugeStationResponse> {
 	if (!access.canWriteExternal && input.clientId !== session.client_id)
-		throw new GaugeAccessDeniedError();
+		throw new GaugeStationAccessDeniedError();
 
 	const [city, client] = await Promise.all([
 		queries.findCityById(db, input.cityId),
 		queries.findClientById(db, input.clientId),
 	]);
-	if (!city) throw new GaugeCityNotFoundError(input.cityId);
-	if (!client) throw new GaugeClientNotFoundError(input.clientId);
+	if (!city) throw new GaugeStationCityNotFoundError(input.cityId);
+	if (!client) throw new GaugeStationClientNotFoundError(input.clientId);
 
 	let stationId: number;
 	try {
@@ -258,32 +258,32 @@ export async function createGauge(
 			return station.id;
 		});
 	} catch (error) {
-		if (isUniqueViolation(error)) throw new GaugeNameConflictError(input.name);
+		if (isUniqueViolation(error)) throw new GaugeStationNameConflictError(input.name);
 		throw error;
 	}
 
 	const row = await queries.findGaugeStationById(db, stationId);
-	if (!row) throw new GaugeNotFoundError(stationId);
-	return toGaugeResponse(row);
+	if (!row) throw new GaugeStationNotFoundError(stationId);
+	return toGaugeStationResponse(row);
 }
 
-export async function updateGauge(
+export async function updateGaugeStation(
 	db: Kysely<DB>,
 	id: number,
 	session: SessionSubject,
-	access: GaugeWriteAccess,
-	input: UpdateGaugeInput,
-): Promise<GaugeResponse> {
-	// Client-scoped writers only see (and may only touch) their own gauges, so
-	// an existing gauge linked to another client 404s rather than 403s.
+	access: GaugeStationWriteAccess,
+	input: UpdateGaugeStationInput,
+): Promise<GaugeStationResponse> {
+	// Client-scoped writers only see (and may only touch) their own gauge stations, so
+	// an existing gauge station linked to another client 404s rather than 403s.
 	const current = access.canWriteExternal
 		? await queries.findGaugeStationById(db, id)
 		: await queries.findGaugeStationByIdForClient(db, id, session.client_id);
-	if (!current) throw new GaugeNotFoundError(id);
+	if (!current) throw new GaugeStationNotFoundError(id);
 
 	if (input.cityId !== undefined && input.cityId !== current.city_id) {
 		const city = await queries.findCityById(db, input.cityId);
-		if (!city) throw new GaugeCityNotFoundError(input.cityId);
+		if (!city) throw new GaugeStationCityNotFoundError(input.cityId);
 	}
 
 	const infoChanged =
@@ -314,11 +314,11 @@ export async function updateGauge(
 			}
 		});
 	} catch (error) {
-		if (isUniqueViolation(error)) throw new GaugeNameConflictError(input.name ?? current.name);
+		if (isUniqueViolation(error)) throw new GaugeStationNameConflictError(input.name ?? current.name);
 		throw error;
 	}
 
 	const row = await queries.findGaugeStationById(db, id);
-	if (!row) throw new GaugeNotFoundError(id);
-	return toGaugeResponse(row);
+	if (!row) throw new GaugeStationNotFoundError(id);
+	return toGaugeStationResponse(row);
 }

@@ -24,11 +24,11 @@ export class AlertSNSClient {
 	}
 
 	getTopicName(
-		gaugeName: string,
+		gaugeStationName: string,
 		deviceSerialNumber: string | null,
 		warningType: string,
 	): string {
-		return `${gaugeName}_${deviceSerialNumber ? "Device_" : ""}alert_${warningType}`;
+		return `${gaugeStationName}_${deviceSerialNumber ? "Device_" : ""}alert_${warningType}`;
 	}
 
 	getManualAlertTopicName(clientId?: string | number): string {
@@ -36,12 +36,12 @@ export class AlertSNSClient {
 	}
 
 	getAlertMessage(
-		gaugeName: string,
+		gaugeStationName: string,
 		deviceSerialNumber: string | null,
 		warningDescription: string,
 	): string {
 		const alertTarget = deviceSerialNumber === null ? "" : `(${deviceSerialNumber}) `;
-		return `Alert - ${warningDescription} ${alertTarget}at Gauge ${gaugeName}!`;
+		return `Alert - ${warningDescription} ${alertTarget}at Gauge Station ${gaugeStationName}!`;
 	}
 
 	async getAllTopics(): Promise<Topic[]> {

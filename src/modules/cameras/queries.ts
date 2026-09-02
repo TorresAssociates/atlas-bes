@@ -12,8 +12,8 @@ export type CameraDetectionDataRow = Selectable<DB["camera_detection_data"]>;
 export interface CameraDeviceRow extends CameraRow {
 	device_serial_number: string;
 	gauge_station_id: number;
-	gauge_name: string | null;
-	gauge_location: string | null;
+	gauge_station_name: string | null;
+	gauge_station_location: string | null;
 	city_id: number | null;
 	city_name: string | null;
 	page_version: string | null;
@@ -41,8 +41,8 @@ const cameraDeviceColumns = [
 	...cameraColumns,
 	"device.serial_number as device_serial_number",
 	"device_info.gauge_station_id",
-	"gauge_station.name as gauge_name",
-	"gauge_station_info.location as gauge_location",
+	"gauge_station.name as gauge_station_name",
+	"gauge_station_info.location as gauge_station_location",
 	"city.id as city_id",
 	"city.name as city_name",
 	"device_info.page_version",
@@ -119,11 +119,11 @@ function scopedCameraDeviceBase(db: Kysely<DB>, clientId: number) {
 
 export function listCameras(
 	db: Kysely<DB>,
-	filters: { gaugeId?: number; clientId?: number } = {},
+	filters: { gaugeStationId?: number; clientId?: number } = {},
 ): Promise<CameraDeviceRow[]> {
 	let query = cameraDeviceBase(db);
-	if (filters.gaugeId !== undefined)
-		query = query.where("device_info.gauge_station_id", "=", filters.gaugeId);
+	if (filters.gaugeStationId !== undefined)
+		query = query.where("device_info.gauge_station_id", "=", filters.gaugeStationId);
 	if (filters.clientId !== undefined) {
 		query = query
 			.innerJoin(
@@ -142,11 +142,11 @@ export function listCameras(
 export function listCamerasForClient(
 	db: Kysely<DB>,
 	clientId: number,
-	filters: { gaugeId?: number } = {},
+	filters: { gaugeStationId?: number } = {},
 ): Promise<CameraDeviceRow[]> {
 	let query = scopedCameraDeviceBase(db, clientId);
-	if (filters.gaugeId !== undefined)
-		query = query.where("device_info.gauge_station_id", "=", filters.gaugeId);
+	if (filters.gaugeStationId !== undefined)
+		query = query.where("device_info.gauge_station_id", "=", filters.gaugeStationId);
 	return query
 		.orderBy("device.serial_number", "asc")
 		.orderBy("camera.local_id", "asc")

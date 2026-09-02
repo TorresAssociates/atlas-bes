@@ -21,7 +21,7 @@ import {
 	SimBadRequestError,
 	SimConflictError,
 	SimDeviceNotFoundError,
-	SimGaugeNotFoundError,
+	SimGaugeStationNotFoundError,
 	SimNotFoundError,
 	type UpdateSimImeiInput,
 	updateSimImei,
@@ -36,7 +36,7 @@ const simsRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	app.setErrorHandler((err, _request, reply) => {
 		if (err instanceof SimNotFoundError) return reply.notFound(err.message);
 		if (err instanceof SimBadRequestError) return reply.badRequest(err.message);
-		if (err instanceof SimGaugeNotFoundError) return reply.notFound(err.message);
+		if (err instanceof SimGaugeStationNotFoundError) return reply.notFound(err.message);
 		if (err instanceof SimDeviceNotFoundError) return reply.notFound(err.message);
 		if (err instanceof SimAccessDeniedError) return reply.forbidden(err.message);
 		if (err instanceof SimConflictError) {

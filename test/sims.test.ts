@@ -50,7 +50,7 @@ interface SimBody {
 	isActivated: boolean;
 	isPaused: boolean;
 	boxSerialNumber: string | null;
-	gaugeName: string | null;
+	gaugeStationName: string | null;
 	simProvider: { name: string; apn: string | null };
 	deviceId?: number;
 	bic?: string;
@@ -191,7 +191,7 @@ test("GET /v1/sims/:iccid returns provider-specific SIM details", async () => {
 			imei: "123456789012345",
 			bic: "BIC1234567890123",
 			boxSerialNumber: "bryan-test-device",
-			gaugeName: "bryan-test-gauge",
+			gaugeStationName: "bryan-test-GS",
 			simProvider: { name: "emnify", apn: "em" },
 		}),
 	);
@@ -274,7 +274,7 @@ test("POST /v1/sims/activate activates all inactive SIMs for an IMEI", async () 
 		body: {
 			imei: "123456789012345",
 			boxType: "gauge",
-			gaugeId: "bryan-test-gauge",
+			gaugeStationId: "bryan-test-GS",
 		},
 	});
 
@@ -315,7 +315,7 @@ test("POST /v1/sims/activate hides another client's device from client writers",
 		body: {
 			imei: "555555555555555",
 			boxType: "gauge",
-			gaugeId: "college-station-test-gauge",
+			gaugeStationId: "college-station-test-GS",
 		},
 	});
 

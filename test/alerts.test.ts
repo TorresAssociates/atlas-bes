@@ -19,16 +19,16 @@ const snsDeletedTopics: string[] = [];
 const snsMessages: Array<{ topic: string; message: string }> = [];
 
 const fakeAlertSns = {
-	getTopicName(gaugeName: string, deviceSerialNumber: string | null, warningType: string) {
-		return `${gaugeName}_${deviceSerialNumber ? "Device_" : ""}alert_${warningType}`;
+	getTopicName(gaugeStationName: string, deviceSerialNumber: string | null, warningType: string) {
+		return `${gaugeStationName}_${deviceSerialNumber ? "Device_" : ""}alert_${warningType}`;
 	},
 	getAlertMessage(
-		gaugeName: string,
+		gaugeStationName: string,
 		deviceSerialNumber: string | null,
 		warningDescription: string,
 	) {
 		const alertTarget = deviceSerialNumber === null ? "" : `(${deviceSerialNumber}) `;
-		return `Alert - ${warningDescription} ${alertTarget}at Gauge ${gaugeName}!`;
+		return `Alert - ${warningDescription} ${alertTarget}at Gauge Station ${gaugeStationName}!`;
 	},
 	async subscribeSms(phoneNumber: string, topic: string) {
 		snsSubscriptions.push({ phoneNumber, topic });
@@ -88,7 +88,7 @@ beforeAll(async () => {
 		throw new Error(`failed to set admin phone: ${adminPhone.statusCode} ${adminPhone.body}`);
 
 	const station = await db.pool.query<{ id: number }>(
-		`INSERT INTO gauge_station (name) VALUES ('alert-test-gauge') RETURNING id`,
+		`INSERT INTO gauge_station (name) VALUES ('alert-test-gaugeStation') RETURNING id`,
 	);
 	gaugeStationId = station.rows[0]!.id;
 
@@ -155,10 +155,10 @@ interface TestAlertSubscriptionBody {
 	phone_number: string;
 }
 
-test("POST /v1/alerts/subscriptions/user/:userId/gaugeAlerts subscribes a user to a gauge alert", async () => {
+test("POST /v1/alerts/subscriptions/user/:userId/gaugeStationAlerts subscribes a user to a gaugeStation alert", async () => {
 	const res = await app.inject({
 		method: "POST",
-		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeStationAlerts`,
 		headers: { cookie: cityManager.cookie },
 		body: { gauge_station_id: gaugeStationId, alert_type: "flood" },
 	});
@@ -173,7 +173,7 @@ test("POST /v1/alerts/subscriptions/user/:userId/gaugeAlerts subscribes a user t
 	);
 	expect(snsSubscriptions).toContainEqual({
 		phoneNumber: "+15555550300",
-		topic: "alert-test-gauge_alert_flood",
+		topic: "alert-test-gaugeStation_alert_flood",
 	});
 
 	const alert = await db.pool.query<{
@@ -190,10 +190,10 @@ test("POST /v1/alerts/subscriptions/user/:userId/gaugeAlerts subscribes a user t
 	});
 });
 
-test("POST /v1/alerts/subscriptions/user/:userId/gaugeAlerts lets admins subscribe themselves to another client's gauge", async () => {
+test("POST /v1/alerts/subscriptions/user/:userId/gaugeStationAlerts lets admins subscribe themselves to another client's gaugeStation", async () => {
 	const res = await app.inject({
 		method: "POST",
-		url: `/v1/alerts/subscriptions/user/${admin.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${admin.id}/gaugeStationAlerts`,
 		headers: { cookie: admin.cookie },
 		body: { gauge_station_id: gaugeStationId, alert_type: "adminSelf" },
 	});
@@ -208,7 +208,7 @@ test("POST /v1/alerts/subscriptions/user/:userId/gaugeAlerts lets admins subscri
 	);
 	expect(snsSubscriptions).toContainEqual({
 		phoneNumber: "+15555550100",
-		topic: "alert-test-gauge_alert_adminSelf",
+		topic: "alert-test-gaugeStation_alert_adminSelf",
 	});
 });
 
@@ -230,7 +230,7 @@ test("POST /v1/alerts/subscriptions/user/:userId/deviceAlerts subscribes a user 
 	);
 	expect(snsSubscriptions).toContainEqual({
 		phoneNumber: "+15555550300",
-		topic: "alert-test-gauge_Device_alert_offline",
+		topic: "alert-test-gaugeStation_Device_alert_offline",
 	});
 
 	const alert = await db.pool.query<{
@@ -247,18 +247,18 @@ test("POST /v1/alerts/subscriptions/user/:userId/deviceAlerts subscribes a user 
 	});
 });
 
-test("GET /v1/alerts/subscriptions/user/:userId/gaugeAlerts lists gauge alert subscriptions", async () => {
+test("GET /v1/alerts/subscriptions/user/:userId/gaugeStationAlerts lists gaugeStation alert subscriptions", async () => {
 	const created = await app.inject({
 		method: "POST",
-		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeStationAlerts`,
 		headers: { cookie: cityManager.cookie },
-		body: { gauge_station_id: gaugeStationId, alert_type: "listGauge" },
+		body: { gauge_station_id: gaugeStationId, alert_type: "listGaugeStation" },
 	});
 	expect(created.statusCode).toBe(201);
 
 	const res = await app.inject({
 		method: "GET",
-		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeStationAlerts`,
 		headers: { cookie: cityManager.cookie },
 	});
 
@@ -266,9 +266,9 @@ test("GET /v1/alerts/subscriptions/user/:userId/gaugeAlerts lists gauge alert su
 	expect(res.json<AlertSubscriptionListBody>().data).toContainEqual(
 		expect.objectContaining({
 			id: created.json<AlertSubscriptionBody>().id,
-			alert_type: "listGauge",
+			alert_type: "listGaugeStation",
 			alert_level: "gauge_station",
-			gauge_station_name: "alert-test-gauge",
+			gauge_station_name: "alert-test-gaugeStation",
 		}),
 	);
 });
@@ -294,23 +294,23 @@ test("GET /v1/alerts/subscriptions/user/:userId/deviceAlerts lists device alert 
 			id: created.json<AlertSubscriptionBody>().id,
 			alert_type: "listDevice",
 			alert_level: "device",
-			gauge_station_name: "alert-test-gauge",
+			gauge_station_name: "alert-test-gaugeStation",
 		}),
 	);
 });
 
-test("DELETE /v1/alerts/subscriptions/user/:userId/gaugeAlerts archives one gauge alert subscription", async () => {
+test("DELETE /v1/alerts/subscriptions/user/:userId/gaugeStationAlerts archives one gaugeStation alert subscription", async () => {
 	const created = await app.inject({
 		method: "POST",
-		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeStationAlerts`,
 		headers: { cookie: cityManager.cookie },
-		body: { gauge_station_id: gaugeStationId, alert_type: "delGauge" },
+		body: { gauge_station_id: gaugeStationId, alert_type: "delGaugeStation" },
 	});
 	const subscriptionId = created.json<AlertSubscriptionBody>().id;
 
 	const res = await app.inject({
 		method: "DELETE",
-		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeAlerts?gaugeSubscriptionId=${subscriptionId}`,
+		url: `/v1/alerts/subscriptions/user/${cityManager.id}/gaugeStationAlerts?gaugeStationSubscriptionId=${subscriptionId}`,
 		headers: { cookie: cityManager.cookie },
 	});
 
@@ -328,9 +328,9 @@ test("DELETE /v1/alerts/subscriptions/user/:userId/gaugeAlerts archives one gaug
 	);
 	expect(snsUnsubscriptions).toContainEqual({
 		phoneNumber: "+15555550300",
-		topic: "alert-test-gauge_alert_delGauge",
+		topic: "alert-test-gaugeStation_alert_delGaugeStation",
 	});
-	expect(snsDeletedTopics).toContain("alert-test-gauge_alert_delGauge");
+	expect(snsDeletedTopics).toContain("alert-test-gaugeStation_alert_delGaugeStation");
 
 	const archived = await db.pool.query<{ archived: Date | null }>(
 		`SELECT archived FROM alert_subscription WHERE id = $1`,
@@ -366,9 +366,9 @@ test("DELETE /v1/alerts/subscriptions/user/:userId/deviceAlerts archives device 
 	);
 	expect(snsUnsubscriptions).toContainEqual({
 		phoneNumber: "+15555550300",
-		topic: "alert-test-gauge_Device_alert_delDevice",
+		topic: "alert-test-gaugeStation_Device_alert_delDevice",
 	});
-	expect(snsDeletedTopics).toContain("alert-test-gauge_Device_alert_delDevice");
+	expect(snsDeletedTopics).toContain("alert-test-gaugeStation_Device_alert_delDevice");
 });
 
 test("POST /v1/alerts/testMessage sends the monthly test message", async () => {

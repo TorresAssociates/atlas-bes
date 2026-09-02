@@ -24,7 +24,7 @@ export interface CameraWriteAccess {
 }
 
 export interface CameraListFilters {
-	gaugeId?: number;
+	gaugeStationId?: number;
 	clientId?: number;
 }
 
@@ -211,11 +211,11 @@ export async function listCameras(
 ): Promise<CameraResponse[]> {
 	const rows = access.canReadExternal
 		? await queries.listCameras(db, {
-				gaugeId: filters.gaugeId,
+				gaugeStationId: filters.gaugeStationId,
 				clientId: filters.clientId,
 			})
 		: await queries.listCamerasForClient(db, session.client_id, {
-				gaugeId: filters.gaugeId,
+				gaugeStationId: filters.gaugeStationId,
 			});
 	return Promise.all(rows.map((camera) => hydrateCamera(db, camera)));
 }

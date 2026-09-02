@@ -31,7 +31,7 @@ export const UpdateSimImeiBodySchema = Type.Object({
 export const ActivateSimsBodySchema = Type.Object({
 	imei: Type.String({ minLength: 15, maxLength: 15 }),
 	boxType: DeviceTypeSchema,
-	gaugeId: Type.String({ minLength: 1 }),
+	gaugeStationId: Type.String({ minLength: 1 }),
 });
 
 export const SimResponseSchema = Type.Object({
@@ -46,7 +46,7 @@ export const SimResponseSchema = Type.Object({
 	isActivated: Type.Boolean(),
 	isPaused: Type.Boolean(),
 	boxSerialNumber: Nullable(Type.String()),
-	gaugeName: Nullable(Type.String()),
+	gaugeStationName: Nullable(Type.String()),
 	deviceId: Type.Optional(Type.Integer()),
 	bic: Type.Optional(Type.String()),
 });

@@ -254,7 +254,7 @@ test("GET /v1/alert-monitors/status includes latest measurement records", async 
 		expect.objectContaining({ date: measuredAt.toISOString(), value: 15.75 }),
 	);
 	expect(status.gauge_station).toEqual(
-		expect.objectContaining({ id: 1, name: "bryan-test-gauge" }),
+		expect.objectContaining({ id: 1, name: "bryan-test-GS" }),
 	);
 	expect(body.data.every((row) => row.device_id === 1)).toBe(true);
 });

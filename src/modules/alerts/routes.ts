@@ -14,9 +14,9 @@ import {
 	AlertSubscriptionSchema,
 	AlertSubscriptionUserParamsSchema,
 	DeleteDeviceAlertSubscriptionQuerySchema,
-	DeleteGaugeAlertSubscriptionQuerySchema,
+	DeleteGaugeStationAlertSubscriptionQuerySchema,
 	DeviceAlertSubscriptionBodySchema,
-	GaugeAlertSubscriptionBodySchema,
+	GaugeStationAlertSubscriptionBodySchema,
 	SendTestAlertMessageResponseSchema,
 	TestAlertSubscriptionBodySchema,
 	TestAlertSubscriptionResponseSchema,
@@ -31,23 +31,23 @@ import {
 	AlertSubscriptionTargetUserNotFoundError,
 	AlertTopicNotFoundError,
 	deleteDeviceAlertSubscriptions,
-	deleteGaugeAlertSubscriptions,
+	deleteGaugeStationAlertSubscriptions,
 	listDeviceAlertSubscriptions,
-	listGaugeAlertSubscriptions,
+	listGaugeStationAlertSubscriptions,
 	type SubscribeDeviceAlertInput,
-	type SubscribeGaugeAlertInput,
+	type SubscribeGaugeStationAlertInput,
 	sendTestAlertMessage,
 	subscribeDeviceAlert,
-	subscribeGaugeAlert,
+	subscribeGaugeStationAlert,
 	subscribeToTestAlertTopic,
 	type TestAlertSubscriptionInput,
 	unsubscribeFromTestAlertTopic,
 } from "./service";
 
 type AlertSubscriptionParams = { userId: string };
-type GaugeAlertRequest = FastifyRequest<{
+type GaugeStationAlertRequest = FastifyRequest<{
 	Params: AlertSubscriptionParams;
-	Body: SubscribeGaugeAlertInput;
+	Body: SubscribeGaugeStationAlertInput;
 }>;
 type DeviceAlertRequest = FastifyRequest<{
 	Params: AlertSubscriptionParams;
@@ -56,9 +56,9 @@ type DeviceAlertRequest = FastifyRequest<{
 type AlertSubscriptionUserRequest = FastifyRequest<{
 	Params: AlertSubscriptionParams;
 }>;
-type DeleteGaugeAlertRequest = FastifyRequest<{
+type DeleteGaugeStationAlertRequest = FastifyRequest<{
 	Params: AlertSubscriptionParams;
-	Querystring: { gaugeSubscriptionId?: number };
+	Querystring: { gaugeStationSubscriptionId?: number };
 }>;
 type DeleteDeviceAlertRequest = FastifyRequest<{
 	Params: AlertSubscriptionParams;
@@ -134,9 +134,9 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		return unsubscribeFromTestAlertTopic(context.sns, request.body);
 	};
 
-	const gaugePostHandler = async (request: GaugeAlertRequest, reply: FastifyReply) => {
+	const gaugeStationPostHandler = async (request: GaugeStationAlertRequest, reply: FastifyReply) => {
 		const context = await routeContext(request);
-		const subscription = await subscribeGaugeAlert(
+		const subscription = await subscribeGaugeStationAlert(
 			context.db,
 			context.sns,
 			context.encryptionKey,
@@ -162,10 +162,10 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		return reply.code(201).send(subscription);
 	};
 
-	const gaugeGetHandler = async (request: AlertSubscriptionUserRequest) => {
+	const gaugeStationGetHandler = async (request: AlertSubscriptionUserRequest) => {
 		const context = await routeContext(request);
 		return {
-			data: await listGaugeAlertSubscriptions(
+			data: await listGaugeStationAlertSubscriptions(
 				context.db,
 				context.encryptionKey,
 				context.session,
@@ -188,16 +188,16 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		};
 	};
 
-	const gaugeDeleteHandler = async (request: DeleteGaugeAlertRequest) => {
+	const gaugeStationDeleteHandler = async (request: DeleteGaugeStationAlertRequest) => {
 		const context = await routeContext(request);
-		return deleteGaugeAlertSubscriptions(
+		return deleteGaugeStationAlertSubscriptions(
 			context.db,
 			context.sns,
 			context.encryptionKey,
 			context.session,
 			context.access,
 			request.params.userId,
-			request.query.gaugeSubscriptionId,
+			request.query.gaugeStationSubscriptionId,
 		);
 	};
 
@@ -270,7 +270,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	);
 
 	app.get(
-		"/subscriptions/user/:userId/gaugeAlerts",
+		"/subscriptions/user/:userId/gaugeStationAlerts",
 		{
 			preHandler: requireSession(),
 			schema: {
@@ -284,17 +284,17 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				},
 			},
 		},
-		gaugeGetHandler,
+		gaugeStationGetHandler,
 	);
 
 	app.post(
-		"/subscriptions/user/:userId/gaugeAlerts",
+		"/subscriptions/user/:userId/gaugeStationAlerts",
 		{
 			preHandler: requireSession(),
 			schema: {
 				tags: ["alerts"],
 				params: AlertSubscriptionUserParamsSchema,
-				body: GaugeAlertSubscriptionBodySchema,
+				body: GaugeStationAlertSubscriptionBodySchema,
 				response: {
 					201: AlertSubscriptionSchema,
 					400: HttpErrorSchema,
@@ -304,17 +304,17 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				},
 			},
 		},
-		gaugePostHandler,
+		gaugeStationPostHandler,
 	);
 
 	app.delete(
-		"/subscriptions/user/:userId/gaugeAlerts",
+		"/subscriptions/user/:userId/gaugeStationAlerts",
 		{
 			preHandler: requireSession(),
 			schema: {
 				tags: ["alerts"],
 				params: AlertSubscriptionUserParamsSchema,
-				querystring: DeleteGaugeAlertSubscriptionQuerySchema,
+				querystring: DeleteGaugeStationAlertSubscriptionQuerySchema,
 				response: {
 					200: AlertSubscriptionDeleteSchema,
 					400: HttpErrorSchema,
@@ -324,7 +324,7 @@ const alertRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				},
 			},
 		},
-		gaugeDeleteHandler,
+		gaugeStationDeleteHandler,
 	);
 
 	app.get(

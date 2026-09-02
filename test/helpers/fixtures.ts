@@ -7,8 +7,8 @@ import type pg from "pg";
  * tests create their own fixtures here.
  *
  * Layout (ids are explicit because tests assert against them):
- *   gauge_station 1 "bryan-test-gauge"            -> client 2 (City of Bryan)
- *   gauge_station 2 "college-station-test-gauge"  -> client 1 (Torres)
+ *   gauge_station 1 "bryan-test-GS"            -> client 2 (City of Bryan)
+ *   gauge_station 2 "college-station-test-GS"  -> client 1 (Torres)
  *   device 1 "bryan-test-device"           on station 1, channels 1 (Stage), 2 (Rain)
  *   device 2 "college-station-test-device" on station 2, channels 3 (Stage), 4 (Battery)
  */
@@ -17,13 +17,13 @@ export async function seedDeviceFixtures(pool: pg.Pool): Promise<void> {
 	// whole fixture set applies in one round trip.
 	await pool.query(`
 		INSERT INTO "gauge_station" ("id", "name") VALUES
-		    (1, 'bryan-test-gauge'),
-		    (2, 'college-station-test-gauge');
+		    (1, 'bryan-test-GS'),
+		    (2, 'college-station-test-GS');
 		SELECT setval(pg_get_serial_sequence('"gauge_station"', 'id'), (SELECT max("id") FROM "gauge_station"));
 
 		INSERT INTO "gauge_station_info" ("id", "gauge_station_id", "city_id", "location", "latitude", "longitude") VALUES
-		    (1, 1, 2, 'Bryan Alert Test Gauge', 30.6744, -96.3700),
-		    (2, 2, 1, 'College Station Alert Test Gauge', 30.6279, -96.3344);
+		    (1, 1, 2, 'Bryan Alert Test Gauge Station', 30.6744, -96.3700),
+		    (2, 2, 1, 'College Station Alert Test Gauge Station', 30.6279, -96.3344);
 		SELECT setval(pg_get_serial_sequence('"gauge_station_info"', 'id'), (SELECT max("id") FROM "gauge_station_info"));
 
 		INSERT INTO "client_gauge_station" ("id", "gauge_station_id", "client_id") VALUES
