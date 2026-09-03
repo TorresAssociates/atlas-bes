@@ -58,9 +58,20 @@ export interface DeviceSummaryResponse {
 }
 
 export interface RiskLevelConfigRangeResponse {
-	minValue: number;
-	maxValue: number;
+	minValue: number | null;
+	maxValue: number | null;
 	riskLevel: number;
+	category: string | null;
+}
+
+// The live DB stores range bounds as NUMERIC (pg returns those as strings)
+// and allows NULL at the open ends of the scale; the codegen types (from the
+// local schema's REAL NOT NULL) lag behind. The response schema's Nullable
+// union does no coercion — unlike a bare Type.Number() — so coerce here.
+function toNullableNumber(value: number | string | null): number | null {
+	if (value === null) return null;
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : null;
 }
 
 export interface DeviceRiskLevelResponse {
@@ -147,9 +158,10 @@ function toSummaryResponse(row: DeviceSummaryRow): DeviceSummaryResponse {
 		riskLevel: row.risk_level,
 		riskLevelOverride: row.risk_level_override,
 		riskLevelConfigRanges: row.risk_level_config_ranges.map((r) => ({
-			minValue: r.min_value,
-			maxValue: r.max_value,
+			minValue: toNullableNumber(r.min_value),
+			maxValue: toNullableNumber(r.max_value),
 			riskLevel: r.risk_level,
+			category: r.category,
 		})),
 		displayName: row.display_name,
 	};

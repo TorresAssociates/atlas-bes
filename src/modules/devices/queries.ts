@@ -42,9 +42,7 @@ const riskLevelCase = sql<number | null>`CASE
 				/ NULLIF(risk_level_monitor_config_gradient.end_value - risk_level_monitor_config_gradient.begin_value, 0)))
 END`;
 
-// Shared join block for the risk computation: every valid monitor on the
-// device with its config, monitored channel, latest measurement, and
-// range/gradient config rows.
+
 function riskLevelMonitorJoins() {
 	const eb = expressionBuilder<DB, "device">();
 	return eb
@@ -94,10 +92,6 @@ function riskLevelMonitorJoins() {
 		.where(validAt("risk_level_monitor"));
 }
 
-// Device-level risk comes from the highest-priority monitor config (lower
-// number = higher priority) among monitors that yield a risk value; monitors
-// with no computable risk are skipped, and equal priorities resolve to the
-// most significant (highest) risk value.
 function deviceRiskLevel(at?: Date) {
 	let query = riskLevelMonitorJoins().select(
 		sql<
@@ -110,37 +104,60 @@ function deviceRiskLevel(at?: Date) {
 	return query;
 }
 
-// The monitor whose config produced the device-level risk: identical ordering
-// to deviceRiskLevel, aggregating the monitor id instead of the risk value.
-function deviceWinningRiskMonitorId() {
-	return riskLevelMonitorJoins().select(
-		sql<
-			number | null
-		>`(ARRAY_AGG(${sql.ref("risk_level_monitor.id")} ORDER BY risk_level_monitor_config.priority, ${riskLevelCase} DESC) FILTER (WHERE ${riskLevelCase} IS NOT NULL))[1]`.as(
-			"monitor_id",
-		),
-	);
-}
-
-// All range bands configured on the monitor that produced the device-level
-// risk, so clients can plot the reported risk among the full band set. Empty
-// when no monitor yields a risk or the winning monitor is gradient-based.
 function deviceRiskLevelConfigRanges(at?: Date) {
 	const eb = expressionBuilder<DB, "device">();
 	let query = eb
 		.selectFrom("risk_level_monitor_config_range")
+		.innerJoin(
+			"risk_level_monitor",
+			"risk_level_monitor.id",
+			"risk_level_monitor_config_range.risk_level_monitor_id",
+		)
+		.leftJoin("risk_level_monitor_channel", (join) =>
+			join
+				.onRef(
+					"risk_level_monitor_channel.risk_level_monitor_id",
+					"=",
+					"risk_level_monitor.id",
+				)
+				.on(validAt("risk_level_monitor_channel")),
+		)
+		.leftJoin("channel_config", (join) =>
+			join
+				.onRef("channel_config.channel_id", "=", "risk_level_monitor_channel.channel_id")
+				.on(validAt("channel_config")),
+		)
 		.select([
+			// Migrated bands use float ±infinity for open bounds, which Postgres
+			// renders as the JSON strings "Infinity"/"-Infinity" inside json_agg
+			// and would fail response serialization — surface them as null.
+			sql<
+				number | null
+			>`NULLIF(${sql.ref("risk_level_monitor_config_range.min_value")}, '-infinity'::float8)`.as(
+				"min_value",
+			),
+			sql<
+				number | null
+			>`NULLIF(${sql.ref("risk_level_monitor_config_range.max_value")}, 'infinity'::float8)`.as(
+				"max_value",
+			),
+			"risk_level_monitor_config_range.risk_level",
+			sql<string | null>`CASE
+				WHEN COUNT(DISTINCT ${sql.ref("channel_config.category")}) = 1
+					THEN MIN(${sql.ref("channel_config.category")})
+				ELSE NULL
+			END`.as("category"),
+		])
+		.groupBy([
 			"risk_level_monitor_config_range.min_value",
 			"risk_level_monitor_config_range.max_value",
 			"risk_level_monitor_config_range.risk_level",
 		])
+		.whereRef("risk_level_monitor.device_id", "=", "device.id")
+		.where(validAt("risk_level_monitor"))
 		.where(validAt("risk_level_monitor_config_range"))
-		.where(
-			"risk_level_monitor_config_range.risk_level_monitor_id",
-			"=",
-			sql<number>`(${deviceWinningRiskMonitorId()})`,
-		)
-		.orderBy("risk_level_monitor_config_range.min_value");
+		.orderBy("risk_level_monitor_config_range.min_value")
+		.orderBy("risk_level_monitor_config_range.risk_level");
 	if (at !== undefined) query = query.where(sql<boolean>`FALSE`);
 	return query;
 }

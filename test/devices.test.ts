@@ -329,7 +329,12 @@ interface DeviceSummaryBody {
 	connected: boolean | null;
 	riskLevel: number | null;
 	riskLevelOverride: number | null;
-	riskLevelConfigRanges: { minValue: number; maxValue: number; riskLevel: number }[];
+	riskLevelConfigRanges: {
+		minValue: number | null;
+		maxValue: number | null;
+		riskLevel: number;
+		category: string | null;
+	}[];
 	displayName: string | null;
 }
 
@@ -406,8 +411,8 @@ test("GET /v1/devices returns the summary shape with the computed risk level", a
 		riskLevelOverride: null,
 		// Every band of the winning (range) monitor, ordered by min_value.
 		riskLevelConfigRanges: [
-			{ minValue: 0, maxValue: 10, riskLevel: 1 },
-			{ minValue: 10, maxValue: 20, riskLevel: 2 },
+			{ minValue: 0, maxValue: 10, riskLevel: 1, category: null },
+			{ minValue: 10, maxValue: 20, riskLevel: 2, category: null },
 		],
 		displayName: "Main Logger",
 	});
@@ -559,8 +564,8 @@ test("GET /v1/devices/:id returns the full detail shape", async () => {
 			connected: true,
 			riskLevel: 2,
 			riskLevelConfigRanges: [
-				{ minValue: 0, maxValue: 10, riskLevel: 1 },
-				{ minValue: 10, maxValue: 20, riskLevel: 2 },
+				{ minValue: 0, maxValue: 10, riskLevel: 1, category: null },
+				{ minValue: 10, maxValue: 20, riskLevel: 2, category: null },
 			],
 			displayName: "Main Logger",
 			pageVersion: "v2",
@@ -635,9 +640,14 @@ test("device risk level follows monitor config priority, not the overall max", a
 	// significant value wins. The priority-2 monitor's risk of 4 — the overall
 	// max — must not be used.
 	expect(body.riskLevel).toBe(3);
-	// The ranges echo the winning monitor's bands — the priority-1 monitor that
-	// produced risk 3, not the priority-0 or priority-2 ones.
-	expect(body.riskLevelConfigRanges).toEqual([{ minValue: 0, maxValue: 10, riskLevel: 3 }]);
+	// The ranges union every active monitor's bands, deduplicated — the two
+	// identical risk-4 bands collapse to one — and ordered by min value then
+	// risk level, regardless of which monitor produced the device risk.
+	expect(body.riskLevelConfigRanges).toEqual([
+		{ minValue: 0, maxValue: 10, riskLevel: 1, category: null },
+		{ minValue: 0, maxValue: 10, riskLevel: 3, category: null },
+		{ minValue: 0, maxValue: 10, riskLevel: 4, category: null },
+	]);
 	// The per-monitor breakdown is ordered by priority.
 	expect(body.riskLevels.map((r) => r.priority)).toEqual([0, 1, 1, 2]);
 });

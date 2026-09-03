@@ -10,13 +10,11 @@ export const DeviceTypeSchema = Type.Union([
 
 export const ProtocolTypeSchema = Type.Union([Type.Literal("mqtt"), Type.Literal("coap")]);
 
-// One configured band from risk_level_monitor_config_range. The summary
-// carries every band of the monitor that produced riskLevel, so clients can
-// plot the current state among the ranges between the different risk levels.
 export const RiskLevelConfigRangeSchema = Type.Object({
-	minValue: Type.Number(),
-	maxValue: Type.Number(),
+	minValue: Nullable(Type.Number()),
+	maxValue: Nullable(Type.Number()),
 	riskLevel: Type.Number(),
+	category: Nullable(Type.String()),
 });
 
 export const DeviceSummarySchema = Type.Object({
