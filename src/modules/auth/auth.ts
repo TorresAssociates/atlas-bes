@@ -173,6 +173,9 @@ export function createAuth(config: AuthConfig, db: Kysely<DB>) {
 			"atlas-mobile-app:///",
 			"atlas-mobile-app://",
 			"atlas-mobile-app://*",
+			"oce-mobile-app:///",
+			"oce-mobile-app://",
+			"oce-mobile-app://*",
 			...(process.env.NODE_ENV === "development"
 				? ["exp://", "exp://**", "exp://192.168.*.*:*/**"]
 				: []),
