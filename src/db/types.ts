@@ -341,6 +341,12 @@ export interface ControlAuditLog {
   log_action_id: number;
 }
 
+export interface DataVisualizerPreset {
+  data: Json;
+  id: Generated<number>;
+  preference_id: number;
+}
+
 export interface Device {
   archived: Timestamp | null;
   id: Generated<number>;
@@ -608,7 +614,6 @@ export interface Permission {
 }
 
 export interface Preference {
-  data_vis_preset: Json | null;
   favorite: Json | null;
   id: Generated<number>;
   layers_on_load: Json | null;
@@ -977,6 +982,7 @@ export interface DB {
   client: Client;
   client_gauge_station: ClientGaugeStation;
   control_audit_log: ControlAuditLog;
+  data_visualizer_preset: DataVisualizerPreset;
   device: Device;
   device_camera_accumulation_trigger: DeviceCameraAccumulationTrigger;
   device_camera_accumulation_trigger_active: DeviceCameraAccumulationTriggerActive;

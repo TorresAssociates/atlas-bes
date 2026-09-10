@@ -119,9 +119,16 @@ CREATE TABLE IF NOT EXISTS "preference" (
     "layers_on_load" JSON,
     "favorite" JSON,
     "theme" TEXT,
-    "data_vis_preset" JSON,
     PRIMARY KEY("id"),
     FOREIGN KEY("user_id") REFERENCES "user"("id")
+);
+
+CREATE TABLE IF NOT EXISTS "data_visualizer_preset" (
+    "id" SERIAL NOT NULL UNIQUE,
+    "preference_id" INT NOT NULL,
+    "data" JSON NOT NULL,
+    PRIMARY KEY("id"),
+    FOREIGN KEY("preference_id") REFERENCES "preference"("id")
 );
 
 CREATE TABLE IF NOT EXISTS "invite" (
