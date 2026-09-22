@@ -369,3 +369,274 @@ test("PATCH /v1/users/delete/:id returns 409 when the user is already deleted", 
 
 	expect(res.statusCode).toBe(409);
 });
+
+// ---------------------------------------------------------------------------
+// Access management: PATCH /:id/role, GET|PUT /:id/permissions
+// ---------------------------------------------------------------------------
+
+interface UserPermissionsBody {
+	role: { id: number; name: string; permissions: { id: number; name: string }[] } | null;
+	granted: { id: number; name: string }[];
+	grantable: { id: number; name: string }[];
+}
+
+let lowerRoleId: number;
+
+test("PATCH /v1/users/:id/role lets a client manager move a user to a lower same-client role", async () => {
+	const created = await app.inject({
+		method: "POST",
+		url: "/v1/roles",
+		headers: { cookie: cityManager.cookie },
+		body: { name: "USERS_TEST_VIEWER", client_id: 2, permission_ids: [1] },
+	});
+	expect(created.statusCode).toBe(201);
+	lowerRoleId = created.json<{ id: number }>().id;
+
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/users/${cityTechnician.id}/role`,
+		headers: { cookie: cityManager.cookie },
+		body: { role_id: lowerRoleId },
+	});
+
+	expect(res.statusCode).toBe(200);
+	expect(res.json<UserBody>()).toEqual(
+		expect.objectContaining({ id: cityTechnician.id, role_id: lowerRoleId }),
+	);
+	expect(await latestUserAuditLog(cityTechnician.id)).toEqual(
+		expect.objectContaining({ action_id: "UPDATE_USER", actor_user_id: cityManager.id }),
+	);
+
+	const restore = await app.inject({
+		method: "PATCH",
+		url: `/v1/users/${cityTechnician.id}/role`,
+		headers: { cookie: cityManager.cookie },
+		body: { role_id: 4 },
+	});
+	expect(restore.statusCode).toBe(200);
+});
+
+test("PATCH /v1/users/:id/role rejects promoting a user to the manager's own level", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/users/${cityTechnician.id}/role`,
+		headers: { cookie: cityManager.cookie },
+		body: { role_id: 3 },
+	});
+
+	expect(res.statusCode).toBe(403);
+});
+
+test("PATCH /v1/users/:id/role rejects changing your own role", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/users/${cityManager.id}/role`,
+		headers: { cookie: cityManager.cookie },
+		body: { role_id: 4 },
+	});
+
+	expect(res.statusCode).toBe(403);
+});
+
+test("PATCH /v1/users/:id/role rejects a role from another client", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/users/${cityTechnician.id}/role`,
+		headers: { cookie: cityManager.cookie },
+		body: { role_id: 2 },
+	});
+
+	expect(res.statusCode).toBe(400);
+});
+
+test("PATCH /v1/users/:id/role rejects a technician", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/users/${deleteTarget.id}/role`,
+		headers: { cookie: cityTechnician.cookie },
+		body: { role_id: 4 },
+	});
+
+	expect(res.statusCode).toBe(403);
+});
+
+test("PATCH /v1/users/:id/role lets an external admin bypass the hierarchy", async () => {
+	const promote = await app.inject({
+		method: "PATCH",
+		url: `/v1/users/${cityTechnician.id}/role`,
+		headers: { cookie: admin.cookie },
+		body: { role_id: 3 },
+	});
+	expect(promote.statusCode).toBe(200);
+	expect(promote.json<UserBody>().role_id).toBe(3);
+
+	const restore = await app.inject({
+		method: "PATCH",
+		url: `/v1/users/${cityTechnician.id}/role`,
+		headers: { cookie: admin.cookie },
+		body: { role_id: 4 },
+	});
+	expect(restore.statusCode).toBe(200);
+});
+
+test("GET /v1/users/:id/permissions returns role, grants and the caller's grantable catalog", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/users/${cityTechnician.id}/permissions`,
+		headers: { cookie: cityManager.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<UserPermissionsBody>();
+	expect(body.role).toEqual(expect.objectContaining({ id: 4, name: "TECHNICIAN" }));
+	expect(body.role?.permissions.map((p) => p.id)).toContain(1);
+	expect(body.granted).toEqual([]);
+
+	const grantable = body.grantable.map((p) => p.name);
+	expect(grantable).toContain("R_CLIENT_USERS");
+	expect(grantable).not.toContain("R_EXTERNAL_USERS");
+	// EX_CLIENT_VOTES is not held by the manager's role, so not grantable by them.
+	expect(grantable).not.toContain("EX_CLIENT_VOTES");
+});
+
+test("GET /v1/users/:id/permissions gives external admins the full catalog", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/users/${cityTechnician.id}/permissions`,
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const grantable = res.json<UserPermissionsBody>().grantable.map((p) => p.name);
+	expect(grantable).toContain("W_EXTERNAL_USERS");
+	expect(grantable).toContain("EX_CLIENT_VOTES");
+});
+
+test("GET /v1/users/:id/permissions hides another client's user from a client manager", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: `/v1/users/${admin.id}/permissions`,
+		headers: { cookie: cityManager.cookie },
+	});
+
+	expect(res.statusCode).toBe(404);
+});
+
+test("PUT /v1/users/:id/permissions replaces individual grants and takes effect immediately", async () => {
+	const res = await app.inject({
+		method: "PUT",
+		url: `/v1/users/${cityTechnician.id}/permissions`,
+		headers: { cookie: cityManager.cookie },
+		body: { permission_ids: [9, 9] },
+	});
+
+	expect(res.statusCode).toBe(200);
+	expect(res.json<UserPermissionsBody>().granted.map((p) => p.id)).toEqual([9]);
+	expect(await latestUserAuditLog(cityTechnician.id)).toEqual(
+		expect.objectContaining({ action_id: "UPDATE_USER", actor_user_id: cityManager.id }),
+	);
+
+	const me = await app.inject({
+		method: "GET",
+		url: "/v1/users/me",
+		headers: { cookie: cityTechnician.cookie },
+	});
+	expect(me.json<UserMeBody>().permissions).toContain("R_CLIENT_USERS");
+
+	const cleared = await app.inject({
+		method: "PUT",
+		url: `/v1/users/${cityTechnician.id}/permissions`,
+		headers: { cookie: cityManager.cookie },
+		body: { permission_ids: [] },
+	});
+	expect(cleared.statusCode).toBe(200);
+	expect(cleared.json<UserPermissionsBody>().granted).toEqual([]);
+});
+
+test("PUT /v1/users/:id/permissions rejects granting a permission the manager lacks", async () => {
+	// EX_CLIENT_VOTES (29) is client-scoped but not held by the CLIENT_MANAGER role.
+	const res = await app.inject({
+		method: "PUT",
+		url: `/v1/users/${cityTechnician.id}/permissions`,
+		headers: { cookie: cityManager.cookie },
+		body: { permission_ids: [29] },
+	});
+
+	expect(res.statusCode).toBe(403);
+});
+
+test("PUT /v1/users/:id/permissions rejects grants that would equal the manager's access", async () => {
+	// TECHNICIAN (City of Bryan) + every remaining CLIENT_MANAGER permission.
+	const res = await app.inject({
+		method: "PUT",
+		url: `/v1/users/${cityTechnician.id}/permissions`,
+		headers: { cookie: cityManager.cookie },
+		body: { permission_ids: [9, 10, 23, 24, 27, 28] },
+	});
+
+	expect(res.statusCode).toBe(403);
+});
+
+test("PUT /v1/users/:id/permissions rejects unknown permission ids", async () => {
+	const res = await app.inject({
+		method: "PUT",
+		url: `/v1/users/${cityTechnician.id}/permissions`,
+		headers: { cookie: cityManager.cookie },
+		body: { permission_ids: [999] },
+	});
+
+	expect(res.statusCode).toBe(400);
+});
+
+test("PUT /v1/users/:id/permissions rejects editing your own grants", async () => {
+	const res = await app.inject({
+		method: "PUT",
+		url: `/v1/users/${cityManager.id}/permissions`,
+		headers: { cookie: cityManager.cookie },
+		body: { permission_ids: [] },
+	});
+
+	expect(res.statusCode).toBe(403);
+});
+
+test("PUT /v1/users/:id/permissions never grants external permissions outside the internal client", async () => {
+	// Admin bypasses the hierarchy, but R_EXTERNAL_USERS (11) is still off-limits for a City of Bryan user.
+	const res = await app.inject({
+		method: "PUT",
+		url: `/v1/users/${cityTechnician.id}/permissions`,
+		headers: { cookie: admin.cookie },
+		body: { permission_ids: [11] },
+	});
+
+	expect(res.statusCode).toBe(400);
+	expect(res.json<{ message: string }>().message).toContain("R_EXTERNAL_USERS");
+});
+
+test("PUT /v1/users/:id/permissions treats R_CLIENTS / W_CLIENTS as internal-only too", async () => {
+	const res = await app.inject({
+		method: "PUT",
+		url: `/v1/users/${cityTechnician.id}/permissions`,
+		headers: { cookie: admin.cookie },
+		body: { permission_ids: [13, 14] },
+	});
+
+	expect(res.statusCode).toBe(400);
+	expect(res.json<{ message: string }>().message).toContain("R_CLIENTS");
+});
+
+test("GET /v1/users reports last login and last activity from sessions", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/users",
+		headers: { cookie: cityManager.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<{
+		data: (UserBody & { last_login_at: string | null; last_active_at: string | null })[];
+	}>();
+	const manager = body.data.find((user) => user.id === cityManager.id);
+	// Signing up created a session, so both timestamps are populated.
+	expect(manager?.last_login_at).toEqual(expect.any(String));
+	expect(manager?.last_active_at).toEqual(expect.any(String));
+});

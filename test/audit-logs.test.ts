@@ -187,9 +187,31 @@ test("GET /v1/audit-logs/control scopes client readers to their own client", asy
 		headers: { cookie: manager.cookie },
 	});
 	expect(managerList.statusCode).toBe(200);
-	const managerRows = managerList.json<{ data: Array<{ actor_user_id: string }> }>().data;
+	const managerRows = managerList.json<{
+		data: Array<{
+			actor_user_id: string;
+			actor_name: string;
+			actor_email: string;
+			device_serial_number: string | null;
+			device_display_name: string | null;
+			gauge_station_id: number | null;
+			gauge_station_name: string | null;
+		}>;
+	}>().data;
 	expect(managerRows).toHaveLength(1);
 	expect(managerRows[0]?.actor_user_id).toBe(manager.id);
+	// List rows carry display columns; this device has no info row or station,
+	// and still shows up (left joins).
+	expect(managerRows[0]).toEqual(
+		expect.objectContaining({
+			actor_name: "Audit City Manager",
+			actor_email: "audit-city-manager@example.com",
+			device_serial_number: "audit-test-device",
+			device_display_name: null,
+			gauge_station_id: null,
+			gauge_station_name: null,
+		}),
+	);
 
 	// The admin reads external: both entries, newest first.
 	const adminList = await app.inject({
@@ -223,6 +245,46 @@ test("GET /v1/audit-logs/control supports action and time-range filters", async 
 	});
 	expect(empty.statusCode).toBe(200);
 	expect(empty.json<{ data: unknown[] }>().data).toHaveLength(0);
+});
+
+test("GET /v1/audit-logs/control filters by the device's current station", async () => {
+	// Nothing is assigned to a station yet.
+	const none = await app.inject({
+		method: "GET",
+		url: "/v1/audit-logs/control?gauge_station_id=1",
+		headers: { cookie: admin.cookie },
+	});
+	expect(none.statusCode).toBe(200);
+	expect(none.json<{ data: unknown[] }>().data).toHaveLength(0);
+
+	// Assign the device to a station; both existing entries now match it.
+	const station = await db.pool.query<{ id: number }>(
+		`INSERT INTO gauge_station (name) VALUES ('audit-test-GS') RETURNING id`,
+	);
+	const stationId = station.rows[0]?.id;
+	if (!stationId) throw new Error("gauge_station insert returned no row");
+	await db.pool.query(
+		`INSERT INTO device_info (device_id, gauge_station_id, type, active, display_name)
+		 VALUES ($1, $2, 'gauge', true, 'DL01')`,
+		[deviceId, stationId],
+	);
+
+	const matched = await app.inject({
+		method: "GET",
+		url: `/v1/audit-logs/control?gauge_station_id=${stationId}`,
+		headers: { cookie: admin.cookie },
+	});
+	expect(matched.statusCode).toBe(200);
+	const rows = matched.json<{
+		data: Array<{ device_display_name: string | null; gauge_station_name: string | null }>;
+	}>().data;
+	expect(rows).toHaveLength(2);
+	expect(rows[0]).toEqual(
+		expect.objectContaining({
+			device_display_name: "DL01",
+			gauge_station_name: "audit-test-GS",
+		}),
+	);
 });
 
 test("POST /v1/audit-logs/users returns 403 without a user-write permission", async () => {

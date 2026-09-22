@@ -34,6 +34,7 @@ export interface AuditLogListInput {
 
 export interface ControlAuditLogListInput extends AuditLogListInput {
 	device_id?: number;
+	gauge_station_id?: number;
 }
 
 export interface UserAuditLogListInput extends AuditLogListInput {
@@ -67,7 +68,22 @@ export interface AuditLogActionResponse {
 	action_text: string;
 }
 
-export type ControlAuditLogResponse = Omit<ControlAuditLogRow, "date"> & { date: string };
+// Display columns come from the list query's joins; the create response
+// carries only the identity columns, so they are optional here.
+type ControlAuditLogDisplay = Pick<
+	ControlAuditLogRow,
+	| "actor_name"
+	| "actor_email"
+	| "device_serial_number"
+	| "device_display_name"
+	| "gauge_station_id"
+	| "gauge_station_name"
+>;
+export type ControlAuditLogResponse = Omit<
+	ControlAuditLogRow,
+	"date" | keyof ControlAuditLogDisplay
+> &
+	Partial<ControlAuditLogDisplay> & { date: string };
 export type UserAuditLogResponse = Omit<UserAuditLogRow, "date"> & { date: string };
 export type RolesPermsAuditLogResponse = Omit<RolePermissionsAuditLogRow, "date"> & {
 	date: string;
@@ -220,7 +236,11 @@ export async function listControlAuditLogs(
 	input: ControlAuditLogListInput,
 ): Promise<ControlAuditLogResponse[]> {
 	const filters = await resolveListFilters(db, session, access, input);
-	const rows = await queries.listControlAuditLogs(db, { ...filters, deviceId: input.device_id });
+	const rows = await queries.listControlAuditLogs(db, {
+		...filters,
+		deviceId: input.device_id,
+		gaugeStationId: input.gauge_station_id,
+	});
 
 	return rows.map((row) => ({ ...row, date: row.date.toISOString() }));
 }

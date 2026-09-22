@@ -3,7 +3,11 @@ import type { AlertLevel, DB, NotificationType } from "@/db/types";
 import type { AlertSNSClient } from "@/lib/sns/AlertSNSClient";
 import { SNSSubscriptionNotFoundError, SNSUnknownError } from "@/lib/sns/errors";
 import type { SessionSubject } from "../auth/service";
-import { GaugeStationNotFoundError, getGaugeStation, getGaugeStationByName } from "../gauge-stations/service";
+import {
+	GaugeStationNotFoundError,
+	getGaugeStation,
+	getGaugeStationByName,
+} from "../gauge-stations/service";
 import type {
 	AlertSubscriptionDetailRow,
 	AlertSubscriptionForUnsubscribe,
@@ -509,9 +513,12 @@ async function resolveGaugeStation(
 		client_id: options.clientId,
 		role_id: 0,
 	};
+	// Alert subscriptions are gated by the alert permissions, not by the
+	// lift-station ones, so a lift-station target resolves like any other.
 	const access = {
 		canReadExternal: options.canReadExternal,
 		canViewInactive: true,
+		liftStations: "external" as const,
 	};
 
 	try {
@@ -519,7 +526,12 @@ async function resolveGaugeStation(
 			input.gauge_station_id !== undefined
 				? await getGaugeStation(db, input.gauge_station_id, targetSession, access)
 				: input.gauge_station_name !== undefined
-					? await getGaugeStationByName(db, input.gauge_station_name, targetSession, access)
+					? await getGaugeStationByName(
+							db,
+							input.gauge_station_name,
+							targetSession,
+							access,
+						)
 					: null;
 
 		if (!gaugeStation) {

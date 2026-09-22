@@ -29,6 +29,8 @@ const listQueryBase = {
 export const ControlAuditLogListQuerySchema = Type.Object({
 	...listQueryBase,
 	device_id: Type.Optional(Type.Integer({ minimum: 1 })),
+	// Every device currently assigned to the station.
+	gauge_station_id: Type.Optional(Type.Integer({ minimum: 1 })),
 });
 
 export const UserAuditLogListQuerySchema = Type.Object({
@@ -48,6 +50,14 @@ export const ControlAuditLogSchema = Type.Object({
 	action_text: Type.String(),
 	device_id: Type.Integer(),
 	actor_user_id: Type.String(),
+	// Display fields, present on list responses. Optional because the POST
+	// 201 response shares this schema and carries only what the caller sent.
+	actor_name: Type.Optional(Type.String()),
+	actor_email: Type.Optional(Type.String()),
+	device_serial_number: Type.Optional(Nullable(Type.String())),
+	device_display_name: Type.Optional(Nullable(Type.String())),
+	gauge_station_id: Type.Optional(Nullable(Type.Integer())),
+	gauge_station_name: Type.Optional(Nullable(Type.String())),
 });
 
 export const ControlAuditLogListSchema = Type.Object({

@@ -12,6 +12,7 @@ import type {
 	CameraDetectionDataRow,
 	CameraDeviceRow,
 	CameraRecordFilters,
+	CameraScope,
 } from "./queries";
 import * as queries from "./queries";
 
@@ -174,11 +175,16 @@ function toCaptureResponse(row: CameraCaptureEntryRow): CameraCaptureResponse {
 	};
 }
 
+function cameraScope(camera: CameraDeviceRow): CameraScope {
+	return { deviceId: camera.device_id, localId: camera.local_id };
+}
+
 async function hydrateCamera(db: Kysely<DB>, camera: CameraDeviceRow): Promise<CameraResponse> {
+	const scope = cameraScope(camera);
 	const [cameraConfig, presets, rotation] = await Promise.all([
-		queries.findCurrentCameraConfig(db, camera.id),
-		queries.listCameraConfigPresets(db, camera.id),
-		queries.findCurrentCameraConfigRotation(db, camera.id),
+		queries.findCurrentCameraConfig(db, scope),
+		queries.listCameraConfigPresets(db, scope),
+		queries.findCurrentCameraConfigRotation(db, scope),
 	]);
 	return {
 		camera: withSerializedDates(camera),
@@ -237,7 +243,11 @@ export async function listCameraDataRecords(
 	filters: CameraQueryFilters = {},
 ): Promise<CameraDataRecordResponse[]> {
 	const camera = await findVisibleCamera(db, deviceId, session, access);
-	const records = await queries.listCameraDataRecords(db, camera.id, toRecordFilters(filters));
+	const records = await queries.listCameraDataRecords(
+		db,
+		cameraScope(camera),
+		toRecordFilters(filters),
+	);
 	return Promise.all(
 		records.map(async (record) => ({
 			record: {
@@ -264,7 +274,11 @@ export async function listCameraCaptures(
 	filters: CameraQueryFilters = {},
 ): Promise<CameraCaptureResponse[]> {
 	const camera = await findVisibleCamera(db, deviceId, session, access);
-	const rows = await queries.listCameraCaptureEntries(db, camera.id, toRecordFilters(filters));
+	const rows = await queries.listCameraCaptureEntries(
+		db,
+		cameraScope(camera),
+		toRecordFilters(filters),
+	);
 	return rows.map(toCaptureResponse);
 }
 
@@ -276,7 +290,7 @@ export async function getCameraCaptureByPath(
 	access: CameraReadAccess,
 ): Promise<CameraCaptureResponse> {
 	const camera = await findVisibleCamera(db, deviceId, session, access);
-	const capture = await queries.findCaptureEntryByPath(db, camera.id, path);
+	const capture = await queries.findCaptureEntryByPath(db, cameraScope(camera), path);
 	if (!capture) throw new CameraCaptureNotFoundError();
 	return toCaptureResponse(capture);
 }

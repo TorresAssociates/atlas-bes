@@ -122,6 +122,8 @@ function toUserResponse(user: UserRow): UserResponse {
 		deleted_at: user.deleted_at === null ? null : new Date(user.deleted_at).toISOString(),
 		created_at: user.created_at.toISOString(),
 		updated_at: user.updated_at.toISOString(),
+		last_login_at: user.last_login_at?.toISOString() ?? null,
+		last_active_at: user.last_active_at?.toISOString() ?? null,
 	};
 }
 

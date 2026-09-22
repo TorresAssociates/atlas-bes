@@ -2,8 +2,8 @@ import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyRequest } from "fastify";
 import {
 	getRequestSession,
-	hasPermission,
 	listRequestPermissions,
+	type PermissionName,
 	requirePermission,
 } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
@@ -23,6 +23,9 @@ import {
 	GaugeStationClientNotFoundError,
 	GaugeStationNameConflictError,
 	GaugeStationNotFoundError,
+	type GaugeStationReadAccess,
+	type GaugeStationScope,
+	type GaugeStationWriteAccess,
 	getGaugeStation,
 	listGaugeStations,
 	listGaugeStationsGeoJson,
@@ -35,22 +38,54 @@ const gaugeStationRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		return app.db;
 	};
 
+	// Lift stations are gated by their own permission pair: *_EXTERNAL_LIFT_STATIONS
+	// covers every client's lift stations, *_CLIENT_LIFT_STATIONS only the session
+	// client's, and holding neither hides them entirely.
+	const liftStationScope = (
+		permissions: PermissionName[],
+		external: PermissionName,
+		client: PermissionName,
+	): GaugeStationScope => {
+		if (permissions.includes(external)) return "external";
+		if (permissions.includes(client)) return "client";
+		return "none";
+	};
+
 	// Viewing inactive gauge stations requires the write permission matching the read
 	// scope (W_EXTERNAL_DEVICES for external readers, W_CLIENT_DEVICES otherwise).
-	const readAccess = async (request: FastifyRequest) => {
+	const readAccess = async (request: FastifyRequest): Promise<GaugeStationReadAccess> => {
 		const permissions = await listRequestPermissions(request);
 		const canReadExternal = permissions.includes("R_EXTERNAL_DEVICES");
 		const canViewInactive = permissions.includes(
 			canReadExternal ? "W_EXTERNAL_DEVICES" : "W_CLIENT_DEVICES",
 		);
-		return { canReadExternal, canViewInactive };
+		const liftStations = liftStationScope(
+			permissions,
+			"R_EXTERNAL_LIFT_STATIONS",
+			"R_CLIENT_LIFT_STATIONS",
+		);
+		return { canReadExternal, canViewInactive, liftStations };
+	};
+
+	const writeAccess = async (request: FastifyRequest): Promise<GaugeStationWriteAccess> => {
+		const permissions = await listRequestPermissions(request);
+		const canWriteExternal = permissions.includes("W_EXTERNAL_DEVICES");
+		const liftStations = liftStationScope(
+			permissions,
+			"W_EXTERNAL_LIFT_STATIONS",
+			"W_CLIENT_LIFT_STATIONS",
+		);
+		return { canWriteExternal, liftStations };
 	};
 
 	app.setErrorHandler((err, _request, reply) => {
 		if (err instanceof GaugeStationNotFoundError) return reply.notFound(err.message);
 		if (err instanceof GaugeStationNameConflictError) return reply.conflict(err.message);
 		if (err instanceof GaugeStationAccessDeniedError) return reply.forbidden(err.message);
-		if (err instanceof GaugeStationCityNotFoundError || err instanceof GaugeStationClientNotFoundError)
+		if (
+			err instanceof GaugeStationCityNotFoundError ||
+			err instanceof GaugeStationClientNotFoundError
+		)
 			return reply.badRequest(err.message);
 		return reply.send(err);
 	});
@@ -75,7 +110,12 @@ const gaugeStationRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
 			return {
-				data: await listGaugeStations(getDb(), session, await readAccess(request), request.query),
+				data: await listGaugeStations(
+					getDb(),
+					session,
+					await readAccess(request),
+					request.query,
+				),
 			};
 		},
 	);
@@ -102,7 +142,12 @@ const gaugeStationRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			return listGaugeStationsGeoJson(getDb(), session, await readAccess(request), request.query);
+			return listGaugeStationsGeoJson(
+				getDb(),
+				session,
+				await readAccess(request),
+				request.query,
+			);
 		},
 	);
 
@@ -151,8 +196,12 @@ const gaugeStationRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_DEVICES");
-			const gaugeStation = await createGaugeStation(getDb(), session, { canWriteExternal }, request.body);
+			const gaugeStation = await createGaugeStation(
+				getDb(),
+				session,
+				await writeAccess(request),
+				request.body,
+			);
 			return reply.code(201).send(gaugeStation);
 		},
 	);
@@ -180,12 +229,11 @@ const gaugeStationRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			const session = await getRequestSession(request);
 			if (!session) throw app.httpErrors.unauthorized("authentication required");
 
-			const canWriteExternal = await hasPermission(request, "W_EXTERNAL_DEVICES");
 			return updateGaugeStation(
 				getDb(),
 				request.params.id,
 				session,
-				{ canWriteExternal },
+				await writeAccess(request),
 				request.body,
 			);
 		},

@@ -17,6 +17,8 @@ export interface AuditLogListFilters {
 
 export interface ControlAuditLogFilters extends AuditLogListFilters {
 	deviceId?: number;
+	// Matches on the device's *current* station assignment (device_info.archived is null).
+	gaugeStationId?: number;
 }
 
 export interface UserAuditLogFilters extends AuditLogListFilters {
@@ -34,6 +36,15 @@ export interface ControlAuditLogRow {
 	action_text: string;
 	device_id: number;
 	actor_user_id: string;
+	// Display columns so a client can render the log without extra lookups.
+	// Device/station are left-joined: an audit row must never disappear just
+	// because its device lost its info row or station assignment.
+	actor_name: string;
+	actor_email: string;
+	device_serial_number: string | null;
+	device_display_name: string | null;
+	gauge_station_id: number | null;
+	gauge_station_name: string | null;
 }
 
 export interface UserAuditLogRow {
@@ -87,6 +98,13 @@ export function listControlAuditLogs(
 		.selectFrom("control_audit_log")
 		.innerJoin("audit_log_action", "audit_log_action.id", "control_audit_log.log_action_id")
 		.innerJoin("user as actor", "actor.id", "control_audit_log.actor_user_id")
+		.leftJoin("device", "device.id", "control_audit_log.device_id")
+		.leftJoin("device_info", (join) =>
+			join
+				.onRef("device_info.device_id", "=", "control_audit_log.device_id")
+				.on("device_info.archived", "is", null),
+		)
+		.leftJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
 		.select([
 			"control_audit_log.id",
 			"control_audit_log.date",
@@ -94,10 +112,19 @@ export function listControlAuditLogs(
 			"audit_log_action.action_text",
 			"control_audit_log.device_id",
 			"control_audit_log.actor_user_id",
+			"actor.name as actor_name",
+			"actor.email as actor_email",
+			"device.serial_number as device_serial_number",
+			"device_info.display_name as device_display_name",
+			"device_info.gauge_station_id",
+			"gauge_station.name as gauge_station_name",
 		]);
 
 	if (filters.clientId !== undefined)
 		query = query.where("actor.client_id", "=", filters.clientId);
+	if (filters.gaugeStationId !== undefined) {
+		query = query.where("device_info.gauge_station_id", "=", filters.gaugeStationId);
+	}
 	if (filters.from !== undefined)
 		query = query.where("control_audit_log.date", ">=", filters.from);
 	if (filters.to !== undefined) query = query.where("control_audit_log.date", "<=", filters.to);

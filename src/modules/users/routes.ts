@@ -8,22 +8,34 @@ import {
 } from "@/plugins/authorization";
 import { HttpErrorSchema } from "@/schemas";
 import {
+	ReplaceUserPermissionsBodySchema,
 	UserIdParamsSchema,
 	UserListSchema,
 	UserMeSchema,
+	UserPermissionsSchema,
 	UserPhoneNumberBodySchema,
+	UserRoleBodySchema,
 	UserSchema,
 } from "./schemas";
 import {
 	deleteUser,
 	getMe,
 	getUser,
+	getUserPermissions,
 	listUsers,
+	replaceUserGrantedPermissions,
+	UserAccessHierarchyError,
 	UserAlreadyDeletedError,
 	UserEmailNotFoundError,
+	UserExternalPermissionNotAllowedError,
 	UserNotFoundError,
+	UserPermissionNotFoundError,
+	UserRoleClientMismatchError,
+	UserRoleNotFoundError,
+	UserSelfAccessChangeError,
 	updateOwnPhoneNumber,
 	updateUserPhoneNumber,
+	updateUserRole,
 } from "./service";
 
 const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
@@ -46,6 +58,21 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 
 		if (err instanceof UserAlreadyDeletedError) {
 			return reply.conflict(err.message);
+		}
+
+		if (err instanceof UserRoleNotFoundError || err instanceof UserRoleClientMismatchError) {
+			return reply.badRequest(err.message);
+		}
+
+		if (
+			err instanceof UserPermissionNotFoundError ||
+			err instanceof UserExternalPermissionNotAllowedError
+		) {
+			return reply.badRequest(err.message);
+		}
+
+		if (err instanceof UserSelfAccessChangeError || err instanceof UserAccessHierarchyError) {
+			return reply.forbidden(err.message);
 		}
 
 		return reply.send(err);
@@ -235,6 +262,129 @@ const userRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				app.config.ENCRYPTION_KEY,
 				request.params.id,
 				request.body.phone_number,
+				session,
+				{
+					canWriteExternalUsers,
+					canWriteClientUsers: true,
+				},
+			);
+		},
+	);
+
+	// PATCH /v1/users/:id/role
+	// Moves a user to another role within their client. Client-scoped
+	// managers must outrank both the current and the new role.
+	app.patch(
+		"/:id/role",
+		{
+			preHandler: requirePermission("W_CLIENT_USERS", "W_EXTERNAL_USERS"),
+			schema: {
+				tags: ["users"],
+				params: UserIdParamsSchema,
+				body: UserRoleBodySchema,
+				response: {
+					200: UserSchema,
+					400: HttpErrorSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+					409: HttpErrorSchema,
+				},
+			},
+		},
+		async (request) => {
+			const session = await getRequestSession(request);
+			if (!session) {
+				throw app.httpErrors.unauthorized("authentication required");
+			}
+
+			const canWriteExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
+
+			return updateUserRole(
+				getDb(),
+				app.config.ENCRYPTION_KEY,
+				request.params.id,
+				request.body.role_id,
+				session,
+				{
+					canWriteExternalUsers,
+					canWriteClientUsers: true,
+				},
+			);
+		},
+	);
+
+	// GET /v1/users/:id/permissions
+	// Role-inherited permissions, individual grants, and what the caller may grant.
+	app.get(
+		"/:id/permissions",
+		{
+			preHandler: requirePermission("R_CLIENT_USERS", "R_EXTERNAL_USERS"),
+			schema: {
+				tags: ["users"],
+				params: UserIdParamsSchema,
+				response: {
+					200: UserPermissionsSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+				},
+			},
+		},
+		async (request) => {
+			const session = await getRequestSession(request);
+			if (!session) {
+				throw app.httpErrors.unauthorized("authentication required");
+			}
+
+			const canReadExternalUsers = await hasPermission(request, "R_EXTERNAL_USERS");
+
+			return getUserPermissions(
+				getDb(),
+				app.config.ENCRYPTION_KEY,
+				request.params.id,
+				session,
+				{
+					canReadExternalUsers,
+					canReadClientUsers: true,
+				},
+			);
+		},
+	);
+
+	// PUT /v1/users/:id/permissions
+	// Replaces the user's individually granted permissions (granted_permission).
+	app.put(
+		"/:id/permissions",
+		{
+			preHandler: requirePermission("W_CLIENT_USERS", "W_EXTERNAL_USERS"),
+			schema: {
+				tags: ["users"],
+				params: UserIdParamsSchema,
+				body: ReplaceUserPermissionsBodySchema,
+				response: {
+					200: UserPermissionsSchema,
+					400: HttpErrorSchema,
+					401: HttpErrorSchema,
+					403: HttpErrorSchema,
+					404: HttpErrorSchema,
+					409: HttpErrorSchema,
+				},
+			},
+		},
+		async (request) => {
+			const session = await getRequestSession(request);
+			if (!session) {
+				throw app.httpErrors.unauthorized("authentication required");
+			}
+
+			const canWriteExternalUsers = await hasPermission(request, "W_EXTERNAL_USERS");
+
+			return replaceUserGrantedPermissions(
+				getDb(),
+				app.config.ENCRYPTION_KEY,
+				request.params.id,
+				request.body.permission_ids,
 				session,
 				{
 					canWriteExternalUsers,

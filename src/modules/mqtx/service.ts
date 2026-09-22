@@ -1,7 +1,9 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
 import type { MqtxClient, MqtxResponse } from "@/lib/mqtx/MqtxClient";
+import { recordControlAuditLog } from "../audit-logs/service";
 import type { SessionSubject } from "../auth/service";
+import type { DeviceLookupRow } from "./queries";
 import * as queries from "./queries";
 
 export type ControlType = "wifi" | "override" | "overtop" | "manualMeasurement" | "ping";
@@ -114,6 +116,32 @@ function ensureMqtxSuccess(response: MqtxResponse): void {
 	if (!response.success) throw new MqtxRequestFailedError(response.status);
 }
 
+// Every successful command lands in control_audit_log under the seeded action
+// key for it (see db/local/seed.sql "Audit Log Actions"). Settings writes share
+// the generic UPDATE_DEVICE_CONFIG key. The "override" control is the flasher
+// on/off switch on flashers and the open/close command on barrier arms, so its
+// key follows the device type.
+const CONFIG_UPDATED_ACTION = "UPDATE_DEVICE_CONFIG";
+
+function controlAuditAction(device: DeviceLookupRow, input: ControlInput): string {
+	switch (input.controlType) {
+		case "wifi":
+			return input.requestedState ? "WIFI_ON" : "WIFI_OFF";
+		case "override":
+			if (device.type === "barrier_arm") {
+				// The legacy control panel sends requestedState=true to close the arm.
+				return input.requestedState ? "BARRIER_ARM_CLOSED" : "BARRIER_ARM_OPEN";
+			}
+			return input.requestedState ? "MAN_FLASHER_ON" : "MAN_FLASHER_OFF";
+		case "manualMeasurement":
+			return "MAN_MEASURE";
+		case "ping":
+			return "PING";
+		case "overtop":
+			return "MAN_OVERTOP_ON";
+	}
+}
+
 export async function sendMqtxControl(
 	db: Kysely<DB>,
 	mqtx: MqtxClient,
@@ -122,7 +150,7 @@ export async function sendMqtxControl(
 	access: MqtxWriteAccess,
 	input: ControlInput,
 ): Promise<{ success: boolean }> {
-	await ensureDeviceAccess(db, deviceId, session, access);
+	const device = await ensureDeviceAccess(db, deviceId, session, access);
 	const version = versionOrDefault(input.version);
 	const mqtxDeviceId = normalizeMqtxDeviceId(deviceId);
 	let response: MqtxResponse;
@@ -170,6 +198,7 @@ export async function sendMqtxControl(
 	}
 
 	ensureMqtxSuccess(response);
+	await recordControlAuditLog(db, session.user_id, controlAuditAction(device, input), device.id);
 	return { success: response.success };
 }
 
@@ -181,7 +210,7 @@ export async function updateAlertSettings(
 	access: MqtxWriteAccess,
 	input: AlertsSettingsInput,
 ): Promise<void> {
-	await ensureDeviceAccess(db, deviceId, session, access);
+	const device = await ensureDeviceAccess(db, deviceId, session, access);
 	if (!Array.isArray(input.monitoredCodes) && typeof input.monitoredCodes !== "object") {
 		throw new MqtxBadRequestError("Invalid alerts payload");
 	}
@@ -196,6 +225,7 @@ export async function updateAlertSettings(
 		config: { monitoredCodes },
 	});
 	ensureMqtxSuccess(response);
+	await recordControlAuditLog(db, session.user_id, CONFIG_UPDATED_ACTION, device.id);
 }
 
 export async function updateDataSettings(
@@ -234,6 +264,7 @@ export async function updateDataSettings(
 			await queries.insertDeviceDatalogging(trx, device.id, input.timestep!);
 		});
 	}
+	await recordControlAuditLog(db, session.user_id, CONFIG_UPDATED_ACTION, device.id);
 	return { message: "Settings updated successfully", status: 200 };
 }
 
@@ -277,6 +308,12 @@ export async function updateGeneralSettings(
 			await queries.archiveCurrentWifiActive(trx, device.id);
 			await queries.insertWifiActive(trx, device.id, input.wifiEnabled!);
 		});
+		await recordControlAuditLog(
+			db,
+			session.user_id,
+			input.wifiEnabled ? "WIFI_ON" : "WIFI_OFF",
+			device.id,
+		);
 	}
 
 	if (input.wifiPassword !== undefined) {
@@ -293,6 +330,10 @@ export async function updateGeneralSettings(
 				encryptionKey,
 			);
 		});
+	}
+
+	if (input.active !== undefined || input.wifiPassword !== undefined) {
+		await recordControlAuditLog(db, session.user_id, CONFIG_UPDATED_ACTION, device.id);
 	}
 
 	return { message: "Update successful", status: 201 };
@@ -319,6 +360,7 @@ export async function updatePowerSettings(
 		await queries.archiveCurrentDevicePower(trx, device.id);
 		await queries.insertDevicePower(trx, device.id, minVoltage, maxVoltage);
 	});
+	await recordControlAuditLog(db, session.user_id, CONFIG_UPDATED_ACTION, device.id);
 	return { message: "Update successful", status: 201 };
 }
 

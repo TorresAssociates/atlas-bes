@@ -1,9 +1,12 @@
 import { type Insertable, type Kysely, sql } from "kysely";
-import type { DB } from "@/db/types";
+import type { DB, DeviceType } from "@/db/types";
 
 export interface DeviceLookupRow {
 	id: number;
 	serial_number: string;
+	// Current device_info type; null when the device has no live info row.
+	// Lets the service pick the right audit action (flasher vs barrier arm).
+	type: DeviceType | null;
 }
 
 export function findDeviceBySerialNumber(
@@ -12,9 +15,14 @@ export function findDeviceBySerialNumber(
 ): Promise<DeviceLookupRow | undefined> {
 	return db
 		.selectFrom("device")
-		.select(["id", "serial_number"])
-		.where("serial_number", "=", serialNumber)
-		.where("archived", "is", null)
+		.leftJoin("device_info", (join) =>
+			join
+				.onRef("device_info.device_id", "=", "device.id")
+				.on("device_info.archived", "is", null),
+		)
+		.select(["device.id", "device.serial_number", "device_info.type"])
+		.where("device.serial_number", "=", serialNumber)
+		.where("device.archived", "is", null)
 		.executeTakeFirst();
 }
 
@@ -32,7 +40,7 @@ export function findDeviceBySerialNumberForClient(
 			"client_gauge_station.gauge_station_id",
 			"gauge_station.id",
 		)
-		.select(["device.id", "device.serial_number"])
+		.select(["device.id", "device.serial_number", "device_info.type"])
 		.distinct()
 		.where("device.serial_number", "=", serialNumber)
 		.where("device.archived", "is", null)

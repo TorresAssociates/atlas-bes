@@ -120,9 +120,12 @@ async function ensureGaugeStationAccess(
 	gaugeStationId: number,
 ): Promise<void> {
 	try {
+		// Assets are gated by the report permissions, not by the lift-station
+		// ones, so a lift-station gauge station is linkable like any other.
 		await getGaugeStation(db, gaugeStationId, session, {
 			canReadExternal: access.canWriteExternal,
 			canViewInactive: true,
+			liftStations: "external",
 		});
 	} catch (error) {
 		if (error instanceof GaugeStationNotFoundError) {

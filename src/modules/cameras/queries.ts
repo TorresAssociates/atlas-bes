@@ -87,24 +87,51 @@ const detectionColumns = [
 ] as const;
 
 function cameraDeviceBase(db: Kysely<DB>) {
-	return db
-		.selectFrom("camera")
-		.innerJoin("device", "device.id", "camera.device_id")
-		.innerJoin("device_info", "device_info.device_id", "device.id")
-		.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
-		.leftJoin("gauge_station_info", (join) =>
-			join
-				.onRef("gauge_station_info.gauge_station_id", "=", "gauge_station.id")
-				.on("gauge_station_info.archived", "is", null),
-		)
-		.leftJoin("city", "city.id", "gauge_station_info.city_id")
-		.select(cameraDeviceColumns as any)
-		.distinct()
-		.where("camera.archived", "is", null)
-		.where("device.archived", "is", null)
-		.where("device_info.archived", "is", null)
-		.where("device_info.type", "=", "camera")
-		.where("gauge_station.archived", "is", null);
+	return (
+		db
+			.selectFrom("camera")
+			.innerJoin("device", "device.id", "camera.device_id")
+			.innerJoin("device_info", "device_info.device_id", "device.id")
+			.innerJoin("gauge_station", "gauge_station.id", "device_info.gauge_station_id")
+			.leftJoin("gauge_station_info", (join) =>
+				join
+					.onRef("gauge_station_info.gauge_station_id", "=", "gauge_station.id")
+					.on("gauge_station_info.archived", "is", null),
+			)
+			.leftJoin("city", "city.id", "gauge_station_info.city_id")
+			.select(cameraDeviceColumns)
+			.distinct()
+			.where("camera.archived", "is", null)
+			.where("device.archived", "is", null)
+			.where("device_info.archived", "is", null)
+			.where("device_info.type", "=", "camera")
+			.where("gauge_station.archived", "is", null)
+			// The camera table has no unique constraint on (device_id, local_id), and
+			// production carries duplicate rows for the same physical camera. Treat the
+			// newest active row as canonical so a device resolves to exactly one camera.
+			.where(({ not, exists, selectFrom }) =>
+				not(
+					exists(
+						selectFrom("camera as newer")
+							.select("newer.id")
+							.whereRef("newer.device_id", "=", "camera.device_id")
+							.whereRef("newer.local_id", "=", "camera.local_id")
+							.whereRef("newer.id", ">", "camera.id")
+							.where("newer.archived", "is", null),
+					),
+				),
+			)
+	);
+}
+
+/**
+ * Identifies one physical camera: config and data rows may hang off any of the
+ * duplicate camera rows sharing this (device_id, local_id), so child queries
+ * scope by it rather than by a single camera.id.
+ */
+export interface CameraScope {
+	deviceId: number;
+	localId: number;
 }
 
 function scopedCameraDeviceBase(db: Kysely<DB>, clientId: number) {
@@ -174,42 +201,48 @@ export function findCameraByDeviceSerialNumberForClient(
 
 export function findCurrentCameraConfig(
 	db: Kysely<DB>,
-	cameraId: number,
+	scope: CameraScope,
 ): Promise<CameraConfigRow | undefined> {
 	return db
 		.selectFrom("camera_config")
-		.select(cameraConfigColumns)
-		.where("camera_id", "=", cameraId)
-		.where("archived", "is", null)
-		.orderBy("introduced", "desc")
-		.orderBy("id", "desc")
+		.innerJoin("camera", "camera.id", "camera_config.camera_id")
+		.select(cameraConfigColumns.map((column) => `camera_config.${column}` as const))
+		.where("camera.device_id", "=", scope.deviceId)
+		.where("camera.local_id", "=", scope.localId)
+		.where("camera_config.archived", "is", null)
+		.orderBy("camera_config.introduced", "desc")
+		.orderBy("camera_config.id", "desc")
 		.executeTakeFirst();
 }
 
 export function listCameraConfigPresets(
 	db: Kysely<DB>,
-	cameraId: number,
+	scope: CameraScope,
 ): Promise<CameraConfigPresetRow[]> {
 	return db
 		.selectFrom("camera_config_preset")
-		.select(presetColumns)
-		.where("camera_id", "=", cameraId)
-		.where("archived", "is", null)
-		.orderBy("local_preset_id", "asc")
+		.innerJoin("camera", "camera.id", "camera_config_preset.camera_id")
+		.select(presetColumns.map((column) => `camera_config_preset.${column}` as const))
+		.where("camera.device_id", "=", scope.deviceId)
+		.where("camera.local_id", "=", scope.localId)
+		.where("camera_config_preset.archived", "is", null)
+		.orderBy("camera_config_preset.local_preset_id", "asc")
 		.execute();
 }
 
 export function findCurrentCameraConfigRotation(
 	db: Kysely<DB>,
-	cameraId: number,
+	scope: CameraScope,
 ): Promise<CameraConfigRotationRow | undefined> {
 	return db
 		.selectFrom("camera_config_rotation")
-		.select(rotationColumns)
-		.where("camera_id", "=", cameraId)
-		.where("archived", "is", null)
-		.orderBy("introduced", "desc")
-		.orderBy("id", "desc")
+		.innerJoin("camera", "camera.id", "camera_config_rotation.camera_id")
+		.select(rotationColumns.map((column) => `camera_config_rotation.${column}` as const))
+		.where("camera.device_id", "=", scope.deviceId)
+		.where("camera.local_id", "=", scope.localId)
+		.where("camera_config_rotation.archived", "is", null)
+		.orderBy("camera_config_rotation.introduced", "desc")
+		.orderBy("camera_config_rotation.id", "desc")
 		.executeTakeFirst();
 }
 
@@ -221,13 +254,19 @@ export interface CameraRecordFilters {
 	taggedOnly?: boolean;
 }
 
-function cameraDataRecordBase(db: Kysely<DB>, cameraId: number, filters: CameraRecordFilters = {}) {
+function cameraDataRecordBase(
+	db: Kysely<DB>,
+	scope: CameraScope,
+	filters: CameraRecordFilters = {},
+) {
 	let query = db
 		.selectFrom("camera_data_record")
-		.select(dataRecordColumns)
-		.where("camera_id", "=", cameraId);
-	if (filters.from) query = query.where("date", ">=", filters.from);
-	if (filters.to) query = query.where("date", "<=", filters.to);
+		.innerJoin("camera", "camera.id", "camera_data_record.camera_id")
+		.select(dataRecordColumns.map((column) => `camera_data_record.${column}` as const))
+		.where("camera.device_id", "=", scope.deviceId)
+		.where("camera.local_id", "=", scope.localId);
+	if (filters.from) query = query.where("camera_data_record.date", ">=", filters.from);
+	if (filters.to) query = query.where("camera_data_record.date", "<=", filters.to);
 	if (filters.taggedOnly) {
 		query = query.where((eb) =>
 			eb.exists(
@@ -242,15 +281,17 @@ function cameraDataRecordBase(db: Kysely<DB>, cameraId: number, filters: CameraR
 			),
 		);
 	}
-	return query.orderBy("date", "desc").orderBy("id", "desc");
+	return query
+		.orderBy("camera_data_record.date", "desc")
+		.orderBy("camera_data_record.id", "desc");
 }
 
 export function listCameraDataRecords(
 	db: Kysely<DB>,
-	cameraId: number,
+	scope: CameraScope,
 	filters: CameraRecordFilters = {},
 ): Promise<CameraDataRecordRow[]> {
-	let query = cameraDataRecordBase(db, cameraId, filters);
+	let query = cameraDataRecordBase(db, scope, filters);
 	if (filters.limit !== undefined) {
 		query = query.limit(filters.limit).offset(((filters.page ?? 1) - 1) * filters.limit);
 	}
@@ -283,7 +324,7 @@ export function listDetectionsForDataRecord(
 
 export function listCameraCaptureEntries(
 	db: Kysely<DB>,
-	cameraId: number,
+	scope: CameraScope,
 	filters: CameraRecordFilters = {},
 ): Promise<CameraCaptureEntryRow[]> {
 	let query = db
@@ -302,7 +343,8 @@ export function listCameraCaptureEntries(
 			"camera.device_id",
 			"device.serial_number as device_serial_number",
 		])
-		.where("camera_data_record.camera_id", "=", cameraId)
+		.where("camera.device_id", "=", scope.deviceId)
+		.where("camera.local_id", "=", scope.localId)
 		.where("camera.archived", "is", null)
 		.where("device.archived", "is", null);
 	if (filters.from) query = query.where("camera_data_record.date", ">=", filters.from);
@@ -318,7 +360,7 @@ export function listCameraCaptureEntries(
 
 export function findCaptureEntryByPath(
 	db: Kysely<DB>,
-	cameraId: number,
+	scope: CameraScope,
 	path: string,
 ): Promise<CameraCaptureEntryRow | undefined> {
 	return db
@@ -337,7 +379,8 @@ export function findCaptureEntryByPath(
 			"camera.device_id",
 			"device.serial_number as device_serial_number",
 		])
-		.where("camera_data_record.camera_id", "=", cameraId)
+		.where("camera.device_id", "=", scope.deviceId)
+		.where("camera.local_id", "=", scope.localId)
 		.where("camera_capture_data.path", "=", path)
 		.executeTakeFirst();
 }

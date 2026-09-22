@@ -92,7 +92,10 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 					session,
 					{ canReadExternal },
 					{
-						gaugeStationId: query.gaugeStationId === undefined ? undefined : Number(query.gaugeStationId),
+						gaugeStationId:
+							query.gaugeStationId === undefined
+								? undefined
+								: Number(query.gaugeStationId),
 						clientId:
 							canReadExternal && query.clientId !== undefined
 								? Number(query.clientId)

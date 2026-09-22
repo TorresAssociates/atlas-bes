@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test";
 import type { FastifyInstance } from "fastify";
+import { isLiftStation } from "@/modules/gauge-stations/service";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
 import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
@@ -12,9 +13,16 @@ let admin: TestUserSession;
 let clientManager: TestUserSession;
 let readOnly: TestUserSession;
 let externalReader: TestUserSession;
+let noLiftClientWriter: TestUserSession;
+let externalDevicesClientLift: TestUserSession;
+let clientDevicesExternalLift: TestUserSession;
 let torresStationId: number;
+let torresActiveId: number;
 let bryanStationId: number;
 let bryanInactiveId: number;
+let bryanPumpId: number;
+let bryanPumpConvertId: number;
+let torresLiftId: number;
 let createdGaugeStationId: number;
 
 beforeAll(async () => {
@@ -66,26 +74,100 @@ beforeAll(async () => {
 		role_id: externalReaderRole.rows[0]!.id,
 	});
 
+	// Lift-station permission mixes. Seeded role 4 (City of Bryan TECHNICIAN) holds
+	// R/W_CLIENT_DEVICES but no lift-station perms; clientManager (role 3) holds
+	// R/W_CLIENT_LIFT_STATIONS; admin (role 1) holds R/W_EXTERNAL_LIFT_STATIONS.
+	noLiftClientWriter = await signUpTestUser(app, {
+		email: "gaugeStations-no-lift-writer@example.com",
+		name: "GaugeStations No Lift Writer",
+		client_id: 2,
+		role_id: 4,
+	});
+
+	// External device reader whose lift-station scope is only client-wide.
+	const externalDevicesClientLiftRole = await db.pool.query<{ id: number }>(
+		`INSERT INTO role (client_id, name) VALUES (2, 'GAUGESTATIONS_EXT_DEVICES_CLIENT_LIFT') RETURNING id`,
+	);
+	await db.pool.query(
+		`INSERT INTO role_permission (role_id, permission_id) VALUES ($1, 3), ($1, 23)`,
+		[externalDevicesClientLiftRole.rows[0]!.id],
+	);
+	externalDevicesClientLift = await signUpTestUser(app, {
+		email: "gaugeStations-ext-devices-client-lift@example.com",
+		name: "GaugeStations Ext Devices Client Lift",
+		client_id: 2,
+		role_id: externalDevicesClientLiftRole.rows[0]!.id,
+	});
+
+	// Client-scoped device reader who may read every client's lift stations.
+	const clientDevicesExternalLiftRole = await db.pool.query<{ id: number }>(
+		`INSERT INTO role (client_id, name) VALUES (2, 'GAUGESTATIONS_CLIENT_DEVICES_EXT_LIFT') RETURNING id`,
+	);
+	await db.pool.query(
+		`INSERT INTO role_permission (role_id, permission_id) VALUES ($1, 1), ($1, 25)`,
+		[clientDevicesExternalLiftRole.rows[0]!.id],
+	);
+	clientDevicesExternalLift = await signUpTestUser(app, {
+		email: "gaugeStations-client-devices-ext-lift@example.com",
+		name: "GaugeStations Client Devices Ext Lift",
+		client_id: 2,
+		role_id: clientDevicesExternalLiftRole.rows[0]!.id,
+	});
+
+	// Lift stations have no column of their own: a gauge station is one when its
+	// name mentions a pump (any case) or its location carries "LIFT STA.". The
+	// bryan pump is detected by name, the torres lift by location.
 	const stations = await db.pool.query<{ id: number; name: string }>(
 		`INSERT INTO gauge_station (name)
-		 VALUES ('GS-test-torres'), ('GS-test-bryan'), ('GS-test-bryan-inactive')
+		 VALUES ('GS-test-torres'), ('GS-test-torres-active'), ('GS-test-bryan'),
+		        ('GS-test-bryan-inactive'), ('GS-test-bryan-PUMP'), ('GS-test-bryan-pump-2'),
+		        ('GS-test-torres-lift')
 		 RETURNING id, name`,
 	);
-	torresStationId = stations.rows.find((s) => s.name === "GS-test-torres")!.id;
-	bryanStationId = stations.rows.find((s) => s.name === "GS-test-bryan")!.id;
-	bryanInactiveId = stations.rows.find((s) => s.name === "GS-test-bryan-inactive")!.id;
+	const stationId = (name: string) => {
+		const station = stations.rows.find((row) => row.name === name);
+		if (!station) throw new Error(`gauge station fixture ${name} was not seeded`);
+		return station.id;
+	};
+	torresStationId = stationId("GS-test-torres");
+	torresActiveId = stationId("GS-test-torres-active");
+	bryanStationId = stationId("GS-test-bryan");
+	bryanInactiveId = stationId("GS-test-bryan-inactive");
+	bryanPumpId = stationId("GS-test-bryan-PUMP");
+	bryanPumpConvertId = stationId("GS-test-bryan-pump-2");
+	torresLiftId = stationId("GS-test-torres-lift");
 
 	await db.pool.query(
 		`INSERT INTO gauge_station_info (gauge_station_id, city_id, location, latitude, longitude, publicly_visible, active)
 		 VALUES ($1, 1, 'Wolf Pen Creek', 30.6187, -96.3155, TRUE, FALSE),
-		        ($2, 2, 'Carter Creek', 30.6744, -96.3698, FALSE, TRUE),
-		        ($3, 2, 'Still Creek', 30.6912, -96.4021, TRUE, FALSE)`,
-		[torresStationId, bryanStationId, bryanInactiveId],
+		        ($2, 1, 'Bee Creek', 30.6101, -96.3302, TRUE, TRUE),
+		        ($3, 2, 'Carter Creek', 30.6744, -96.3698, FALSE, TRUE),
+		        ($4, 2, 'Still Creek', 30.6912, -96.4021, TRUE, FALSE),
+		        ($5, 2, 'Carter Creek WWTP', 30.6801, -96.3611, FALSE, TRUE),
+		        ($6, 2, 'Burton Creek WWTP', 30.6650, -96.3400, FALSE, TRUE),
+		        ($7, 1, 'LIFT STA. 7 - Wolf Pen', 30.6150, -96.3200, FALSE, TRUE)`,
+		[
+			torresStationId,
+			torresActiveId,
+			bryanStationId,
+			bryanInactiveId,
+			bryanPumpId,
+			bryanPumpConvertId,
+			torresLiftId,
+		],
 	);
 	await db.pool.query(
 		`INSERT INTO client_gauge_station (gauge_station_id, client_id)
-		 VALUES ($1, 1), ($2, 2), ($3, 2)`,
-		[torresStationId, bryanStationId, bryanInactiveId],
+		 VALUES ($1, 1), ($2, 1), ($3, 2), ($4, 2), ($5, 2), ($6, 2), ($7, 1)`,
+		[
+			torresStationId,
+			torresActiveId,
+			bryanStationId,
+			bryanInactiveId,
+			bryanPumpId,
+			bryanPumpConvertId,
+			torresLiftId,
+		],
 	);
 
 	// Risk fixtures for GET /v1/gauge-stations/geojson. A range monitor whose latest
@@ -646,4 +728,288 @@ test("PATCH /v1/gauge-stations/:id hides another client's gaugeStation from clie
 	});
 
 	expect(res.statusCode).toBe(404);
+});
+
+// --- lift stations ---------------------------------------------------------------
+
+test("isLiftStation classifies by pump in the name or LIFT STA. in the location", () => {
+	expect(isLiftStation({ name: "GS-PUMP-1", location: "Carter Creek" })).toBe(true);
+	expect(isLiftStation({ name: "Sewer pump 3", location: "Carter Creek" })).toBe(true);
+	expect(isLiftStation({ name: "GS-12", location: "LIFT STA. 7 - Wolf Pen" })).toBe(true);
+	expect(isLiftStation({ name: "GS-12", location: "Lift Sta. 7" })).toBe(true);
+	expect(isLiftStation({ name: "GS-12", location: "Lift Station 7" })).toBe(false);
+	expect(isLiftStation({ name: "GS-12", location: "Carter Creek" })).toBe(false);
+});
+
+test("GET /v1/gauge-stations shows external lift-station readers every client's lift stations", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauge-stations",
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const ids = res.json<GaugeStationListBody>().data.map((gaugeStation) => gaugeStation.id);
+	expect(ids).toContain(bryanPumpId);
+	expect(ids).toContain(torresLiftId);
+});
+
+test("GET /v1/gauge-stations hides lift stations from users without lift-station perms", async () => {
+	// readOnly holds R_CLIENT_DEVICES only; externalReader holds R_EXTERNAL_DEVICES
+	// (+ W_CLIENT_DEVICES) — neither has a lift-station perm, so lift stations
+	// vanish even though both can otherwise see the bryan gaugeStations.
+	for (const user of [readOnly, externalReader]) {
+		const res = await app.inject({
+			method: "GET",
+			url: "/v1/gauge-stations",
+			headers: { cookie: user.cookie },
+		});
+
+		expect(res.statusCode).toBe(200);
+		const ids = res.json<GaugeStationListBody>().data.map((gaugeStation) => gaugeStation.id);
+		expect(ids).toContain(bryanStationId);
+		expect(ids).not.toContain(bryanPumpId);
+		expect(ids).not.toContain(torresLiftId);
+	}
+});
+
+test("GET /v1/gauge-stations limits R_CLIENT_LIFT_STATIONS to the user's own lift stations", async () => {
+	// externalDevicesClientLift reads every client's ordinary gaugeStations, but
+	// only its own client's (bryan) lift stations.
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauge-stations",
+		headers: { cookie: externalDevicesClientLift.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const ids = res.json<GaugeStationListBody>().data.map((gaugeStation) => gaugeStation.id);
+	expect(ids).toContain(torresActiveId);
+	expect(ids).toContain(bryanPumpId);
+	expect(ids).not.toContain(torresLiftId);
+});
+
+test("GET /v1/gauge-stations lets R_EXTERNAL_LIFT_STATIONS see every lift station but only own ordinary gaugeStations", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/gauge-stations",
+		headers: { cookie: clientDevicesExternalLift.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const ids = res.json<GaugeStationListBody>().data.map((gaugeStation) => gaugeStation.id);
+	expect(ids).toContain(bryanStationId);
+	expect(ids).toContain(bryanPumpId);
+	expect(ids).toContain(torresLiftId);
+	expect(ids).not.toContain(torresActiveId);
+});
+
+test("GET /v1/gauge-stations/geojson applies the same lift-station gating", async () => {
+	const hidden = await app.inject({
+		method: "GET",
+		url: "/v1/gauge-stations/geojson",
+		headers: { cookie: readOnly.cookie },
+	});
+	expect(hidden.statusCode).toBe(200);
+	const hiddenIds = hidden
+		.json<GaugeStationFeatureCollectionBody>()
+		.features.map((feature) => feature.id);
+	expect(hiddenIds).toContain(bryanStationId);
+	expect(hiddenIds).not.toContain(bryanPumpId);
+
+	const shown = await app.inject({
+		method: "GET",
+		url: "/v1/gauge-stations/geojson",
+		headers: { cookie: clientManager.cookie },
+	});
+	expect(shown.statusCode).toBe(200);
+	const shownIds = shown
+		.json<GaugeStationFeatureCollectionBody>()
+		.features.map((feature) => feature.id);
+	expect(shownIds).toContain(bryanPumpId);
+	expect(shownIds).not.toContain(torresLiftId);
+});
+
+test("GET /v1/gauge-stations/:id hides lift stations outside the user's lift-station scope", async () => {
+	const noPerm = await app.inject({
+		method: "GET",
+		url: `/v1/gauge-stations/${bryanPumpId}`,
+		headers: { cookie: readOnly.cookie },
+	});
+	expect(noPerm.statusCode).toBe(404);
+
+	const otherClient = await app.inject({
+		method: "GET",
+		url: `/v1/gauge-stations/${torresLiftId}`,
+		headers: { cookie: externalDevicesClientLift.cookie },
+	});
+	expect(otherClient.statusCode).toBe(404);
+});
+
+test("GET /v1/gauge-stations/:id shows lift stations inside the user's lift-station scope", async () => {
+	const own = await app.inject({
+		method: "GET",
+		url: `/v1/gauge-stations/${bryanPumpId}`,
+		headers: { cookie: clientManager.cookie },
+	});
+	expect(own.statusCode).toBe(200);
+	expect(own.json<GaugeStationBody>().name).toBe("GS-test-bryan-PUMP");
+
+	const external = await app.inject({
+		method: "GET",
+		url: `/v1/gauge-stations/${torresLiftId}`,
+		headers: { cookie: clientDevicesExternalLift.cookie },
+	});
+	expect(external.statusCode).toBe(200);
+	expect(external.json<GaugeStationBody>().location).toBe("LIFT STA. 7 - Wolf Pen");
+});
+
+test("POST /v1/gauge-stations rejects lift stations from writers without lift-station perms", async () => {
+	const byName = await app.inject({
+		method: "POST",
+		url: "/v1/gauge-stations",
+		headers: { cookie: noLiftClientWriter.cookie },
+		body: {
+			name: "GS-test-new-Pump",
+			clientId: 2,
+			cityId: 2,
+			location: "Somewhere",
+			latitude: 30.6,
+			longitude: -96.3,
+		},
+	});
+	expect(byName.statusCode).toBe(403);
+
+	const byLocation = await app.inject({
+		method: "POST",
+		url: "/v1/gauge-stations",
+		headers: { cookie: noLiftClientWriter.cookie },
+		body: {
+			name: "GS-test-new-lift",
+			clientId: 2,
+			cityId: 2,
+			location: "lift sta. 9",
+			latitude: 30.6,
+			longitude: -96.3,
+		},
+	});
+	expect(byLocation.statusCode).toBe(403);
+
+	// The same writer may still create an ordinary gaugeStation.
+	const ordinary = await app.inject({
+		method: "POST",
+		url: "/v1/gauge-stations",
+		headers: { cookie: noLiftClientWriter.cookie },
+		body: {
+			name: "GS-test-no-lift-ok",
+			clientId: 2,
+			cityId: 2,
+			location: "Somewhere",
+			latitude: 30.6,
+			longitude: -96.3,
+		},
+	});
+	expect(ordinary.statusCode).toBe(201);
+});
+
+test("POST /v1/gauge-stations scopes W_CLIENT_LIFT_STATIONS to the writer's own client", async () => {
+	const otherClient = await app.inject({
+		method: "POST",
+		url: "/v1/gauge-stations",
+		headers: { cookie: clientManager.cookie },
+		body: {
+			name: "GS-test-cross-Pump",
+			clientId: 1,
+			cityId: 1,
+			location: "Somewhere",
+			latitude: 30.6,
+			longitude: -96.3,
+		},
+	});
+	expect(otherClient.statusCode).toBe(403);
+
+	const ownClient = await app.inject({
+		method: "POST",
+		url: "/v1/gauge-stations",
+		headers: { cookie: clientManager.cookie },
+		body: {
+			name: "GS-test-own-Pump",
+			clientId: 2,
+			cityId: 2,
+			location: "Somewhere",
+			latitude: 30.6,
+			longitude: -96.3,
+		},
+	});
+	expect(ownClient.statusCode).toBe(201);
+	expect(ownClient.json<GaugeStationBody>().clients).toEqual([{ id: 2, name: "City of Bryan" }]);
+});
+
+test("PATCH /v1/gauge-stations/:id rejects lift-station edits without lift-station perms", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/gauge-stations/${bryanPumpId}`,
+		headers: { cookie: noLiftClientWriter.cookie },
+		body: { location: "Hijacked" },
+	});
+
+	expect(res.statusCode).toBe(403);
+});
+
+test("PATCH /v1/gauge-stations/:id hides another client's lift station from client lift writers", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/gauge-stations/${torresLiftId}`,
+		headers: { cookie: clientManager.cookie },
+		body: { location: "Hijacked" },
+	});
+
+	expect(res.statusCode).toBe(404);
+});
+
+test("PATCH /v1/gauge-stations/:id rejects turning a gaugeStation into a lift station without lift perms", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/gauge-stations/${bryanStationId}`,
+		headers: { cookie: noLiftClientWriter.cookie },
+		body: { name: "GS-test-bryan pump" },
+	});
+	expect(res.statusCode).toBe(403);
+
+	const unchanged = await db.pool.query<{ name: string }>(
+		`SELECT name FROM gauge_station WHERE id = $1`,
+		[bryanStationId],
+	);
+	expect(unchanged.rows[0]!.name).toBe("GS-test-bryan");
+});
+
+test("PATCH /v1/gauge-stations/:id lets client lift writers edit their own lift stations", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/gauge-stations/${bryanPumpId}`,
+		headers: { cookie: clientManager.cookie },
+		body: { location: "Carter Creek WWTP Upstream" },
+	});
+
+	expect(res.statusCode).toBe(200);
+	expect(res.json<GaugeStationBody>().location).toBe("Carter Creek WWTP Upstream");
+});
+
+test("PATCH /v1/gauge-stations/:id lets lift writers rename a lift station into an ordinary gaugeStation", async () => {
+	const res = await app.inject({
+		method: "PATCH",
+		url: `/v1/gauge-stations/${bryanPumpConvertId}`,
+		headers: { cookie: clientManager.cookie },
+		body: { name: "GS-test-bryan-converted" },
+	});
+	expect(res.statusCode).toBe(200);
+
+	// Once it is no longer a lift station, users without lift perms can see it.
+	const visible = await app.inject({
+		method: "GET",
+		url: `/v1/gauge-stations/${bryanPumpConvertId}`,
+		headers: { cookie: readOnly.cookie },
+	});
+	expect(visible.statusCode).toBe(200);
+	expect(visible.json<GaugeStationBody>().name).toBe("GS-test-bryan-converted");
 });

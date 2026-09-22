@@ -15,6 +15,7 @@ let clientManager: TestUserSession;
 let deviceOnlyUser: TestUserSession;
 let controlPanelOnlyUser: TestUserSession;
 let bryanCameraId: number;
+let bryanCanonicalCameraId: number;
 let collegeStationCameraId: number;
 
 const mqtxCalls: Array<{
@@ -188,6 +189,19 @@ beforeAll(async () => {
 		capturePath: "1/bryan-image.jpg",
 		isTagged: true,
 	});
+	// Production carries duplicate camera rows per device (no unique constraint on
+	// device_id + local_id). Mirror that: two empty clones newer than the row that
+	// actually owns the config and captures.
+	const bryanDeviceId = (
+		await db.pool.query<{ device_id: number }>(`SELECT device_id FROM camera WHERE id = $1`, [
+			bryanCameraId,
+		])
+	).rows[0]!.device_id;
+	const clones = await db.pool.query<{ id: number }>(
+		`INSERT INTO camera (device_id, local_id) VALUES ($1, 1), ($1, 1) RETURNING id`,
+		[bryanDeviceId],
+	);
+	bryanCanonicalCameraId = Math.max(...clones.rows.map((row) => row.id));
 	collegeStationCameraId = await insertCameraFixture({
 		serialNumber: "college-camera-device",
 		gaugeStationId: 2,
@@ -227,8 +241,41 @@ test("GET /v1/cameras lets admins list cameras across clients", async () => {
 
 	expect(res.statusCode).toBe(200);
 	const ids = res.json<{ data: CameraBody[] }>().data.map((row) => row.camera.id);
-	expect(ids).toContain(bryanCameraId);
+	expect(ids).toContain(bryanCanonicalCameraId);
 	expect(ids).toContain(collegeStationCameraId);
+});
+
+test("GET /v1/cameras collapses duplicate camera rows into one entry per device", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/cameras",
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const bryanEntries = res
+		.json<{ data: CameraBody[] }>()
+		.data.filter((row) => row.camera.device_serial_number === "bryan-camera-device");
+	expect(bryanEntries).toHaveLength(1);
+	expect(bryanEntries[0]!.camera.id).toBe(bryanCanonicalCameraId);
+	expect(bryanEntries[0]!.camera_config).toEqual(
+		expect.objectContaining({ selected_preset: 7, boot_time_delay: 15 }),
+	);
+});
+
+test("GET /v1/cameras/:deviceId/3.1/images finds captures attached to a duplicate camera row", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/cameras/bryan-camera-device/3.1/images",
+		headers: { cookie: admin.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<{ data: CaptureBody[] }>();
+	expect(body.data).toHaveLength(1);
+	expect(body.data[0]).toEqual(
+		expect.objectContaining({ path: "1/bryan-image.jpg", camera_id: bryanCameraId }),
+	);
 });
 
 test("GET /v1/cameras/:deviceId returns camera config metadata", async () => {
@@ -242,7 +289,7 @@ test("GET /v1/cameras/:deviceId returns camera config metadata", async () => {
 	expect(res.json<CameraBody>()).toEqual(
 		expect.objectContaining({
 			camera: expect.objectContaining({
-				id: bryanCameraId,
+				id: bryanCanonicalCameraId,
 				device_serial_number: "bryan-camera-device",
 				page_version: "3.1",
 			}),

@@ -92,6 +92,19 @@ afterAll(async () => {
 	await db?.stop();
 });
 
+// Action keys written to control_audit_log for a device, oldest first.
+const controlAuditActions = async (deviceId: number) =>
+	(
+		await db.pool.query<{ action_id: string; actor_user_id: string }>(
+			`SELECT audit_log_action.action_id, control_audit_log.actor_user_id
+			 FROM control_audit_log
+			 JOIN audit_log_action ON audit_log_action.id = control_audit_log.log_action_id
+			 WHERE control_audit_log.device_id = $1
+			 ORDER BY control_audit_log.id`,
+			[deviceId],
+		)
+	).rows;
+
 test("POST /v1/mqtx/:deviceId/control sends wifi state to MQTX", async () => {
 	mqtxCalls.length = 0;
 	const res = await app.inject({
@@ -109,10 +122,89 @@ test("POST /v1/mqtx/:deviceId/control sends wifi state to MQTX", async () => {
 		version: "v2",
 		payload: { wifiInterface: { enabled: true } },
 	});
+	// A successful command is audited under the session user.
+	expect(await controlAuditActions(1)).toEqual([
+		{ action_id: "WIFI_ON", actor_user_id: clientManager.id },
+	]);
+});
+
+test("POST /v1/mqtx/:deviceId/control audits ping and manual measurement", async () => {
+	mqtxCalls.length = 0;
+	const ping = await app.inject({
+		method: "POST",
+		url: "/v1/mqtx/bryan-test-device/control",
+		headers: { cookie: clientManager.cookie },
+		body: { controlType: "ping" },
+	});
+	expect(ping.statusCode).toBe(200);
+
+	const measure = await app.inject({
+		method: "POST",
+		url: "/v1/mqtx/bryan-test-device/control",
+		headers: { cookie: clientManager.cookie },
+		body: { controlType: "manualMeasurement", measurementCodes: ["**"] },
+	});
+	expect(measure.statusCode).toBe(200);
+
+	const actions = (await controlAuditActions(1)).map((row) => row.action_id);
+	expect(actions.slice(-2)).toEqual(["PING", "MAN_MEASURE"]);
+});
+
+test("POST /v1/mqtx/:deviceId/control audits override by device type", async () => {
+	// A barrier arm on the Bryan station: "override" means open/close there.
+	await db.pool.query(`
+		INSERT INTO "device" ("id", "serial_number") VALUES (3, 'bryan-test-barrier');
+		INSERT INTO "device_info" ("device_id", "gauge_station_id", "type", "active")
+		VALUES (3, 1, 'barrier_arm', true);
+		SELECT setval(pg_get_serial_sequence('"device"', 'id'), (SELECT max("id") FROM "device"));
+	`);
+
+	const flasher = await app.inject({
+		method: "POST",
+		url: "/v1/mqtx/bryan-test-device/control",
+		headers: { cookie: clientManager.cookie },
+		body: { controlType: "override", requestedState: true },
+	});
+	expect(flasher.statusCode).toBe(200);
+	expect((await controlAuditActions(1)).at(-1)?.action_id).toBe("MAN_FLASHER_ON");
+
+	const barrier = await app.inject({
+		method: "POST",
+		url: "/v1/mqtx/bryan-test-barrier/control",
+		headers: { cookie: clientManager.cookie },
+		body: { controlType: "override", requestedState: false },
+	});
+	expect(barrier.statusCode).toBe(200);
+	expect((await controlAuditActions(3)).map((row) => row.action_id)).toEqual([
+		"BARRIER_ARM_OPEN",
+	]);
+});
+
+test("POST /v1/mqtx/:deviceId/control does not audit a failed upstream command", async () => {
+	const original = fakeMqtx.sendPing;
+	(fakeMqtx as { sendPing: unknown }).sendPing = async () => ({
+		status: 502,
+		success: false,
+		body: "",
+	});
+	const before = (await controlAuditActions(1)).length;
+	try {
+		const res = await app.inject({
+			method: "POST",
+			url: "/v1/mqtx/bryan-test-device/control",
+			headers: { cookie: clientManager.cookie },
+			body: { controlType: "ping" },
+		});
+		expect(res.statusCode).toBe(502);
+	} finally {
+		(fakeMqtx as { sendPing: unknown }).sendPing = original;
+	}
+	expect((await controlAuditActions(1)).length).toBe(before);
 });
 
 test("POST /v1/mqtx/:deviceId/control requires control panel write permission", async () => {
 	mqtxCalls.length = 0;
+	const before = (await controlAuditActions(1)).length;
 	const res = await app.inject({
 		method: "POST",
 		url: "/v1/mqtx/bryan-test-device/control",
@@ -122,6 +214,8 @@ test("POST /v1/mqtx/:deviceId/control requires control panel write permission", 
 
 	expect(res.statusCode).toBe(403);
 	expect(mqtxCalls).toEqual([]);
+	// A refused command leaves no audit trail.
+	expect((await controlAuditActions(1)).length).toBe(before);
 });
 
 test("POST /v1/mqtx/:deviceId/control supports v1 light override", async () => {
@@ -152,6 +246,7 @@ test("POST /v1/mqtx/:deviceId/control hides another client's device", async () =
 
 	expect(res.statusCode).toBe(404);
 	expect(mqtxCalls).toEqual([]);
+	expect(await controlAuditActions(2)).toEqual([]);
 });
 
 test("PUT /v1/mqtx/:deviceId/settings/alerts sends monitored codes to MQTX", async () => {
@@ -177,6 +272,7 @@ test("PUT /v1/mqtx/:deviceId/settings/alerts sends monitored codes to MQTX", asy
 			},
 		},
 	});
+	expect((await controlAuditActions(1)).at(-1)?.action_id).toBe("UPDATE_DEVICE_CONFIG");
 });
 
 test("POST /v1/mqtx/:deviceId/settings/data sends data config and records timestep", async () => {
@@ -247,6 +343,11 @@ test("POST /v1/mqtx/:deviceId/settings/general sends wifi settings and records w
 		`SELECT wifi_active FROM device_wifi_interface_active WHERE device_id = 1 AND archived IS NULL ORDER BY id DESC LIMIT 1`,
 	);
 	expect(active.rows).toEqual([{ wifi_active: false }]);
+	// The wifi toggle gets its own action; the password change is a config update.
+	expect((await controlAuditActions(1)).slice(-2).map((row) => row.action_id)).toEqual([
+		"WIFI_OFF",
+		"UPDATE_DEVICE_CONFIG",
+	]);
 });
 
 test("POST /v1/mqtx/:deviceId/settings/power records voltage limits", async () => {
@@ -265,6 +366,7 @@ test("POST /v1/mqtx/:deviceId/settings/power records voltage limits", async () =
 		`SELECT min_voltage, max_voltage FROM device_power WHERE device_id = 1 AND archived IS NULL ORDER BY id DESC LIMIT 1`,
 	);
 	expect(power.rows).toEqual([{ min_voltage: 11.13, max_voltage: 14.99 }]);
+	expect((await controlAuditActions(1)).at(-1)?.action_id).toBe("UPDATE_DEVICE_CONFIG");
 });
 
 test("POST /v1/mqtx/:deviceId/control returns 501 for old overtop DB-only control", async () => {

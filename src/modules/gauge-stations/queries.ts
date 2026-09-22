@@ -1,4 +1,11 @@
-import { expressionBuilder, type Kysely, type RawBuilder, sql } from "kysely";
+import {
+	type Expression,
+	expressionBuilder,
+	type Kysely,
+	type RawBuilder,
+	type SqlBool,
+	sql,
+} from "kysely";
 import { jsonArrayFrom } from "kysely/helpers/postgres";
 import type { DB } from "@/db/types";
 
@@ -7,6 +14,26 @@ export interface GaugeStationListFilters {
 	includeArchived?: boolean;
 	active?: boolean;
 }
+
+// "external" = every client's rows, "client" = only rows linked to clientId,
+// "none" = hidden entirely.
+export type GaugeStationScope = "none" | "client" | "external";
+
+// Which gauge stations a caller may see. Ordinary gauge stations and lift
+// stations are scoped independently (R_*_DEVICES vs R_*_LIFT_STATIONS), so a
+// caller can, for example, read every client's lift stations while only seeing
+// their own client's ordinary gauge stations.
+export interface GaugeStationVisibility {
+	clientId: number;
+	gaugeStations: GaugeStationScope;
+	liftStations: GaugeStationScope;
+}
+
+// There is no lift-station column: a gauge station is a lift station by naming
+// convention — its name mentions a pump ("Pump", "PUMP", ...) or its location
+// is tagged "LIFT STA.". isLiftStation() in service.ts is the TypeScript twin
+// of this predicate for classifying write inputs; keep the two in sync.
+const isLiftStation = sql<boolean>`(gauge_station.name ILIKE '%pump%' OR gauge_station_info.location ILIKE '%lift sta.%')`;
 
 // The full read shape: gauge_station joined with its current (archived IS NULL)
 // gauge_station_info row and that row's city, plus the linked clients.
@@ -48,7 +75,10 @@ type GaugeStationSelect = ReturnType<typeof gaugeStationSelect>;
 
 export type GaugeStationRow = Awaited<ReturnType<GaugeStationSelect["execute"]>>[number];
 
-function applyGaugeStationFilters(query: GaugeStationSelect, filters: GaugeStationListFilters): GaugeStationSelect {
+function applyGaugeStationFilters(
+	query: GaugeStationSelect,
+	filters: GaugeStationListFilters,
+): GaugeStationSelect {
 	if (!filters.includeArchived) query = query.where("gauge_station.archived", "is", null);
 	if (filters.cityId !== undefined)
 		query = query.where("gauge_station_info.city_id", "=", filters.cityId);
@@ -57,15 +87,38 @@ function applyGaugeStationFilters(query: GaugeStationSelect, filters: GaugeStati
 	return query;
 }
 
-function linkedToClient(query: GaugeStationSelect, clientId: number): GaugeStationSelect {
-	return query.where(({ exists, selectFrom }) =>
-		exists(
-			selectFrom("client_gauge_station")
-				.select("client_gauge_station.id")
-				.whereRef("client_gauge_station.gauge_station_id", "=", "gauge_station.id")
-				.where("client_gauge_station.client_id", "=", clientId),
-		),
+function linkedToClient(clientId: number) {
+	const eb = expressionBuilder<DB, "gauge_station">();
+	return eb.exists(
+		eb
+			.selectFrom("client_gauge_station")
+			.select("client_gauge_station.id")
+			.whereRef("client_gauge_station.gauge_station_id", "=", "gauge_station.id")
+			.where("client_gauge_station.client_id", "=", clientId),
 	);
+}
+
+// Restricts the select to rows the caller may see: ordinary gauge stations under
+// the gaugeStations scope, lift stations under the liftStations scope.
+function visibleTo(
+	query: GaugeStationSelect,
+	visibility: GaugeStationVisibility,
+): GaugeStationSelect {
+	return query.where((eb) => {
+		const linked = linkedToClient(visibility.clientId);
+		const allowed: Expression<SqlBool>[] = [];
+
+		if (visibility.gaugeStations === "external") allowed.push(eb.not(isLiftStation));
+		else if (visibility.gaugeStations === "client")
+			allowed.push(eb.and([eb.not(isLiftStation), linked]));
+
+		if (visibility.liftStations === "external") allowed.push(isLiftStation);
+		else if (visibility.liftStations === "client")
+			allowed.push(eb.and([isLiftStation, linked]));
+
+		// eb.or([]) is FALSE: a caller with no scope at all sees nothing.
+		return eb.or(allowed);
+	});
 }
 
 // --- gauge station risk level --------------------------------------------------------
@@ -193,24 +246,20 @@ function gaugeStationRiskLevel() {
 
 export function listGaugeStations(
 	db: Kysely<DB>,
+	visibility: GaugeStationVisibility,
 	filters: GaugeStationListFilters = {},
 ): Promise<GaugeStationRow[]> {
-	return applyGaugeStationFilters(gaugeStationSelect(db), filters).orderBy("gauge_station.name").execute();
-}
-
-export function listGaugeStationsWithRisk(db: Kysely<DB>, filters: GaugeStationListFilters = {}) {
-	return applyGaugeStationFilters(gaugeStationSelect(db), filters)
-		.select(gaugeStationRiskLevel().as("risk_level"))
+	return applyGaugeStationFilters(visibleTo(gaugeStationSelect(db), visibility), filters)
 		.orderBy("gauge_station.name")
 		.execute();
 }
 
-export function listGaugeStationsWithRiskForClient(
+export function listGaugeStationsWithRisk(
 	db: Kysely<DB>,
-	clientId: number,
+	visibility: GaugeStationVisibility,
 	filters: GaugeStationListFilters = {},
 ) {
-	return applyGaugeStationFilters(linkedToClient(gaugeStationSelect(db), clientId), filters)
+	return applyGaugeStationFilters(visibleTo(gaugeStationSelect(db), visibility), filters)
 		.select(gaugeStationRiskLevel().as("risk_level"))
 		.orderBy("gauge_station.name")
 		.execute();
@@ -218,16 +267,8 @@ export function listGaugeStationsWithRiskForClient(
 
 export type GaugeStationRiskRow = Awaited<ReturnType<typeof listGaugeStationsWithRisk>>[number];
 
-export function listGaugeStationsForClient(
-	db: Kysely<DB>,
-	clientId: number,
-	filters: GaugeStationListFilters = {},
-): Promise<GaugeStationRow[]> {
-	return applyGaugeStationFilters(linkedToClient(gaugeStationSelect(db), clientId), filters)
-		.orderBy("gauge_station.name")
-		.execute();
-}
-
+// Unrestricted by design: the service uses this to re-read a row it has just
+// written. Reads on behalf of a caller go through findVisibleGaugeStationById.
 export function findGaugeStationById(
 	db: Kysely<DB>,
 	id: number,
@@ -235,29 +276,22 @@ export function findGaugeStationById(
 	return gaugeStationSelect(db).where("gauge_station.id", "=", id).executeTakeFirst();
 }
 
-export function findGaugeStationByIdForClient(
+export function findVisibleGaugeStationById(
 	db: Kysely<DB>,
 	id: number,
-	clientId: number,
+	visibility: GaugeStationVisibility,
 ): Promise<GaugeStationRow | undefined> {
-	return linkedToClient(gaugeStationSelect(db), clientId)
+	return visibleTo(gaugeStationSelect(db), visibility)
 		.where("gauge_station.id", "=", id)
 		.executeTakeFirst();
 }
 
-export function findGaugeStationByName(
+export function findVisibleGaugeStationByName(
 	db: Kysely<DB>,
 	name: string,
+	visibility: GaugeStationVisibility,
 ): Promise<GaugeStationRow | undefined> {
-	return gaugeStationSelect(db).where("gauge_station.name", "=", name).executeTakeFirst();
-}
-
-export function findGaugeStationByNameForClient(
-	db: Kysely<DB>,
-	name: string,
-	clientId: number,
-): Promise<GaugeStationRow | undefined> {
-	return linkedToClient(gaugeStationSelect(db), clientId)
+	return visibleTo(gaugeStationSelect(db), visibility)
 		.where("gauge_station.name", "=", name)
 		.executeTakeFirst();
 }

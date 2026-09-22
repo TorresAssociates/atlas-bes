@@ -1,8 +1,15 @@
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
 import type { SessionSubject } from "../auth/service";
-import type { GaugeStationRiskRow, GaugeStationRow } from "./queries";
+import type {
+	GaugeStationRiskRow,
+	GaugeStationRow,
+	GaugeStationScope,
+	GaugeStationVisibility,
+} from "./queries";
 import * as queries from "./queries";
+
+export type { GaugeStationScope } from "./queries";
 
 export interface GaugeStationListInput {
 	cityId?: number;
@@ -15,13 +22,45 @@ export interface GaugeStationListInput {
 // canViewInactive is the matching write permission for the read scope
 // (W_EXTERNAL_DEVICES when reading externally, W_CLIENT_DEVICES otherwise):
 // inactive gauge stations are a maintenance view, hidden from read-only users.
+//
+// Lift stations (see isLiftStation) are gated separately by the
+// *_LIFT_STATIONS permissions: "external" for R/W_EXTERNAL_LIFT_STATIONS (every
+// client's lift stations), "client" for R/W_CLIENT_LIFT_STATIONS (only the
+// session client's), "none" when neither is held — lift stations are then
+// invisible / untouchable regardless of the *_DEVICES scope.
 export interface GaugeStationReadAccess {
 	canReadExternal: boolean;
 	canViewInactive: boolean;
+	liftStations: GaugeStationScope;
 }
 
 export interface GaugeStationWriteAccess {
 	canWriteExternal: boolean;
+	liftStations: GaugeStationScope;
+}
+
+// TypeScript twin of the isLiftStation SQL predicate in queries.ts (which does
+// the filtering for list reads); this one classifies rows and write inputs.
+// Keep the two in sync.
+export function isLiftStation(gaugeStation: { name: string; location: string }): boolean {
+	return /pump/i.test(gaugeStation.name) || /lift sta\./i.test(gaugeStation.location);
+}
+
+function readVisibility(
+	session: SessionSubject,
+	access: GaugeStationReadAccess,
+): GaugeStationVisibility {
+	return {
+		clientId: session.client_id,
+		gaugeStations: access.canReadExternal ? "external" : "client",
+		liftStations: access.liftStations,
+	};
+}
+
+// The write scope that applies to a gauge station of the given kind.
+function writeScope(access: GaugeStationWriteAccess, liftStation: boolean): GaugeStationScope {
+	if (liftStation) return access.liftStations;
+	return access.canWriteExternal ? "external" : "client";
 }
 
 export interface CreateGaugeStationInput {
@@ -102,6 +141,15 @@ export class GaugeStationAccessDeniedError extends Error {
 	}
 }
 
+function accessDeniedFor(liftStation: boolean, ownClient: boolean): GaugeStationAccessDeniedError {
+	if (!liftStation) return new GaugeStationAccessDeniedError();
+	return new GaugeStationAccessDeniedError(
+		ownClient
+			? "not allowed to manage lift stations"
+			: "not allowed to manage lift stations for other clients",
+	);
+}
+
 export class GaugeStationCityNotFoundError extends Error {
 	constructor(cityId: number) {
 		super(`city ${cityId} does not exist`);
@@ -142,7 +190,10 @@ function toGaugeStationResponse(row: GaugeStationRow): GaugeStationResponse {
 
 // Shared by listGaugeStations and listGaugeStationsGeoJson so the visibility rules cannot
 // drift between the two list projections.
-function resolveActiveFilter(access: GaugeStationReadAccess, input: GaugeStationListInput): boolean | undefined {
+function resolveActiveFilter(
+	access: GaugeStationReadAccess,
+	input: GaugeStationListInput,
+): boolean | undefined {
 	if (access.canViewInactive) return input.active;
 	if (input.active === false)
 		throw new GaugeStationAccessDeniedError("not allowed to view inactive gauge stations");
@@ -157,9 +208,7 @@ export async function listGaugeStations(
 	input: GaugeStationListInput = {},
 ): Promise<GaugeStationResponse[]> {
 	const filters = { ...input, active: resolveActiveFilter(access, input) };
-	const rows = access.canReadExternal
-		? await queries.listGaugeStations(db, filters)
-		: await queries.listGaugeStationsForClient(db, session.client_id, filters);
+	const rows = await queries.listGaugeStations(db, readVisibility(session, access), filters);
 	return rows.map(toGaugeStationResponse);
 }
 
@@ -190,9 +239,11 @@ export async function listGaugeStationsGeoJson(
 	input: GaugeStationListInput = {},
 ): Promise<GaugeStationFeatureCollectionResponse> {
 	const filters = { ...input, active: resolveActiveFilter(access, input) };
-	const rows = access.canReadExternal
-		? await queries.listGaugeStationsWithRisk(db, filters)
-		: await queries.listGaugeStationsWithRiskForClient(db, session.client_id, filters);
+	const rows = await queries.listGaugeStationsWithRisk(
+		db,
+		readVisibility(session, access),
+		filters,
+	);
 	return { type: "FeatureCollection", features: rows.map(toGaugeStationFeature) };
 }
 
@@ -202,9 +253,7 @@ export async function getGaugeStation(
 	session: SessionSubject,
 	access: GaugeStationReadAccess,
 ): Promise<GaugeStationResponse> {
-	const row = access.canReadExternal
-		? await queries.findGaugeStationById(db, id)
-		: await queries.findGaugeStationByIdForClient(db, id, session.client_id);
+	const row = await queries.findVisibleGaugeStationById(db, id, readVisibility(session, access));
 	// Inactive gauge stations stay hidden from read-only users, matching listGaugeStations.
 	if (!row || (!row.active && !access.canViewInactive)) throw new GaugeStationNotFoundError(id);
 	return toGaugeStationResponse(row);
@@ -216,9 +265,11 @@ export async function getGaugeStationByName(
 	session: SessionSubject,
 	access: GaugeStationReadAccess,
 ): Promise<GaugeStationResponse> {
-	const row = access.canReadExternal
-		? await queries.findGaugeStationByName(db, name)
-		: await queries.findGaugeStationByNameForClient(db, name, session.client_id);
+	const row = await queries.findVisibleGaugeStationByName(
+		db,
+		name,
+		readVisibility(session, access),
+	);
 	if (!row || (!row.active && !access.canViewInactive)) throw new GaugeStationNotFoundError(name);
 	return toGaugeStationResponse(row);
 }
@@ -229,8 +280,13 @@ export async function createGaugeStation(
 	access: GaugeStationWriteAccess,
 	input: CreateGaugeStationInput,
 ): Promise<GaugeStationResponse> {
-	if (!access.canWriteExternal && input.clientId !== session.client_id)
-		throw new GaugeStationAccessDeniedError();
+	// A gauge station born with a lift-station name/location needs the lift-station
+	// write permission, not just W_*_DEVICES.
+	const liftStation = isLiftStation(input);
+	const ownClient = input.clientId === session.client_id;
+	const scope = writeScope(access, liftStation);
+	if (scope === "none" || (scope === "client" && !ownClient))
+		throw accessDeniedFor(liftStation, ownClient);
 
 	const [city, client] = await Promise.all([
 		queries.findCityById(db, input.cityId),
@@ -276,10 +332,27 @@ export async function updateGaugeStation(
 ): Promise<GaugeStationResponse> {
 	// Client-scoped writers only see (and may only touch) their own gauge stations, so
 	// an existing gauge station linked to another client 404s rather than 403s.
-	const current = access.canWriteExternal
-		? await queries.findGaugeStationById(db, id)
-		: await queries.findGaugeStationByIdForClient(db, id, session.client_id);
+	// Lift stations use the lift-station write scope instead of the *_DEVICES one.
+	const current = await queries.findGaugeStationById(db, id);
 	if (!current) throw new GaugeStationNotFoundError(id);
+	const ownClient = current.clients.some((client) => client.id === session.client_id);
+	const currentLift = isLiftStation(current);
+	const currentScope = writeScope(access, currentLift);
+	if (currentScope !== "external" && !ownClient) throw new GaugeStationNotFoundError(id);
+	if (currentScope === "none") throw accessDeniedFor(currentLift, ownClient);
+
+	// A rename / relocation can move a gauge station across the lift-station line
+	// (e.g. renaming "Creek" to "Creek Pump"); the caller must be allowed to write
+	// the kind it becomes as well as the kind it is.
+	const nextLift = isLiftStation({
+		name: input.name ?? current.name,
+		location: input.location ?? current.location,
+	});
+	if (nextLift !== currentLift) {
+		const nextScope = writeScope(access, nextLift);
+		if (nextScope === "none" || (nextScope === "client" && !ownClient))
+			throw accessDeniedFor(nextLift, ownClient);
+	}
 
 	if (input.cityId !== undefined && input.cityId !== current.city_id) {
 		const city = await queries.findCityById(db, input.cityId);
@@ -314,7 +387,8 @@ export async function updateGaugeStation(
 			}
 		});
 	} catch (error) {
-		if (isUniqueViolation(error)) throw new GaugeStationNameConflictError(input.name ?? current.name);
+		if (isUniqueViolation(error))
+			throw new GaugeStationNameConflictError(input.name ?? current.name);
 		throw error;
 	}
 
