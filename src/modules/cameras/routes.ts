@@ -7,6 +7,7 @@ import {
 	requirePermission,
 } from "@/plugins/authorization";
 import {
+	CameraCaptureListQuerySchema,
 	CameraCaptureListResponseSchema,
 	CameraCaptureRequestBodySchema,
 	CameraConfigBodySchema,
@@ -61,6 +62,13 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		return session;
 	}
 
+	// `?flag` and `?flag=true` enable; `?flag=false` / `?flag=0` disable.
+	function queryFlag(value: unknown): boolean {
+		if (value === undefined) return false;
+		if (typeof value !== "string") return Boolean(value);
+		return !["false", "0", "no"].includes(value.trim().toLowerCase());
+	}
+
 	function cameraFilters(query: unknown): CameraQueryFilters {
 		const q = query as Record<string, unknown>;
 		return {
@@ -68,9 +76,14 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			to: typeof q.to === "string" ? q.to : undefined,
 			limit: typeof q.limit === "string" || typeof q.limit === "number" ? q.limit : undefined,
 			page: typeof q.page === "string" || typeof q.page === "number" ? q.page : undefined,
-			taggedOnly: q.taggedOnly !== undefined,
+			taggedOnly: queryFlag(q.taggedOnly),
 		};
 	}
+
+	const imageSigning = () => ({
+		signer: app.s3Signer,
+		bucket: app.config.S3_CAMERA_IMAGES_BUCKET,
+	});
 
 	// GET /v1/cameras?gaugeStationId=1&clientId=2
 	app.get(
@@ -154,9 +167,11 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		},
 	);
 
+	// Each entry carries a presigned `url` unless `?list` is passed (metadata only).
 	async function listImages(request: FastifyRequest) {
 		const session = await sessionFor(request);
 		const params = request.params as { deviceId: string };
+		const query = request.query as { list?: string };
 		const canReadExternal = await hasPermission(request, "R_EXTERNAL_DEVICES");
 		return {
 			data: await listCameraCaptures(
@@ -165,11 +180,12 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 				session,
 				{ canReadExternal },
 				cameraFilters(request.query),
+				queryFlag(query.list) ? undefined : imageSigning(),
 			),
 		};
 	}
 
-	// GET /v1/cameras/:deviceId/images
+	// GET /v1/cameras/:deviceId/images?from=&to=&limit=&page=&taggedOnly&list
 	app.get(
 		"/:deviceId/images",
 		{
@@ -177,13 +193,14 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
+				querystring: CameraCaptureListQuerySchema,
 				response: { 200: CameraCaptureListResponseSchema },
 			},
 		},
 		listImages,
 	);
 
-	// GET /v1/cameras/:deviceId/3.1/images
+	// GET /v1/cameras/:deviceId/3.1/images?from=&to=&limit=&page=&taggedOnly&list
 	app.get(
 		"/:deviceId/3.1/images",
 		{
@@ -191,6 +208,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 			schema: {
 				tags: ["cameras"],
 				params: CameraDeviceParamsSchema,
+				querystring: CameraCaptureListQuerySchema,
 				response: { 200: CameraCaptureListResponseSchema },
 			},
 		},
@@ -203,12 +221,19 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 		const query = request.query as { path?: string };
 		if (!query.path) throw app.httpErrors.badRequest("Missing required 'path' query param");
 		const canReadExternal = await hasPermission(request, "R_EXTERNAL_DEVICES");
-		return getCameraCaptureByPath(getDb(), params.deviceId, query.path, session, {
-			canReadExternal,
-		});
+		return getCameraCaptureByPath(
+			getDb(),
+			params.deviceId,
+			query.path,
+			session,
+			{ canReadExternal },
+			imageSigning(),
+		);
 	}
 
 	// GET /v1/cameras/:deviceId/images/signed?path=stored/path.jpg
+	// Returns the capture's metadata plus a presigned `url`. `path` may be the
+	// stored path or the full S3 key (`{serial}/{path}`).
 	app.get(
 		"/:deviceId/images/signed",
 		{
@@ -226,6 +251,7 @@ const cameraRoutes: FastifyPluginAsyncTypebox = async (app) => {
 	);
 
 	// GET /v1/cameras/:deviceId/3.1/images/signed?path=stored/path.jpg
+	// Same contract as /images/signed.
 	app.get(
 		"/:deviceId/3.1/images/signed",
 		{

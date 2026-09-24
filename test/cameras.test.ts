@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test";
 import type { FastifyInstance } from "fastify";
 import type { MqtxClient } from "@/lib/mqtx/MqtxClient";
+import type { S3UrlSigner } from "@/lib/s3/S3UrlSigner";
 import { buildApp } from "@/server";
 import { signUpTestUser, type TestUserSession } from "./helpers/auth";
 import { startTestDatabase, stubConfigEnv, type TestDatabase } from "./helpers/database";
@@ -45,6 +46,15 @@ const fakeMqtx = {
 	},
 } as unknown as MqtxClient;
 
+const signedKeys: Array<{ bucket: string; key: string; responseContentType?: string }> = [];
+
+const fakeS3Signer = {
+	async presignGetObject(input: { bucket: string; key: string; responseContentType?: string }) {
+		signedKeys.push(input);
+		return `https://signed.test/${input.bucket}/${input.key}?ct=${input.responseContentType ?? ""}`;
+	},
+} as unknown as S3UrlSigner;
+
 interface CameraBody {
 	camera: {
 		id: number;
@@ -73,6 +83,7 @@ interface CaptureBody {
 	camera_id: number;
 	device_id: number;
 	device_serial_number: string;
+	url?: string;
 }
 
 async function insertCameraFixture(input: {
@@ -138,7 +149,12 @@ beforeAll(async () => {
 	stubConfigEnv();
 	db = await startTestDatabase();
 	await seedDeviceFixtures(db.pool);
-	app = await buildApp({ pool: db.pool, logger: false, mqtx: fakeMqtx });
+	app = await buildApp({
+		pool: db.pool,
+		logger: false,
+		mqtx: fakeMqtx,
+		s3Signer: fakeS3Signer,
+	});
 
 	admin = await signUpTestUser(app, {
 		email: "cameras-admin@example.com",
@@ -361,10 +377,33 @@ test("GET /v1/cameras/:deviceId/data allows device readers without control panel
 	);
 });
 
-test("GET /v1/cameras/:deviceId/3.1/images returns DB image metadata without S3 URLs", async () => {
+test("GET /v1/cameras/:deviceId/3.1/images attaches a presigned url to each capture", async () => {
+	signedKeys.length = 0;
 	const res = await app.inject({
 		method: "GET",
 		url: "/v1/cameras/bryan-camera-device/3.1/images?taggedOnly&limit=1",
+		headers: { cookie: clientManager.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	const body = res.json<{ data: CaptureBody[] }>();
+	expect(body.data).toHaveLength(1);
+	expect(body.data[0]!.url).toBe(
+		"https://signed.test/test-camera-images/bryan-camera-device/1/bryan-image.jpg?ct=image/jpeg",
+	);
+	expect(signedKeys).toEqual([
+		{
+			bucket: "test-camera-images",
+			key: "bryan-camera-device/1/bryan-image.jpg",
+			responseContentType: "image/jpeg",
+		},
+	]);
+});
+
+test("GET /v1/cameras/:deviceId/3.1/images?list returns DB image metadata without S3 URLs", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/cameras/bryan-camera-device/3.1/images?taggedOnly&limit=1&list",
 		headers: { cookie: clientManager.cookie },
 	});
 
@@ -395,7 +434,7 @@ test("GET /v1/cameras/:deviceId/3.1/images allows device readers without control
 		}),
 	);
 });
-test("GET /v1/cameras/:deviceId/3.1/images/signed looks up metadata by stored path", async () => {
+test("GET /v1/cameras/:deviceId/3.1/images/signed returns metadata and a presigned url", async () => {
 	const res = await app.inject({
 		method: "GET",
 		url: "/v1/cameras/bryan-camera-device/3.1/images/signed?path=1/bryan-image.jpg",
@@ -403,7 +442,28 @@ test("GET /v1/cameras/:deviceId/3.1/images/signed looks up metadata by stored pa
 	});
 
 	expect(res.statusCode).toBe(200);
-	expect(res.json<CaptureBody>()).toEqual(expect.objectContaining({ path: "1/bryan-image.jpg" }));
+	expect(res.json<CaptureBody>()).toEqual(
+		expect.objectContaining({
+			path: "1/bryan-image.jpg",
+			url: "https://signed.test/test-camera-images/bryan-camera-device/1/bryan-image.jpg?ct=image/jpeg",
+		}),
+	);
+});
+
+test("GET /v1/cameras/:deviceId/3.1/images/signed accepts the full S3 key as path", async () => {
+	const res = await app.inject({
+		method: "GET",
+		url: "/v1/cameras/bryan-camera-device/3.1/images/signed?path=bryan-camera-device/1/bryan-image.jpg",
+		headers: { cookie: clientManager.cookie },
+	});
+
+	expect(res.statusCode).toBe(200);
+	expect(res.json<CaptureBody>()).toEqual(
+		expect.objectContaining({
+			path: "1/bryan-image.jpg",
+			url: "https://signed.test/test-camera-images/bryan-camera-device/1/bryan-image.jpg?ct=image/jpeg",
+		}),
+	);
 });
 
 test("GET /v1/cameras/:deviceId/images/signed rejects paths for another camera", async () => {

@@ -37,6 +37,20 @@ export interface CameraQueryFilters {
 	taggedOnly?: boolean;
 }
 
+/** Mints presigned S3 GET URLs. Satisfied by S3UrlSigner; stubbed in tests. */
+export interface CameraImageSigner {
+	presignGetObject(input: {
+		bucket: string;
+		key: string;
+		responseContentType?: string;
+	}): Promise<string>;
+}
+
+export interface CameraImageSigning {
+	signer: CameraImageSigner;
+	bucket: string;
+}
+
 export interface CaptureRequestInput {
 	annotate: number;
 	format: {
@@ -65,6 +79,7 @@ export interface CameraCaptureResponse extends CameraCaptureDataRow {
 	camera_id: number;
 	device_id: number;
 	device_serial_number: string;
+	url?: string;
 }
 
 export interface MqtxStatusResponse {
@@ -175,6 +190,52 @@ function toCaptureResponse(row: CameraCaptureEntryRow): CameraCaptureResponse {
 	};
 }
 
+/** Captures live in S3 as `{serial}/{stored path}` — the legacy 3.1 key layout. */
+function captureObjectKey(row: CameraCaptureEntryRow): string {
+	return `${row.device_serial_number}/${row.path}`;
+}
+
+/**
+ * Accept the S3 key form (`{serial}/{path}`) as well as the stored path, so
+ * clients built against the legacy `?key=` contract keep working.
+ */
+function normalizeCapturePath(serialNumber: string, path: string): string {
+	const prefix = `${serialNumber}/`;
+	return path.startsWith(prefix) ? path.slice(prefix.length) : path;
+}
+
+// file_type is written by the external ingest pipeline and is not a clean
+// MIME type, so match loosely and override S3's Content-Type from it.
+export function contentTypeForFileType(fileType: string): string | undefined {
+	const ft = fileType.toLowerCase();
+	if (/^(image|video)\/[\w.+-]+$/.test(ft)) return ft;
+	if (ft.includes("video") || /mp4|mov|m4v|webm/.test(ft)) {
+		if (ft.includes("webm")) return "video/webm";
+		if (ft.includes("mov") || ft.includes("quicktime")) return "video/quicktime";
+		return "video/mp4";
+	}
+	if (ft.includes("image") || /jpe?g|png|gif|webp|bmp/.test(ft)) {
+		if (ft.includes("png")) return "image/png";
+		if (ft.includes("gif")) return "image/gif";
+		if (ft.includes("webp")) return "image/webp";
+		if (ft.includes("bmp")) return "image/bmp";
+		return "image/jpeg";
+	}
+	return undefined;
+}
+
+async function withSignedUrl(
+	row: CameraCaptureEntryRow,
+	signing: CameraImageSigning,
+): Promise<CameraCaptureResponse> {
+	const url = await signing.signer.presignGetObject({
+		bucket: signing.bucket,
+		key: captureObjectKey(row),
+		responseContentType: contentTypeForFileType(row.file_type),
+	});
+	return { ...toCaptureResponse(row), url };
+}
+
 function cameraScope(camera: CameraDeviceRow): CameraScope {
 	return { deviceId: camera.device_id, localId: camera.local_id };
 }
@@ -266,12 +327,17 @@ export async function listCameraDataRecords(
 	);
 }
 
+/**
+ * Lists captures newest-first. Pass `signing` to attach a presigned URL to
+ * each entry; omit it (the `?list` contract) for metadata only.
+ */
 export async function listCameraCaptures(
 	db: Kysely<DB>,
 	deviceId: string,
 	session: SessionSubject,
 	access: CameraReadAccess,
 	filters: CameraQueryFilters = {},
+	signing?: CameraImageSigning,
 ): Promise<CameraCaptureResponse[]> {
 	const camera = await findVisibleCamera(db, deviceId, session, access);
 	const rows = await queries.listCameraCaptureEntries(
@@ -279,7 +345,8 @@ export async function listCameraCaptures(
 		cameraScope(camera),
 		toRecordFilters(filters),
 	);
-	return rows.map(toCaptureResponse);
+	if (!signing) return rows.map(toCaptureResponse);
+	return Promise.all(rows.map((row) => withSignedUrl(row, signing)));
 }
 
 export async function getCameraCaptureByPath(
@@ -288,11 +355,16 @@ export async function getCameraCaptureByPath(
 	path: string,
 	session: SessionSubject,
 	access: CameraReadAccess,
+	signing: CameraImageSigning,
 ): Promise<CameraCaptureResponse> {
 	const camera = await findVisibleCamera(db, deviceId, session, access);
-	const capture = await queries.findCaptureEntryByPath(db, cameraScope(camera), path);
+	const capture = await queries.findCaptureEntryByPath(
+		db,
+		cameraScope(camera),
+		normalizeCapturePath(camera.device_serial_number, path),
+	);
 	if (!capture) throw new CameraCaptureNotFoundError();
-	return toCaptureResponse(capture);
+	return withSignedUrl(capture, signing);
 }
 
 export async function requestLegacyCameraCapture(

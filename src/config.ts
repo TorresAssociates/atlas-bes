@@ -33,6 +33,11 @@ const configSchema = Type.Object({
 	// Local development only — Fargate injects AWS_REGION at runtime.
 	AWS_REGION: Type.String({ default: "us-east-1" }),
 	S3_ASSETS_BUCKET: Type.String({ minLength: 1 }),
+	// Bucket the camera ingest pipeline writes captures to, keyed `{serial}/{path}`.
+	S3_CAMERA_IMAGES_BUCKET: Type.String({
+		minLength: 1,
+		default: "atlasrain-prod-dl-camera-images",
+	}),
 	BETTER_AUTH_SECRET: Type.String({ minLength: 1 }),
 	ENCRYPTION_KEY: Type.String({ minLength: 1 }),
 	BETTER_AUTH_URL: Type.String({ minLength: 1 }),

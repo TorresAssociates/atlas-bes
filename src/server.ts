@@ -19,6 +19,7 @@ import { createEmnifyClient, type EmnifyClient } from "@/lib/emnify/EmnifyClient
 import { createHologramClient, type HologramClient } from "@/lib/hologram/HologramClient";
 import { createMqtxClient, type MqtxClient } from "@/lib/mqtx/MqtxClient";
 import { createRainbowClient, type RainbowClient } from "@/lib/rainbow/RainbowClient";
+import { createS3UrlSigner, type S3UrlSigner } from "@/lib/s3/S3UrlSigner";
 import { type AlertSNSClient, createAlertSNSClient } from "@/lib/sns/AlertSNSClient";
 
 declare module "fastify" {
@@ -30,6 +31,7 @@ declare module "fastify" {
 		hologram: HologramClient;
 		mqtx: MqtxClient;
 		rainbow: RainbowClient;
+		s3Signer: S3UrlSigner;
 	}
 }
 
@@ -56,6 +58,8 @@ export interface BuildAppOptions {
 	mqtx?: MqtxClient;
 	/** Rainbow client override for tests. Defaults to a real Rainbow API client. */
 	rainbow?: RainbowClient;
+	/** S3 presigner override for tests. Defaults to a real S3 client. */
+	s3Signer?: S3UrlSigner;
 }
 
 const READINESS_PROBE_INTERVAL_MS = 5_000;
@@ -175,6 +179,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 				apiToken: app.config.RAINBOW_API_TOKEN,
 			}),
 	);
+	app.decorate("s3Signer", opts.s3Signer ?? createS3UrlSigner({ region: app.config.AWS_REGION }));
 	if (createdPool) {
 		app.addHook("onClose", async (instance) => {
 			instance.log.info("shutdown: closing database pool");

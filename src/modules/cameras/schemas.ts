@@ -13,6 +13,17 @@ export const CameraImageMetadataQuerySchema = Type.Object({
 	path: Type.String({ minLength: 1 }),
 });
 
+// Presence-style flags (`?taggedOnly`, `?list`) arrive as empty strings, so
+// every filter is a plain optional string parsed by the service.
+export const CameraCaptureListQuerySchema = Type.Object({
+	from: Type.Optional(Type.String()),
+	to: Type.Optional(Type.String()),
+	limit: Type.Optional(Type.String()),
+	page: Type.Optional(Type.String()),
+	taggedOnly: Type.Optional(Type.String()),
+	list: Type.Optional(Type.String()),
+});
+
 export const CameraSchema = Type.Object({
 	id: Type.Integer(),
 	device_id: Type.Integer(),
@@ -84,6 +95,9 @@ export const CameraCaptureSchema = Type.Object({
 	camera_id: Type.Integer(),
 	device_id: Type.Integer(),
 	device_serial_number: Type.String(),
+	// Presigned GET URL for the capture object. Omitted from list responses when
+	// the caller passes `?list`.
+	url: Type.Optional(Type.String()),
 });
 
 export const CameraDetectionSchema = Type.Object({
