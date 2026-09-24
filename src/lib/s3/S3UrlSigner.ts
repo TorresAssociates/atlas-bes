@@ -1,5 +1,6 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { AwsCredentialIdentity } from "@smithy/types";
 
 export interface PresignGetObjectInput {
 	bucket: string;
@@ -12,6 +13,8 @@ export interface PresignGetObjectInput {
 
 export interface S3UrlSignerConfig {
 	region?: string;
+	/** Static credentials; omit to use the SDK default chain. */
+	credentials?: AwsCredentialIdentity;
 	client?: S3Client;
 }
 
@@ -25,7 +28,9 @@ export class S3UrlSigner {
 	readonly #client: S3Client;
 
 	constructor(config: S3UrlSignerConfig = {}) {
-		this.#client = config.client ?? new S3Client({ region: config.region });
+		this.#client =
+			config.client ??
+			new S3Client({ region: config.region, credentials: config.credentials });
 	}
 
 	presignGetObject(input: PresignGetObjectInput): Promise<string> {

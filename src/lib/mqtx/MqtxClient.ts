@@ -1,13 +1,15 @@
 import { createHash, createHmac } from "node:crypto";
 import { defaultProvider } from "@aws-sdk/credential-provider-node";
 import { SignatureV4 } from "@smithy/signature-v4";
-import type { Checksum, HttpRequest, Provider } from "@smithy/types";
+import type { AwsCredentialIdentity, Checksum, HttpRequest, Provider } from "@smithy/types";
 
 type SourceData = string | ArrayBuffer | ArrayBufferView;
 
 export interface MqtxClientConfig {
 	hostname?: string;
 	region?: string;
+	/** Static credentials; omit to use the SDK default chain. */
+	credentials?: AwsCredentialIdentity;
 	fetchFn?: typeof fetch;
 }
 
@@ -58,7 +60,7 @@ export class MqtxClient {
 		this.#hostname = config.hostname ?? DEFAULT_MQTX_HOSTNAME;
 		this.#fetch = config.fetchFn ?? fetch;
 		this.#signer = new SignatureV4({
-			credentials: defaultProvider() as Provider<never>,
+			credentials: config.credentials ?? (defaultProvider() as Provider<never>),
 			region: config.region ?? DEFAULT_MQTX_REGION,
 			service: EXECUTE_API_SERVICE,
 			sha256: NodeSha256,

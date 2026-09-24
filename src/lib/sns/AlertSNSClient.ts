@@ -10,6 +10,7 @@ import {
 	type Topic,
 	UnsubscribeCommand,
 } from "@aws-sdk/client-sns";
+import type { AwsCredentialIdentity } from "@smithy/types";
 import { SNSSubscriptionNotFoundError, SNSTopicNotFoundError, SNSUnknownError } from "./errors";
 
 export interface AlertSNSClientOptions {
@@ -175,8 +176,11 @@ export class AlertSNSClient {
 	}
 }
 
-export function createAlertSNSClient(region: string): AlertSNSClient {
-	return new AlertSNSClient({ client: new SNSClient({ region }) });
+export function createAlertSNSClient(
+	region: string,
+	credentials?: AwsCredentialIdentity,
+): AlertSNSClient {
+	return new AlertSNSClient({ client: new SNSClient({ region, credentials }) });
 }
 
 export function formatSmsPhoneNumber(phoneNumber: string): string {

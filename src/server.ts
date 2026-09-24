@@ -15,6 +15,7 @@ import type { Kysely } from "kysely";
 import { configPlugin } from "@/config";
 import { createDatabaseClient, createDb, type DatabasePool } from "@/db";
 import type { DB } from "@/db/types";
+import { staticAwsCredentials } from "@/lib/aws/credentials";
 import { createEmnifyClient, type EmnifyClient } from "@/lib/emnify/EmnifyClient";
 import { createHologramClient, type HologramClient } from "@/lib/hologram/HologramClient";
 import { createMqtxClient, type MqtxClient } from "@/lib/mqtx/MqtxClient";
@@ -144,7 +145,16 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 	// Kysely rides on the same pg pool (no separate connections, no lifecycle
 	// of its own — closing the pool is enough). Modules query through app.db.
 	app.decorate("db", pool ? createDb(pool, app.log) : null);
-	app.decorate("alertSns", opts.alertSns ?? createAlertSNSClient(app.config.AWS_REGION));
+	// Local dev can pin static keys via the *_OVERRIDE vars; in Fargate they are
+	// unset and every client falls through to the task role.
+	const awsCredentials = staticAwsCredentials({
+		awsAccessKeyIdOverride: app.config.AWS_ACCESS_KEY_ID_OVERRIDE,
+		awsSecretAccessKeyOverride: app.config.AWS_SECRET_ACCESS_KEY_OVERRIDE,
+	});
+	app.decorate(
+		"alertSns",
+		opts.alertSns ?? createAlertSNSClient(app.config.AWS_REGION, awsCredentials),
+	);
 	app.decorate(
 		"hologram",
 		opts.hologram ??
@@ -170,6 +180,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 			createMqtxClient({
 				hostname: app.config.MQTX_HOSTNAME,
 				region: app.config.AWS_REGION,
+				credentials: awsCredentials,
 			}),
 	);
 	app.decorate(
@@ -179,7 +190,11 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 				apiToken: app.config.RAINBOW_API_TOKEN,
 			}),
 	);
-	app.decorate("s3Signer", opts.s3Signer ?? createS3UrlSigner({ region: app.config.AWS_REGION }));
+	app.decorate(
+		"s3Signer",
+		opts.s3Signer ??
+			createS3UrlSigner({ region: app.config.AWS_REGION, credentials: awsCredentials }),
+	);
 	if (createdPool) {
 		app.addHook("onClose", async (instance) => {
 			instance.log.info("shutdown: closing database pool");
